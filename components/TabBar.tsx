@@ -19,9 +19,9 @@ export function TabBar() {
 
   return (
     <div
-      className="absolute bottom-0 left-0 right-0 z-40 flex items-start justify-between px-4 pb-8 pt-3"
+      className="absolute bottom-0 left-0 right-0 z-40 flex items-start justify-between px-4 pt-3"
       style={{
-        height: 86,
+        paddingBottom: "max(env(safe-area-inset-bottom), 20px)",
         background: "var(--bg-tabbar)",
         backdropFilter: "blur(18px)",
         WebkitBackdropFilter: "blur(18px)",

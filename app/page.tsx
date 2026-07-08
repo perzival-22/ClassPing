@@ -121,12 +121,12 @@ function SignInForm() {
     }
   }
 
-  async function handleGoogle() {
+  async function handleOAuth(strategy: "oauth_google" | "oauth_apple") {
     if (!signIn) return;
     setError(null);
     try {
       await signIn.authenticateWithRedirect({
-        strategy: "oauth_google",
+        strategy,
         redirectUrl: "/sso-callback",
         redirectUrlComplete: safeRedirect(searchParams.get("redirect_url")),
       });
@@ -149,10 +149,11 @@ function SignInForm() {
   return (
     <PhoneFrame>
       <div
-        className="flex h-full flex-col px-7 pb-10"
+        className="no-scrollbar h-full overflow-y-auto"
         style={{ background: "var(--bg-signin)" }}
       >
-        <div className="flex flex-1 flex-col items-center justify-center">
+        <div className="flex min-h-full flex-col px-7 pb-10">
+        <div className="flex flex-1 flex-col items-center justify-center pt-8">
           <div
             className="brand-logo-grad flex h-[84px] w-[84px] items-center justify-center rounded-[25px] text-white"
             style={{ boxShadow: "0 14px 30px rgba(80,69,216,.4)" }}
@@ -274,7 +275,7 @@ function SignInForm() {
               {/* Google */}
               <button
                 type="button"
-                onClick={handleGoogle}
+                onClick={() => handleOAuth("oauth_google")}
                 disabled={!signInLoaded}
                 className="mt-5 flex w-full items-center justify-center gap-2.5 rounded-[15px] bg-white px-4 py-[13px] text-[15px] font-semibold text-ink transition active:scale-[0.98] disabled:opacity-50"
                 style={{ boxShadow: "0 1px 4px rgba(30,20,80,.06)" }}
@@ -298,6 +299,20 @@ function SignInForm() {
                   />
                 </svg>
                 Continue with Google
+              </button>
+
+              {/* Apple */}
+              <button
+                type="button"
+                onClick={() => handleOAuth("oauth_apple")}
+                disabled={!signInLoaded}
+                className="mt-3 flex w-full items-center justify-center gap-2.5 rounded-[15px] bg-black px-4 py-[13px] text-[15px] font-semibold text-white transition active:scale-[0.98] disabled:opacity-50"
+                style={{ boxShadow: "0 1px 4px rgba(30,20,80,.12)" }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M17.05 12.54c-.03-2.89 2.36-4.28 2.47-4.35-1.35-1.97-3.44-2.24-4.18-2.27-1.78-.18-3.47 1.05-4.37 1.05-.9 0-2.29-1.02-3.77-1-1.94.03-3.72 1.13-4.72 2.86-2.01 3.49-.51 8.66 1.45 11.49.96 1.39 2.1 2.94 3.6 2.89 1.44-.06 1.99-.93 3.73-.93 1.74 0 2.23.93 3.76.9 1.55-.03 2.53-1.41 3.48-2.8 1.09-1.61 1.54-3.17 1.57-3.25-.03-.02-3-1.15-3.02-4.59zM14.16 4.06c.8-.96 1.33-2.3 1.18-3.64-1.15.05-2.53.76-3.35 1.72-.73.85-1.38 2.21-1.2 3.51 1.27.1 2.58-.65 3.37-1.59z" />
+                </svg>
+                Continue with Apple
               </button>
             </>
           ) : (
@@ -379,6 +394,7 @@ function SignInForm() {
             </button>
           </p>
         )}
+        </div>
       </div>
     </PhoneFrame>
   );

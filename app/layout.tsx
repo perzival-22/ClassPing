@@ -15,6 +15,15 @@ export const metadata: Metadata = {
   title: "ClassPing — never miss a class or a deadline",
   description:
     "Your classes and deadlines, right on time. A friendly timetable + reminders app for students.",
+  applicationName: "ClassPing",
+  appleWebApp: {
+    capable: true,
+    title: "ClassPing",
+    statusBarStyle: "default",
+  },
+  icons: {
+    apple: "/icons/apple-touch-icon.png",
+  },
 };
 
 export const viewport: Viewport = {
@@ -22,6 +31,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

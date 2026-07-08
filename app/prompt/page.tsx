@@ -49,7 +49,7 @@ export default function PostClassPromptScreen() {
 
         {/* modal */}
         <div
-          className="absolute left-6 right-6 top-1/2 -translate-y-1/2 rounded-[28px] bg-white px-6 pb-[22px] pt-7 text-center"
+          className="no-scrollbar absolute left-6 right-6 top-1/2 max-h-[82%] -translate-y-1/2 overflow-y-auto rounded-[28px] bg-white px-6 pb-[22px] pt-7 text-center"
           style={{ boxShadow: "0 30px 60px rgba(20,12,50,.35)" }}
         >
           <div className="mx-auto flex h-[66px] w-[66px] items-center justify-center rounded-[20px] bg-[#FFE8E3] text-poli">
