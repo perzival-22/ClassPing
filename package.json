@@ -9,9 +9,10 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@clerk/nextjs": "^7.5.14",
     "next": "^15.5.20",
-    "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react": "^19.1.8",
+    "react-dom": "^19.1.8"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.13",

@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useClerk } from "@clerk/nextjs";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { TabBar } from "@/components/TabBar";
 import { CameraIcon, LogOutIcon } from "@/components/icons";
@@ -9,6 +10,7 @@ import { useStore } from "@/lib/store";
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const { signOut } = useClerk();
   const { profile, setProfile } = useStore();
 
   const [username, setUsername] = useState(profile.username);
@@ -178,7 +180,7 @@ export default function SettingsScreen() {
             </div>
 
             <button
-              onClick={() => router.push("/")}
+              onClick={() => signOut(() => router.push("/"))}
               className="flex w-full items-center gap-3 px-5 py-4 transition active:bg-canvas"
             >
               <div className="flex h-[36px] w-[36px] items-center justify-center rounded-[10px] bg-[#FEECEB]">
