@@ -2,7 +2,7 @@
 
 > Your classes and deadlines, right on time.
 
-A friendly student timetable + reminders app, built from the **ClassPing** Claude Design handoff. Never miss a class or a deadline: plot your week, get pinged before class starts, log assignments the moment a class ends, and keep nagging reminders until things are done.
+A friendly student timetable + reminders app, built by a student. Never miss a class or a deadline: plot your week, get pinged before class starts, log assignments the moment a class ends, and keep nagging reminders until things are done.
 
 Built with **Next.js 15 (App Router)**, **React 19**, **Tailwind CSS v4**, and **TypeScript** — a mobile-first web app rendered inside an iOS-style device frame, ready to deploy on **Vercel**.
 
