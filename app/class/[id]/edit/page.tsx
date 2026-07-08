@@ -1,0 +1,273 @@
+"use client";
+
+import { use, useState } from "react";
+import { useRouter } from "next/navigation";
+import { PhoneFrame } from "@/components/PhoneFrame";
+import { Toggle } from "@/components/Toggle";
+import { BellSolid } from "@/components/icons";
+import { SUBJECT_COLORS, PALETTE, type SubjectColor } from "@/lib/palette";
+import { useStore, type DayIndex } from "@/lib/store";
+
+const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
+const REMIND_OPTIONS = [
+  { label: "10 min", value: 10 },
+  { label: "15 min", value: 15 },
+  { label: "30 min", value: 30 },
+  { label: "1 hr", value: 60 },
+];
+
+function parseTime(v: string): number {
+  const [h, m] = v.split(":").map(Number);
+  return h * 60 + m;
+}
+function toInput(mins: number): string {
+  return `${Math.floor(mins / 60).toString().padStart(2, "0")}:${(mins % 60).toString().padStart(2, "0")}`;
+}
+
+export default function EditClassScreen({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = use(params);
+  const router = useRouter();
+  const { classById, updateClass } = useStore();
+  const existing = classById(id);
+
+  const [name, setName] = useState(existing?.name ?? "");
+  const [days, setDays] = useState<Set<number>>(new Set(existing?.days ?? []));
+  const [start, setStart] = useState(existing?.start ?? 600);
+  const [end, setEnd] = useState(existing?.end ?? 680);
+  const [remind, setRemind] = useState(existing?.remindBefore ?? 15);
+  const [alarm, setAlarm] = useState(existing?.alarm ?? true);
+  const [color, setColor] = useState<SubjectColor>(existing?.color ?? "indigo");
+
+  if (!existing) {
+    return (
+      <PhoneFrame>
+        <div className="flex h-full items-center justify-center bg-canvas">
+          <p className="text-muted">Class not found.</p>
+        </div>
+      </PhoneFrame>
+    );
+  }
+
+  const canSave = name.trim().length > 0 && days.size > 0;
+
+  const toggleDay = (i: number) => {
+    setDays((prev) => {
+      const next = new Set(prev);
+      next.has(i) ? next.delete(i) : next.add(i);
+      return next;
+    });
+  };
+
+  const save = () => {
+    if (!canSave) return;
+    const weekdays = [...days].filter((d) => d <= 4) as DayIndex[];
+    updateClass(id, {
+      name: name.trim(),
+      short: name.trim().split(/\s+/)[0].slice(0, 5),
+      color,
+      days: weekdays.length ? weekdays : [0],
+      start,
+      end,
+      remindBefore: remind,
+      alarm,
+    });
+    router.push("/home");
+  };
+
+  return (
+    <PhoneFrame>
+      <div className="flex h-full flex-col bg-canvas">
+        {/* nav */}
+        <div className="flex items-center justify-between px-5 pb-2.5 pt-[60px]">
+          <button
+            onClick={() => router.push("/home")}
+            className="text-[16px] font-medium text-muted-2"
+          >
+            Cancel
+          </button>
+          <div className="text-[17px] font-semibold text-ink">Edit Class</div>
+          <button
+            onClick={save}
+            disabled={!canSave}
+            className="text-[16px] font-semibold"
+            style={{ color: canSave ? "#5B54E8" : "#C4C0DC" }}
+          >
+            Save
+          </button>
+        </div>
+
+        <div className="no-scrollbar flex flex-1 flex-col gap-[18px] overflow-y-auto px-[18px] pb-8 pt-2">
+          {/* name */}
+          <Field label="CLASS NAME">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full rounded-[15px] bg-white px-4 py-[15px] text-[16px] text-ink outline-none"
+              style={{ boxShadow: "0 1px 4px rgba(30,20,80,.05)" }}
+              placeholder="e.g. Organic Chemistry II"
+            />
+          </Field>
+
+          {/* color */}
+          <Field label="COLOR">
+            <div className="flex gap-2.5">
+              {SUBJECT_COLORS.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setColor(c)}
+                  aria-label={c}
+                  className="h-9 w-9 rounded-full transition"
+                  style={{
+                    background: PALETTE[c].bar,
+                    outline: color === c ? `2px solid ${PALETTE[c].bar}` : "none",
+                    outlineOffset: 2,
+                  }}
+                />
+              ))}
+            </div>
+          </Field>
+
+          {/* days */}
+          <Field label="MEETING DAYS">
+            <div className="flex justify-between gap-[7px]">
+              {DAY_LABELS.map((d, i) => {
+                const on = days.has(i);
+                return (
+                  <button
+                    key={i}
+                    onClick={() => toggleDay(i)}
+                    className="flex h-10 w-10 items-center justify-center rounded-full text-[14px] font-semibold transition"
+                    style={
+                      on
+                        ? { background: "#5B54E8", color: "#fff" }
+                        : {
+                            background: "#fff",
+                            color: i > 4 ? "#C4C0DC" : "#9A96B4",
+                            boxShadow: "0 1px 3px rgba(30,20,80,.05)",
+                          }
+                    }
+                  >
+                    {d}
+                  </button>
+                );
+              })}
+            </div>
+          </Field>
+
+          {/* time */}
+          <Field label="TIME">
+            <div className="flex gap-2.5">
+              <TimeBox
+                label="STARTS"
+                value={start}
+                onChange={(v) => {
+                  setStart(v);
+                  if (v >= end) setEnd(v + 80);
+                }}
+              />
+              <TimeBox label="ENDS" value={end} onChange={setEnd} />
+            </div>
+          </Field>
+
+          {/* remind */}
+          <Field label="REMIND ME BEFORE">
+            <div className="flex gap-2">
+              {REMIND_OPTIONS.map((o) => {
+                const on = remind === o.value;
+                return (
+                  <button
+                    key={o.value}
+                    onClick={() => setRemind(o.value)}
+                    className="flex-1 rounded-xl py-[11px] text-center text-[14px] font-semibold transition"
+                    style={
+                      on
+                        ? { background: "#5B54E8", color: "#fff" }
+                        : {
+                            background: "#fff",
+                            color: "#79749B",
+                            boxShadow: "0 1px 3px rgba(30,20,80,.05)",
+                          }
+                    }
+                  >
+                    {o.label}
+                  </button>
+                );
+              })}
+            </div>
+          </Field>
+
+          {/* alarm */}
+          <div
+            className="flex items-center justify-between rounded-[15px] bg-white px-4 py-[15px]"
+            style={{ boxShadow: "0 1px 4px rgba(30,20,80,.05)" }}
+          >
+            <div className="flex items-center gap-[11px]">
+              <div className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-[#FFEDE8] text-coral">
+                <BellSolid className="h-[18px] w-[18px]" />
+              </div>
+              <div>
+                <div className="text-[15px] font-semibold text-ink">
+                  Pre-class alarm
+                </div>
+                <div className="mt-px text-[12px] text-muted-2">
+                  Buzz {remind} min before class
+                </div>
+              </div>
+            </div>
+            <Toggle on={alarm} onChange={setAlarm} />
+          </div>
+        </div>
+
+        <div className="px-[18px] pb-10 pt-2.5">
+          <button
+            onClick={save}
+            disabled={!canSave}
+            className="btn-brand w-full rounded-[17px] py-[17px] text-center text-[17px] font-semibold text-white transition active:scale-[0.98] disabled:opacity-60"
+          >
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </PhoneFrame>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="mb-[7px] px-1 text-[12px] font-semibold tracking-wide text-muted-2">
+        {label}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function TimeBox({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <label
+      className="flex-1 rounded-[15px] bg-white px-3.5 py-3"
+      style={{ boxShadow: "0 1px 4px rgba(30,20,80,.05)" }}
+    >
+      <div className="text-[11px] font-semibold text-faint">{label}</div>
+      <input
+        type="time"
+        value={toInput(value)}
+        onChange={(e) => onChange(parseTime(e.target.value))}
+        className="mt-0.5 w-full bg-transparent text-[17px] font-medium text-ink outline-none"
+      />
+    </label>
+  );
+}

@@ -48,6 +48,8 @@ interface Store {
   tasks: TaskItem[];
   profile: Profile;
   addClass: (c: Omit<ClassItem, "id">) => void;
+  updateClass: (id: string, updates: Partial<Omit<ClassItem, "id">>) => void;
+  deleteClass: (id: string) => void;
   addTask: (t: Omit<TaskItem, "id">) => void;
   toggleTask: (id: string) => void;
   classById: (id: string) => ClassItem | undefined;
@@ -104,6 +106,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setClasses((prev) => [...prev, { ...c, id: uid() }]);
   }, []);
 
+  const updateClass = useCallback(
+    (id: string, updates: Partial<Omit<ClassItem, "id">>) => {
+      setClasses((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, ...updates } : c)),
+      );
+    },
+    [],
+  );
+
+  const deleteClass = useCallback((id: string) => {
+    setClasses((prev) => prev.filter((c) => c.id !== id));
+    setTasks((prev) => prev.filter((t) => t.classId !== id));
+  }, []);
+
   const addTask = useCallback((t: Omit<TaskItem, "id">) => {
     setTasks((prev) => [...prev, { ...t, id: uid() }]);
   }, []);
@@ -124,8 +140,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo<Store>(
-    () => ({ classes, tasks, profile, addClass, addTask, toggleTask, classById, setProfile }),
-    [classes, tasks, profile, addClass, addTask, toggleTask, classById, setProfile],
+    () => ({
+      classes, tasks, profile,
+      addClass, updateClass, deleteClass,
+      addTask, toggleTask, classById, setProfile,
+    }),
+    [classes, tasks, profile, addClass, updateClass, deleteClass, addTask, toggleTask, classById, setProfile],
   );
 
   return (

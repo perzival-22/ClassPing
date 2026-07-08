@@ -1,9 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { TabBar } from "@/components/TabBar";
-import { ArrowRightIcon, ArrowLeftIcon, BellIcon } from "@/components/icons";
+import {
+  ArrowRightIcon,
+  ArrowLeftIcon,
+  BellIcon,
+  PencilIcon,
+  TrashIcon,
+  PlusIcon,
+} from "@/components/icons";
 import { PALETTE } from "@/lib/palette";
 import { useStore, type ClassItem, type DayIndex } from "@/lib/store";
 
@@ -40,9 +48,13 @@ const hour = Math.floor(NOW_MIN / 60);
 const GREETING =
   hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
+const DAY_ABBR = ["M", "T", "W", "Th", "F"];
+
 export default function HomeScreen() {
-  const { classes, profile } = useStore();
+  const { classes, profile, deleteClass } = useStore();
+  const router = useRouter();
   const [offset, setOffset] = useState(0);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const dayIndex = ((TODAY_COL + offset) % 5) as DayIndex;
   const isToday = offset === 0;
@@ -181,6 +193,130 @@ export default function HomeScreen() {
               <ArrowRightIcon className="h-[18px] w-[18px] text-brand" />
             </button>
           )}
+
+          {/* ── My Classes ── */}
+          <div className="mt-8">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-[17px] font-semibold text-ink">My Classes</h2>
+              <button
+                onClick={() => router.push("/class/new")}
+                className="flex items-center gap-1 rounded-full px-3 py-1.5 text-[13px] font-semibold text-brand transition active:scale-95"
+                style={{ background: "#EAE9FB" }}
+              >
+                <PlusIcon className="h-[14px] w-[14px]" />
+                Add
+              </button>
+            </div>
+
+            {classes.length === 0 ? (
+              <div
+                className="rounded-[18px] bg-white px-4 py-6 text-center"
+                style={{ boxShadow: "0 2px 10px rgba(30,20,80,.05)" }}
+              >
+                <p className="text-[14px] text-muted">No classes added yet.</p>
+                <button
+                  onClick={() => router.push("/class/new")}
+                  className="mt-3 text-[14px] font-semibold text-brand"
+                >
+                  + Add your first class
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2.5">
+                {classes.map((c) => {
+                  const t = PALETTE[c.color];
+                  const dayStr = c.days
+                    .slice()
+                    .sort((a, b) => a - b)
+                    .map((d) => DAY_ABBR[d])
+                    .join(" · ");
+                  const isConfirming = confirmDeleteId === c.id;
+
+                  return (
+                    <div
+                      key={c.id}
+                      className="overflow-hidden rounded-[18px] bg-white"
+                      style={{ boxShadow: "0 2px 10px rgba(30,20,80,.05)" }}
+                    >
+                      {/* main row */}
+                      <div className="flex items-center gap-3 px-4 py-3.5">
+                        <div
+                          className="h-[38px] w-[38px] shrink-0 rounded-[11px] flex items-center justify-center text-[13px] font-bold"
+                          style={{ background: t.bg, color: t.text }}
+                        >
+                          {c.short}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-[15px] font-semibold text-ink">
+                            {c.name}
+                          </div>
+                          <div className="mt-[2px] text-[12px] text-muted">
+                            {dayStr}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => router.push(`/class/${c.id}/edit`)}
+                          aria-label="Edit class"
+                          className="flex h-8 w-8 items-center justify-center rounded-full transition active:scale-95"
+                          style={{ background: "#F0EFF6" }}
+                        >
+                          <PencilIcon className="h-[15px] w-[15px] text-muted" />
+                        </button>
+                        <button
+                          onClick={() =>
+                            setConfirmDeleteId(isConfirming ? null : c.id)
+                          }
+                          aria-label="Delete class"
+                          className="flex h-8 w-8 items-center justify-center rounded-full transition active:scale-95"
+                          style={{
+                            background: isConfirming ? "#FFE8E3" : "#F0EFF6",
+                          }}
+                        >
+                          <TrashIcon
+                            className="h-[15px] w-[15px]"
+                            style={{
+                              color: isConfirming ? "#E84040" : "#9A96B4",
+                            }}
+                          />
+                        </button>
+                      </div>
+
+                      {/* inline delete confirmation */}
+                      {isConfirming && (
+                        <div
+                          className="flex items-center justify-between px-4 py-3"
+                          style={{ background: "#FFF5F5", borderTop: "1px solid #FFE0E0" }}
+                        >
+                          <p className="text-[13px] font-medium text-[#C0392B]">
+                            Delete &ldquo;{c.name}&rdquo;?
+                          </p>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setConfirmDeleteId(null)}
+                              className="rounded-full px-3 py-1.5 text-[13px] font-semibold text-muted"
+                              style={{ background: "#F0EFF6" }}
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => {
+                                deleteClass(c.id);
+                                setConfirmDeleteId(null);
+                              }}
+                              className="rounded-full px-3 py-1.5 text-[13px] font-semibold text-white"
+                              style={{ background: "#E84040" }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
         <TabBar />
