@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+@theme {
+  /* Brand */
+  --color-brand: #5b54e8;
+  --color-brand-dark: #4a43d6;
+  --color-brand-deep: #5045d8;
+  --color-brand-bright: #6157ec;
+
+  /* Ink / text */
+  --color-ink: #211d46;
+  --color-muted: #6b6790;
+  --color-muted-2: #8d89ad;
+  --color-faint: #a29ec0;
+  --color-hint: #c4c0dc;
+
+  /* Surfaces */
+  --color-canvas: #f5f4fa;
+
+  /* Accents */
+  --color-coral: #ff6b57;
+  --color-success: #34c759;
+
+  /* Subject palette */
+  --color-amber: #e39a0e;
+  --color-teal: #0e9f8e;
+  --color-poli: #ee5137;
+  --color-pink: #d6398b;
+
+  --font-display: var(--font-fredoka), ui-sans-serif, system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  font-family: -apple-system, system-ui, "Segoe UI", sans-serif;
+}
+
+/* Hide scrollbars inside the phone frame for an app-like feel */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Shared gradient button */
+.btn-brand {
+  background: linear-gradient(180deg, #6157ec, #5045d8);
+  box-shadow: 0 12px 26px rgba(80, 69, 216, 0.34);
+}
+
+.brand-logo-grad {
+  background: linear-gradient(145deg, #6c63ff, #5045d8);
+}
