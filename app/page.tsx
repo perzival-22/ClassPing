@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { useSignIn, useSignUp } from "@clerk/nextjs/legacy";
 import { PhoneFrame } from "@/components/PhoneFrame";
+import { SignInSkeleton } from "@/components/Skeleton";
 import { EyeIcon } from "@/components/icons";
 import { useStore } from "@/lib/store";
 
@@ -21,16 +22,7 @@ function safeRedirect(raw: string | null): string {
 
 export default function SignInScreen() {
   return (
-    <Suspense
-      fallback={
-        <PhoneFrame>
-          <div
-            className="h-full"
-            style={{ background: "var(--bg-signin)" }}
-          />
-        </PhoneFrame>
-      }
-    >
+    <Suspense fallback={<SignInSkeleton />}>
       <SignInForm />
     </Suspense>
   );
@@ -73,11 +65,7 @@ function SignInForm() {
   }, [authLoaded, isSignedIn, router, searchParams]);
 
   if (!authLoaded || isSignedIn) {
-    return (
-      <PhoneFrame>
-        <div className="h-full" style={{ background: "var(--bg-signin)" }} />
-      </PhoneFrame>
-    );
+    return <SignInSkeleton />;
   }
 
   async function finishAuth(sessionId: string, activate: (params: { session: string }) => Promise<void>) {

@@ -32,12 +32,32 @@
 
 /* ── Dark mode ─────────────────────────────────────────── */
 :root {
-  --bg-signin: linear-gradient(180deg, #f4f2fc 0%, #eceaf9 100%);
+  --bg-signin:
+    radial-gradient(380px 300px at 14% -6%, rgba(91, 84, 232, 0.14), transparent 70%),
+    radial-gradient(320px 260px at 106% 16%, rgba(255, 107, 87, 0.09), transparent 70%),
+    radial-gradient(420px 340px at 50% 112%, rgba(14, 159, 142, 0.09), transparent 70%),
+    linear-gradient(180deg, #f4f2fc 0%, #eceaf9 100%);
   --bg-frame: #f2f2f7;
   --bg-card: #ffffff;
-  --bg-tabbar: rgba(245, 244, 250, 0.86);
-  --border-tabbar: rgba(0, 0, 0, 0.06);
   --bg-input: #f5f4fa;
+
+  /* Aurora backdrop: faint glows in the app's own class-palette colors
+     (brand purple, coral, teal) so glass surfaces have depth to blur. */
+  --bg-aurora:
+    radial-gradient(400px 320px at 12% -4%, rgba(91, 84, 232, 0.13), transparent 70%),
+    radial-gradient(340px 280px at 108% 14%, rgba(255, 107, 87, 0.09), transparent 70%),
+    radial-gradient(460px 380px at 46% 114%, rgba(14, 159, 142, 0.1), transparent 70%),
+    var(--color-canvas);
+
+  /* Liquid glass */
+  --glass-bg: rgba(255, 255, 255, 0.58);
+  --glass-border: rgba(255, 255, 255, 0.65);
+  --glass-highlight: rgba(255, 255, 255, 0.85);
+  --glass-shadow: 0 10px 30px rgba(30, 20, 80, 0.12);
+
+  /* Skeletons */
+  --skeleton-base: rgba(30, 20, 80, 0.07);
+  --skeleton-sheen: rgba(255, 255, 255, 0.65);
 }
 
 html.dark {
@@ -48,12 +68,28 @@ html.dark {
   --color-hint: #383560;
   --color-canvas: #13112b;
 
-  --bg-signin: linear-gradient(180deg, #1a1733 0%, #13112b 100%);
+  --bg-signin:
+    radial-gradient(380px 300px at 14% -6%, rgba(108, 99, 255, 0.2), transparent 70%),
+    radial-gradient(320px 260px at 106% 16%, rgba(255, 107, 87, 0.1), transparent 70%),
+    radial-gradient(420px 340px at 50% 112%, rgba(14, 159, 142, 0.12), transparent 70%),
+    linear-gradient(180deg, #1a1733 0%, #13112b 100%);
   --bg-frame: #0d0b22;
   --bg-card: #1e1c3a;
-  --bg-tabbar: rgba(13, 11, 34, 0.92);
-  --border-tabbar: rgba(255, 255, 255, 0.06);
   --bg-input: #1a183a;
+
+  --bg-aurora:
+    radial-gradient(400px 320px at 12% -4%, rgba(108, 99, 255, 0.22), transparent 70%),
+    radial-gradient(340px 280px at 108% 14%, rgba(255, 107, 87, 0.11), transparent 70%),
+    radial-gradient(460px 380px at 46% 114%, rgba(14, 159, 142, 0.13), transparent 70%),
+    var(--color-canvas);
+
+  --glass-bg: rgba(30, 28, 58, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-highlight: rgba(255, 255, 255, 0.14);
+  --glass-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+
+  --skeleton-base: rgba(255, 255, 255, 0.06);
+  --skeleton-sheen: rgba(255, 255, 255, 0.1);
 }
 
 /* Automatically retheme Tailwind's bg-white in dark mode */
@@ -85,12 +121,81 @@ body {
   scrollbar-width: none;
 }
 
-/* Shared gradient button */
+/* Aurora screen backdrop — apply to each screen's root in place of bg-canvas */
+.bg-aurora {
+  background: var(--bg-aurora);
+}
+
+/* Liquid-glass surface for chrome: tab bar, pills, floating controls */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(24px) saturate(1.7);
+  -webkit-backdrop-filter: blur(24px) saturate(1.7);
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    var(--glass-shadow);
+}
+
+/* Shared gradient button — tinted glass: translucent gradient + inner highlight */
 .btn-brand {
-  background: linear-gradient(180deg, #6157ec, #5045d8);
-  box-shadow: 0 12px 26px rgba(80, 69, 216, 0.34);
+  background: linear-gradient(180deg, rgba(97, 87, 236, 0.92), rgba(80, 69, 216, 0.94));
+  backdrop-filter: blur(14px) saturate(1.5);
+  -webkit-backdrop-filter: blur(14px) saturate(1.5);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.38),
+    0 12px 26px rgba(80, 69, 216, 0.34);
 }
 
 .brand-logo-grad {
   background: linear-gradient(145deg, #6c63ff, #5045d8);
+}
+
+/* ── Skeleton loading ──────────────────────────────────────
+   Fades in after a short delay so instant loads never flash a skeleton;
+   the sheen sweep pauses under prefers-reduced-motion. */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--skeleton-base);
+  animation: skeleton-in 0.2s ease-out 0.15s both;
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    var(--skeleton-sheen) 50%,
+    transparent 70%
+  );
+  transform: translateX(-100%);
+  animation: skeleton-sheen 1.6s ease-in-out 0.3s infinite;
+}
+
+@keyframes skeleton-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes skeleton-sheen {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation-duration: 0s;
+  }
+  .skeleton::after {
+    animation: none;
+  }
 }

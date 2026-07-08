@@ -3,21 +3,26 @@
 import { useState } from "react";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { TabBar } from "@/components/TabBar";
+import { TasksSkeleton } from "@/components/Skeleton";
 import { CheckIcon } from "@/components/icons";
 import { PALETTE } from "@/lib/palette";
 import { useStore, dueLabel, type TaskItem } from "@/lib/store";
 
 export default function TasksScreen() {
-  const { tasks, classById, toggleTask } = useStore();
+  const { tasks, classById, toggleTask, hydrated } = useStore();
   const [tab, setTab] = useState<"open" | "done">("open");
 
   const open = tasks.filter((t) => !t.done);
   const done = tasks.filter((t) => t.done);
   const list = tab === "open" ? open : done;
 
+  if (!hydrated) {
+    return <TasksSkeleton />;
+  }
+
   return (
     <PhoneFrame>
-      <div className="flex h-full flex-col bg-canvas">
+      <div className="flex h-full flex-col bg-aurora">
         {/* header */}
         <div className="flex items-end justify-between px-5 pb-2 pt-16">
           <div className="flex items-center gap-2.5">

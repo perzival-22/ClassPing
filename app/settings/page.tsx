@@ -5,10 +5,23 @@ import { useRouter } from "next/navigation";
 import { useClerk } from "@clerk/nextjs";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { TabBar } from "@/components/TabBar";
+import { SettingsSkeleton } from "@/components/Skeleton";
 import { CameraIcon, LogOutIcon } from "@/components/icons";
 import { useStore } from "@/lib/store";
 
 export default function SettingsScreen() {
+  const { hydrated } = useStore();
+
+  // The form seeds its state from the profile on mount, so it must not mount
+  // until persisted state has loaded.
+  if (!hydrated) {
+    return <SettingsSkeleton />;
+  }
+
+  return <SettingsForm />;
+}
+
+function SettingsForm() {
   const router = useRouter();
   const { signOut } = useClerk();
   const { profile, setProfile } = useStore();
@@ -39,7 +52,7 @@ export default function SettingsScreen() {
 
   return (
     <PhoneFrame>
-      <div className="flex h-full flex-col bg-canvas">
+      <div className="flex h-full flex-col bg-aurora">
         {/* header */}
         <div className="flex items-center px-5 pb-3 pt-16">
           <h1 className="font-[family-name:var(--font-fredoka)] text-[28px] font-semibold leading-tight text-ink">

@@ -20,7 +20,7 @@ export default function PostClassPromptScreen() {
 
   return (
     <PhoneFrame>
-      <div className="relative flex h-full flex-col bg-canvas">
+      <div className="relative flex h-full flex-col bg-aurora">
         {/* dimmed agenda behind */}
         <div className="px-5 pt-16 opacity-50 blur-[2px]">
           <div className="font-[family-name:var(--font-fredoka)] text-[32px] font-semibold text-ink">

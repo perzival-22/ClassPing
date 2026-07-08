@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { TabBar } from "@/components/TabBar";
+import { HomeSkeleton } from "@/components/Skeleton";
 import {
   ArrowRightIcon,
   ArrowLeftIcon,
@@ -55,18 +56,14 @@ function fmtRange(start: number, end: number) {
 const DAY_ABBR = ["M", "T", "W", "Th", "F"];
 
 export default function HomeScreen() {
-  const { classes, profile, deleteClass } = useStore();
+  const { classes, profile, deleteClass, hydrated } = useStore();
   const router = useRouter();
   const [offset, setOffset] = useState(0);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const now = useNow();
 
-  if (!now) {
-    return (
-      <PhoneFrame>
-        <div className="h-full bg-canvas" />
-      </PhoneFrame>
-    );
+  if (!now || !hydrated) {
+    return <HomeSkeleton />;
   }
 
   const { dates, todayCol } = weekInfo(now);
@@ -93,7 +90,7 @@ export default function HomeScreen() {
 
   return (
     <PhoneFrame>
-      <div className="flex h-full flex-col bg-canvas">
+      <div className="flex h-full flex-col bg-aurora">
         {/* header */}
         <div className="px-5 pb-2 pt-16">
           <p className="text-[13px] font-semibold text-muted-2">
@@ -109,18 +106,16 @@ export default function HomeScreen() {
           {!isToday && (
             <button
               onClick={() => setOffset((o) => Math.max(0, o - 1))}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-white transition active:scale-95"
-              style={{ boxShadow: "0 1px 6px rgba(30,20,80,.09)" }}
+              className="glass flex h-8 w-8 items-center justify-center rounded-full transition active:scale-95"
               aria-label="Previous day"
             >
               <ArrowLeftIcon className="h-[18px] w-[18px] text-brand" />
             </button>
           )}
           <span
-            className="rounded-full px-3.5 py-[6px] text-[13px] font-semibold"
+            className="glass rounded-full px-3.5 py-[6px] text-[13px] font-semibold"
             style={{
-              background: isToday ? "#EAE9FB" : "#F0EFF6",
-              color: isToday ? "#5B54E8" : "#6B6790",
+              color: isToday ? "var(--color-brand)" : "var(--color-muted)",
             }}
           >
             {dayLabel}

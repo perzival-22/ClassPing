@@ -49,6 +49,8 @@ interface Store {
   classes: ClassItem[];
   tasks: TaskItem[];
   profile: Profile;
+  /** false until persisted state has been loaded from localStorage */
+  hydrated: boolean;
   addClass: (c: Omit<ClassItem, "id">) => void;
   updateClass: (id: string, updates: Partial<Omit<ClassItem, "id">>) => void;
   deleteClass: (id: string) => void;
@@ -216,11 +218,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<Store>(
     () => ({
-      classes, tasks, profile,
+      classes, tasks, profile, hydrated,
       addClass, updateClass, deleteClass,
       addTask, toggleTask, classById, setProfile,
     }),
-    [classes, tasks, profile, addClass, updateClass, deleteClass, addTask, toggleTask, classById, setProfile],
+    [classes, tasks, profile, hydrated, addClass, updateClass, deleteClass, addTask, toggleTask, classById, setProfile],
   );
 
   return (

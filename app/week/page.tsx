@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { TabBar } from "@/components/TabBar";
+import { WeekSkeleton } from "@/components/Skeleton";
 import { BellSolid } from "@/components/icons";
 import { PALETTE } from "@/lib/palette";
 import { useStore, useNow, weekInfo, type ClassItem, type DayIndex } from "@/lib/store";
@@ -16,17 +17,13 @@ const PX_PER_HOUR = 62;
 const y = (mins: number) => ((mins - START_HOUR * 60) / 60) * PX_PER_HOUR;
 
 export default function WeekScreen() {
-  const { classes } = useStore();
+  const { classes, hydrated } = useStore();
   const router = useRouter();
   const [dismissed, setDismissed] = useState(false);
   const now = useNow();
 
-  if (!now) {
-    return (
-      <PhoneFrame>
-        <div className="h-full bg-canvas" />
-      </PhoneFrame>
-    );
+  if (!now || !hydrated) {
+    return <WeekSkeleton />;
   }
 
   const { dates, todayCol } = weekInfo(now);
@@ -57,7 +54,7 @@ export default function WeekScreen() {
 
   return (
     <PhoneFrame>
-      <div className="flex h-full flex-col bg-canvas">
+      <div className="flex h-full flex-col bg-aurora">
         {/* header */}
         <div className="flex items-end justify-between px-5 pb-2 pt-16">
           <div>
@@ -71,8 +68,7 @@ export default function WeekScreen() {
           <button
             onClick={() => router.push("/class/new")}
             aria-label="Add class"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[22px] text-brand"
-            style={{ boxShadow: "0 2px 8px rgba(30,20,80,.08)" }}
+            className="glass flex h-10 w-10 items-center justify-center rounded-full text-[22px] text-brand transition active:scale-95"
           >
             +
           </button>
@@ -182,14 +178,7 @@ export default function WeekScreen() {
         {showBanner && upcoming && (
           <button
             onClick={() => setDismissed(true)}
-            className="absolute left-3 right-3 top-[60px] z-30 flex items-center gap-3 rounded-[20px] px-3.5 py-3 text-left"
-            style={{
-              background: "rgba(255,255,255,.82)",
-              backdropFilter: "blur(20px)",
-              WebkitBackdropFilter: "blur(20px)",
-              boxShadow: "0 10px 30px rgba(60,40,120,.18)",
-              border: "0.5px solid rgba(255,255,255,.6)",
-            }}
+            className="glass absolute left-3 right-3 top-[60px] z-30 flex items-center gap-3 rounded-[20px] px-3.5 py-3 text-left"
           >
             <div
               className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[11px] text-white"

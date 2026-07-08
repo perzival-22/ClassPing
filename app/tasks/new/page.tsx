@@ -64,7 +64,7 @@ function AddAssignment() {
 
   return (
     <PhoneFrame>
-      <div className="flex h-full flex-col bg-canvas">
+      <div className="flex h-full flex-col bg-aurora">
         {/* nav */}
         <div className="flex items-center justify-between px-5 pb-2.5 pt-[60px]">
           <button
