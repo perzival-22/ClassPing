@@ -16,6 +16,8 @@ export default function PostClassPromptScreen() {
   const justEnded =
     classes.find((c) => c.name === "Modern Political Theory") ?? classes[0];
 
+  if (!justEnded) return null;
+
   return (
     <PhoneFrame>
       <div className="relative flex h-full flex-col bg-canvas">
