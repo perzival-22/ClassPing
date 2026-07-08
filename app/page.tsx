@@ -1,7 +1,8 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
 import { useSignIn, useSignUp } from "@clerk/nextjs/legacy";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { EyeIcon } from "@/components/icons";
@@ -39,6 +40,7 @@ function SignInForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { setProfile } = useStore();
+  const { isLoaded: authLoaded, isSignedIn } = useAuth();
   const {
     signIn,
     setActive: setActiveSignIn,
@@ -60,6 +62,23 @@ function SignInForm() {
   const [error, setError] = useState<string | null>(null);
 
   const canSubmit = email.trim().length > 0 && password.trim().length > 0;
+
+  // A returning user often still has a live Clerk session even though the PWA
+  // reopens on this screen — send them straight in instead of showing the form
+  // (signIn.create() would fail with "session already exists").
+  useEffect(() => {
+    if (authLoaded && isSignedIn) {
+      router.replace(safeRedirect(searchParams.get("redirect_url")));
+    }
+  }, [authLoaded, isSignedIn, router, searchParams]);
+
+  if (!authLoaded || isSignedIn) {
+    return (
+      <PhoneFrame>
+        <div className="h-full" style={{ background: "var(--bg-signin)" }} />
+      </PhoneFrame>
+    );
+  }
 
   async function finishAuth(sessionId: string, activate: (params: { session: string }) => Promise<void>) {
     await activate({ session: sessionId });
