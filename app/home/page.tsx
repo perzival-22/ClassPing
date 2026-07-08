@@ -13,13 +13,17 @@ import {
   PlusIcon,
 } from "@/components/icons";
 import { PALETTE } from "@/lib/palette";
-import { useStore, type ClassItem, type DayIndex } from "@/lib/store";
+import {
+  useStore,
+  useNow,
+  weekInfo,
+  fmtMD,
+  type ClassItem,
+  type DayIndex,
+} from "@/lib/store";
 
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 const DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri"];
-const DATES = [6, 7, 8, 9, 10];
-const TODAY_COL: DayIndex = 0;
-const NOW_MIN = 9 * 60 + 45;
 
 function fmtHM(mins: number) {
   const h = Math.floor(mins / 60);
@@ -27,6 +31,10 @@ function fmtHM(mins: number) {
   const ampm = h >= 12 ? "PM" : "AM";
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${h12}:${m.toString().padStart(2, "0")} ${ampm}`;
+}
+
+function greeting(hour: number) {
+  return hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 }
 
 function fmtRange(start: number, end: number) {
@@ -44,10 +52,6 @@ function fmtRange(start: number, end: number) {
   return `${s12}:${sm} ${sAmpm} – ${e12}:${em} ${eAmpm}`;
 }
 
-const hour = Math.floor(NOW_MIN / 60);
-const GREETING =
-  hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-
 const DAY_ABBR = ["M", "T", "W", "Th", "F"];
 
 export default function HomeScreen() {
@@ -55,9 +59,21 @@ export default function HomeScreen() {
   const router = useRouter();
   const [offset, setOffset] = useState(0);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const now = useNow();
 
-  const dayIndex = ((TODAY_COL + offset) % 5) as DayIndex;
-  const isToday = offset === 0;
+  if (!now) {
+    return (
+      <PhoneFrame>
+        <div className="h-full bg-canvas" />
+      </PhoneFrame>
+    );
+  }
+
+  const { dates, todayCol } = weekInfo(now);
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+
+  const dayIndex = (((todayCol ?? 0) + offset) % 5) as DayIndex;
+  const isToday = offset === 0 && todayCol !== null;
 
   const dayClasses = classes
     .filter((c) => c.days.includes(dayIndex))
@@ -72,8 +88,8 @@ export default function HomeScreen() {
 
   // Label for the day pill
   const dayLabel = isToday
-    ? `Today · ${DAY_SHORT[dayIndex]}, Jul ${DATES[dayIndex]}`
-    : `${DAY_NAMES[dayIndex]} · Jul ${DATES[dayIndex]}`;
+    ? `Today · ${DAY_SHORT[dayIndex]}, ${fmtMD(dates[dayIndex])}`
+    : `${DAY_NAMES[dayIndex]} · ${fmtMD(dates[dayIndex])}`;
 
   return (
     <PhoneFrame>
@@ -81,7 +97,7 @@ export default function HomeScreen() {
         {/* header */}
         <div className="px-5 pb-2 pt-16">
           <p className="text-[13px] font-semibold text-muted-2">
-            {GREETING}, {profile.username.split(/[.\s_-]/)[0] || profile.username} 👋
+            {greeting(now.getHours())}, {profile.username.split(/[.\s_-]/)[0] || profile.username} 👋
           </p>
           <h1 className="mt-0.5 font-[family-name:var(--font-fredoka)] text-[30px] font-semibold leading-tight text-ink">
             {isToday ? "Today's Schedule" : `${DAY_NAMES[dayIndex]}'s Schedule`}
@@ -116,7 +132,7 @@ export default function HomeScreen() {
           {!isEmpty && (
             <div className="flex flex-col gap-3">
               {dayClasses.map((c) => (
-                <ClassCard key={c.id} c={c} nowMin={isToday ? NOW_MIN : -1} />
+                <ClassCard key={c.id} c={c} nowMin={isToday ? nowMin : -1} />
               ))}
             </div>
           )}

@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import type { SubjectColor } from "./palette";
+import { registerServiceWorker, showReminder } from "./notifications";
 
 /** Days of the week the app plots (Mon–Fri). 0 = Mon … 4 = Fri */
 export type DayIndex = 0 | 1 | 2 | 3 | 4;
@@ -59,11 +60,9 @@ interface Store {
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 
-export const TODAY = new Date(2026, 6, 6); // months are 0-indexed
-
-
 const StoreContext = createContext<Store | null>(null);
 const KEY = "classping.v1";
+const NOTIFIED_KEY = "classping.notified.v1";
 
 const DEFAULT_PROFILE: Profile = { username: "student", avatarUrl: null, theme: "light" };
 
@@ -140,6 +139,72 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setProfileState((prev) => ({ ...prev, ...p }));
   }, []);
 
+  useEffect(() => {
+    registerServiceWorker();
+  }, []);
+
+  // Reminder loop: every 30s, fire any class/task notifications whose time has
+  // come. Fired IDs are remembered in localStorage so each reminder shows once.
+  useEffect(() => {
+    if (!hydrated) return;
+
+    const check = () => {
+      const now = new Date();
+      const dow = (now.getDay() + 6) % 7; // 0 = Mon … 6 = Sun
+      const mins = now.getHours() * 60 + now.getMinutes();
+      const dayKey = now.toISOString().slice(0, 10);
+
+      let fired: Record<string, true>;
+      try {
+        fired = JSON.parse(localStorage.getItem(NOTIFIED_KEY) ?? "{}");
+      } catch {
+        fired = {};
+      }
+      let changed = false;
+
+      // Pre-class reminders (only when the alarm toggle is on).
+      if (dow <= 4) {
+        for (const c of classes) {
+          if (!c.alarm || !c.days.includes(dow as DayIndex)) continue;
+          const id = `class:${c.id}:${dayKey}`;
+          if (mins >= c.start - c.remindBefore && mins < c.start && !fired[id]) {
+            showReminder(
+              `${c.name} starts at ${fmtTime(c.start)}`,
+              `That's in ${c.start - mins} minute${c.start - mins === 1 ? "" : "s"}.`,
+              id,
+            );
+            fired[id] = true;
+            changed = true;
+          }
+        }
+      }
+
+      // Task reminders — 24 hours before the due date.
+      for (const t of tasks) {
+        if (!t.reminder || t.done) continue;
+        const untilDue = new Date(t.due).getTime() - now.getTime();
+        const id = `task:${t.id}`;
+        if (untilDue > 0 && untilDue <= 24 * 3600 * 1000 && !fired[id]) {
+          showReminder("Due in 24 hours", `${t.title} — tap ✓ when it's done.`, id);
+          fired[id] = true;
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        try {
+          localStorage.setItem(NOTIFIED_KEY, JSON.stringify(fired));
+        } catch {
+          /* storage full / unavailable */
+        }
+      }
+    };
+
+    check();
+    const iv = setInterval(check, 30_000);
+    return () => clearInterval(iv);
+  }, [classes, tasks, hydrated]);
+
   // Sync dark/light class to <html> whenever theme changes.
   useEffect(() => {
     if (profile.theme === "dark") {
@@ -181,7 +246,7 @@ export function fmtTime(mins: number): string {
 
 export function dueLabel(iso: string): { text: string; urgent: boolean } {
   const due = new Date(iso);
-  const day0 = new Date(TODAY);
+  const day0 = new Date();
   day0.setHours(0, 0, 0, 0);
   const dd = new Date(due);
   dd.setHours(0, 0, 0, 0);
@@ -200,4 +265,43 @@ export function longDate(iso: string): string {
     month: "short",
     day: "numeric",
   });
+}
+
+/* ── real-time week helpers ─────────────────────────────── */
+
+/**
+ * The Mon–Fri school week the app should display. On weekends we roll forward
+ * to next week (the current school week is over) and `todayCol` is null.
+ */
+export function weekInfo(now: Date): { dates: Date[]; todayCol: DayIndex | null } {
+  const dow = (now.getDay() + 6) % 7; // 0 = Mon … 6 = Sun
+  const todayCol = dow <= 4 ? (dow as DayIndex) : null;
+  const monday = new Date(now);
+  monday.setHours(0, 0, 0, 0);
+  monday.setDate(monday.getDate() - dow + (dow > 4 ? 7 : 0));
+  const dates = Array.from({ length: 5 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return d;
+  });
+  return { dates, todayCol };
+}
+
+/** "Jul 6" */
+export function fmtMD(d: Date): string {
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+/**
+ * Ticking clock. Returns null on the server-rendered first paint (so hydration
+ * stays consistent), then the live time, refreshed every `intervalMs`.
+ */
+export function useNow(intervalMs = 30_000): Date | null {
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+    const iv = setInterval(() => setNow(new Date()), intervalMs);
+    return () => clearInterval(iv);
+  }, [intervalMs]);
+  return now;
 }

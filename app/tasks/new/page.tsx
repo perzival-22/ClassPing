@@ -6,7 +6,8 @@ import { PhoneFrame } from "@/components/PhoneFrame";
 import { Toggle } from "@/components/Toggle";
 import { FlagIcon } from "@/components/icons";
 import { PALETTE } from "@/lib/palette";
-import { useStore, TODAY, longDate } from "@/lib/store";
+import { useStore, longDate } from "@/lib/store";
+import { ensureNotificationPermission, showReminder } from "@/lib/notifications";
 
 const DUE_PRESETS = [
   { label: "Tomorrow", days: 1 },
@@ -19,7 +20,7 @@ const DUE_PRESETS = [
 ];
 
 function dueDate(days: number): string {
-  const d = new Date(TODAY);
+  const d = new Date();
   d.setDate(d.getDate() + days);
   return d.toISOString();
 }
@@ -41,7 +42,7 @@ function AddAssignment() {
 
   const dueText = useMemo(() => longDate(dueDate(dueDays)), [dueDays]);
 
-  const save = () => {
+  const save = async () => {
     if (!canSave) return;
     addTask({
       title: title.trim(),
@@ -50,6 +51,14 @@ function AddAssignment() {
       reminder,
       done: false,
     });
+    // Confirm notifications work for the reminder the user just set up.
+    if (reminder && (await ensureNotificationPermission())) {
+      showReminder(
+        "Reminder set ✓",
+        `We'll nudge you 24 hours before "${title.trim()}" is due.`,
+        "setup-confirm",
+      );
+    }
     router.push("/tasks");
   };
 

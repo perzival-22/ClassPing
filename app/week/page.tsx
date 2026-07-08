@@ -6,15 +6,12 @@ import { PhoneFrame } from "@/components/PhoneFrame";
 import { TabBar } from "@/components/TabBar";
 import { BellSolid } from "@/components/icons";
 import { PALETTE } from "@/lib/palette";
-import { useStore, type ClassItem, type DayIndex } from "@/lib/store";
+import { useStore, useNow, weekInfo, type ClassItem, type DayIndex } from "@/lib/store";
 
 const DAYS = ["MON", "TUE", "WED", "THU", "FRI"];
-const DATES = [6, 7, 8, 9, 10];
 const START_HOUR = 8;
 const END_HOUR = 17;
 const PX_PER_HOUR = 62;
-const NOW_MIN = 9 * 60 + 45; // mock "current time" → 9:45 AM Monday
-const TODAY_COL: DayIndex = 0; // Monday
 
 const y = (mins: number) => ((mins - START_HOUR * 60) / 60) * PX_PER_HOUR;
 
@@ -22,6 +19,25 @@ export default function WeekScreen() {
   const { classes } = useStore();
   const router = useRouter();
   const [dismissed, setDismissed] = useState(false);
+  const now = useNow();
+
+  if (!now) {
+    return (
+      <PhoneFrame>
+        <div className="h-full bg-canvas" />
+      </PhoneFrame>
+    );
+  }
+
+  const { dates, todayCol } = weekInfo(now);
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const rangeLabel = `${dates[0]
+    .toLocaleDateString("en-US", { month: "short" })
+    .toUpperCase()} ${dates[0].getDate()} – ${
+    dates[0].getMonth() !== dates[4].getMonth()
+      ? dates[4].toLocaleDateString("en-US", { month: "short" }).toUpperCase() + " "
+      : ""
+  }${dates[4].getDate()}`;
 
   const gridHeight = (END_HOUR - START_HOUR) * PX_PER_HOUR;
   const hours = Array.from(
@@ -30,10 +46,13 @@ export default function WeekScreen() {
   );
 
   // next class on today's column starting within the next hour
-  const upcoming = classes
-    .filter((c) => c.days.includes(TODAY_COL) && c.start > NOW_MIN)
-    .sort((a, b) => a.start - b.start)[0];
-  const minsAway = upcoming ? upcoming.start - NOW_MIN : 0;
+  const upcoming =
+    todayCol === null
+      ? undefined
+      : classes
+          .filter((c) => c.days.includes(todayCol) && c.start > nowMin)
+          .sort((a, b) => a.start - b.start)[0];
+  const minsAway = upcoming ? upcoming.start - nowMin : 0;
   const showBanner = !dismissed && upcoming && minsAway <= 60;
 
   return (
@@ -43,7 +62,7 @@ export default function WeekScreen() {
         <div className="flex items-end justify-between px-5 pb-2 pt-16">
           <div>
             <div className="text-[13px] font-semibold tracking-wide text-muted-2">
-              JUL 6 – 10
+              {rangeLabel}
             </div>
             <h1 className="mt-0.5 font-[family-name:var(--font-fredoka)] text-[32px] font-semibold leading-tight text-ink">
               This Week
@@ -66,7 +85,7 @@ export default function WeekScreen() {
             <div className="w-[30px]" />
             <div className="flex flex-1">
               {DAYS.map((d, i) => {
-                const isToday = i === TODAY_COL;
+                const isToday = i === todayCol;
                 return (
                   <div key={d} className="flex-1 text-center">
                     <div
@@ -77,11 +96,11 @@ export default function WeekScreen() {
                     </div>
                     {isToday ? (
                       <div className="mx-auto mt-[3px] flex h-[26px] w-[26px] items-center justify-center rounded-full bg-brand text-[13px] font-semibold text-white">
-                        {DATES[i]}
+                        {dates[i].getDate()}
                       </div>
                     ) : (
                       <div className="mt-1.5 text-[13px] font-semibold text-[#54506F]">
-                        {DATES[i]}
+                        {dates[i].getDate()}
                       </div>
                     )}
                   </div>
@@ -119,19 +138,25 @@ export default function WeekScreen() {
                 />
               ))}
 
-              {/* now line */}
-              <div
-                className="absolute left-0 right-0 z-[4] h-0.5 bg-coral"
-                style={{ top: y(NOW_MIN) }}
-              />
-              <div
-                className="absolute z-[4] h-[7px] w-[7px] -translate-y-1/2 rounded-full bg-coral"
-                style={{ top: y(NOW_MIN), left: -3 }}
-              />
+              {/* now line — only while a school day is in the plotted window */}
+              {todayCol !== null &&
+                nowMin >= START_HOUR * 60 &&
+                nowMin <= END_HOUR * 60 && (
+                  <>
+                    <div
+                      className="absolute left-0 right-0 z-[4] h-0.5 bg-coral"
+                      style={{ top: y(nowMin) }}
+                    />
+                    <div
+                      className="absolute z-[4] h-[7px] w-[7px] -translate-y-1/2 rounded-full bg-coral"
+                      style={{ top: y(nowMin), left: -3 }}
+                    />
+                  </>
+                )}
 
               {/* columns */}
               <div className="absolute inset-0 flex">
-                {DATES.map((_, dayIdx) => (
+                {dates.map((_, dayIdx) => (
                   <div
                     key={dayIdx}
                     className="relative flex-1"

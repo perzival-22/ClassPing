@@ -7,6 +7,7 @@ import { Toggle } from "@/components/Toggle";
 import { BellSolid } from "@/components/icons";
 import { SUBJECT_COLORS, PALETTE, type SubjectColor } from "@/lib/palette";
 import { useStore, type DayIndex } from "@/lib/store";
+import { ensureNotificationPermission } from "@/lib/notifications";
 
 const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
 const REMIND_OPTIONS = [
@@ -62,8 +63,9 @@ export default function EditClassScreen({
     });
   };
 
-  const save = () => {
+  const save = async () => {
     if (!canSave) return;
+    if (alarm) await ensureNotificationPermission();
     const weekdays = [...days].filter((d) => d <= 4) as DayIndex[];
     updateClass(id, {
       name: name.trim(),

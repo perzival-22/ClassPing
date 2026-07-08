@@ -7,6 +7,7 @@ import { Toggle } from "@/components/Toggle";
 import { BellSolid } from "@/components/icons";
 import { SUBJECT_COLORS, PALETTE, type SubjectColor } from "@/lib/palette";
 import { useStore, type DayIndex } from "@/lib/store";
+import { ensureNotificationPermission, showReminder } from "@/lib/notifications";
 
 const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
 const REMIND_OPTIONS = [
@@ -48,7 +49,7 @@ export default function AddClassScreen() {
     });
   };
 
-  const save = () => {
+  const save = async () => {
     if (!canSave) return;
     const weekdays = [...days].filter((d) => d <= 4) as DayIndex[];
     addClass({
@@ -61,6 +62,14 @@ export default function AddClassScreen() {
       remindBefore: remind,
       alarm,
     });
+    // Confirm notifications work for the reminder the user just set up.
+    if (alarm && (await ensureNotificationPermission())) {
+      showReminder(
+        "Reminders are on 🎉",
+        `We'll ping you ${remind} min before ${name.trim()}.`,
+        "setup-confirm",
+      );
+    }
     router.push("/week");
   };
 
