@@ -4,19 +4,30 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { EyeIcon } from "@/components/icons";
+import { useStore } from "@/lib/store";
 
 export default function SignInScreen() {
   const router = useRouter();
+  const { setProfile } = useStore();
   const [mode, setMode] = useState<"login" | "signup">("login");
-  const [username, setUsername] = useState("jordan.lee");
-  const [password, setPassword] = useState("classping");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
+
+  const canSubmit = email.trim().length > 0;
+
+  function handleSubmit() {
+    if (!canSubmit) return;
+    const username = email.split("@")[0] || email.trim();
+    setProfile({ username });
+    router.push("/home");
+  }
 
   return (
     <PhoneFrame>
       <div
         className="flex h-full flex-col px-7 pb-10"
-        style={{ background: "linear-gradient(180deg,#F4F2FC 0%,#ECEAF9 100%)" }}
+        style={{ background: "var(--bg-signin)" }}
       >
         <div className="flex flex-1 flex-col items-center justify-center">
           <div
@@ -44,7 +55,7 @@ export default function SignInScreen() {
           </p>
 
           {/* segmented control */}
-          <div className="mt-9 flex w-full rounded-[14px] bg-[#E3E0F2] p-1">
+          <div className="mt-9 flex w-full rounded-[14px] bg-[#E3E0F2] p-1" style={{ background: "var(--bg-card)" }}>
             {(["login", "signup"] as const).map((m) => (
               <button
                 key={m}
@@ -53,12 +64,12 @@ export default function SignInScreen() {
                 style={
                   mode === m
                     ? {
-                        background: "#fff",
+                        background: "var(--color-brand, #5B54E8)",
                         fontWeight: 600,
-                        color: "#211D46",
-                        boxShadow: "0 1px 3px rgba(0,0,0,.1)",
+                        color: "#fff",
+                        boxShadow: "0 1px 3px rgba(0,0,0,.15)",
                       }
-                    : { fontWeight: 500, color: "#7A759C" }
+                    : { fontWeight: 500, color: "var(--color-muted)" }
                 }
               >
                 {m === "login" ? "Log in" : "Sign up"}
@@ -73,13 +84,16 @@ export default function SignInScreen() {
               style={{ boxShadow: "0 1px 4px rgba(30,20,80,.06)" }}
             >
               <div className="text-[11px] font-semibold tracking-wide text-faint">
-                USERNAME
+                EMAIL
               </div>
               <input
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="mt-[3px] w-full bg-transparent text-[16px] text-ink outline-none"
-                autoComplete="username"
+                placeholder="student@gmail.com"
+                autoComplete="email"
+                type="email"
+                inputMode="email"
               />
             </label>
 
@@ -95,7 +109,8 @@ export default function SignInScreen() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   type={showPw ? "text" : "password"}
-                  className="mt-[3px] w-full bg-transparent text-[16px] tracking-wide text-ink outline-none"
+                  placeholder="••••••••"
+                  className="mt-[3px] w-full bg-transparent text-[16px] tracking-wide text-ink outline-none placeholder:tracking-normal"
                   autoComplete="current-password"
                 />
               </div>
@@ -112,12 +127,13 @@ export default function SignInScreen() {
         </div>
 
         <button
-          onClick={() => router.push("/home")}
-          className="btn-brand w-full rounded-[17px] py-[17px] text-center text-[17px] font-semibold text-white transition active:scale-[0.98]"
+          onClick={handleSubmit}
+          disabled={!canSubmit}
+          className="btn-brand w-full rounded-[17px] py-[17px] text-center text-[17px] font-semibold text-white transition active:scale-[0.98] disabled:opacity-50"
         >
           {mode === "login" ? "Log in" : "Create account"}
         </button>
-        <p className="mt-[18px] text-center text-[14px] text-[#7A759C]">
+        <p className="mt-[18px] text-center text-[14px] text-muted">
           {mode === "login" ? "New here? " : "Already have an account? "}
           <button
             onClick={() => setMode(mode === "login" ? "signup" : "login")}

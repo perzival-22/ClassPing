@@ -46,7 +46,7 @@ export default function SettingsScreen() {
         </div>
 
         <div className="no-scrollbar flex-1 overflow-y-auto px-5 pb-36">
-          {/* profile card */}
+          {/* ── Profile card ── */}
           <div
             className="rounded-[24px] bg-white px-5 py-6"
             style={{ boxShadow: "0 2px 12px rgba(30,20,80,.07)" }}
@@ -99,8 +99,11 @@ export default function SettingsScreen() {
 
             {/* username field */}
             <label
-              className="block rounded-[15px] bg-canvas px-4 py-[13px]"
-              style={{ border: "1px solid rgba(91,84,232,.12)" }}
+              className="block rounded-[15px] px-4 py-[13px]"
+              style={{
+                background: "var(--bg-input)",
+                border: "1px solid rgba(91,84,232,.12)",
+              }}
             >
               <div className="text-[11px] font-semibold tracking-wide text-faint">
                 USERNAME
@@ -126,7 +129,46 @@ export default function SettingsScreen() {
             </button>
           </div>
 
-          {/* account section */}
+          {/* ── Appearance card ── */}
+          <div
+            className="mt-4 rounded-[24px] bg-white px-5 py-5"
+            style={{ boxShadow: "0 2px 12px rgba(30,20,80,.07)" }}
+          >
+            <div className="mb-4 text-[11px] font-semibold uppercase tracking-widest text-faint">
+              Appearance
+            </div>
+
+            <div
+              className="flex w-full rounded-[14px] p-1"
+              style={{ background: "var(--bg-input)" }}
+            >
+              {(["light", "dark"] as const).map((t) => {
+                const active = profile.theme === t;
+                return (
+                  <button
+                    key={t}
+                    onClick={() => setProfile({ theme: t })}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-[11px] py-[11px] text-[15px] transition"
+                    style={
+                      active
+                        ? {
+                            background: "#5B54E8",
+                            fontWeight: 600,
+                            color: "#fff",
+                            boxShadow: "0 2px 8px rgba(91,84,232,.35)",
+                          }
+                        : { fontWeight: 500, color: "var(--color-muted)" }
+                    }
+                  >
+                    <span>{t === "light" ? "☀️" : "🌙"}</span>
+                    <span>{t === "light" ? "Light" : "Dark"}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── Account card ── */}
           <div
             className="mt-4 rounded-[24px] bg-white"
             style={{ boxShadow: "0 2px 12px rgba(30,20,80,.07)" }}
@@ -150,7 +192,7 @@ export default function SettingsScreen() {
 
           {/* app info */}
           <p className="mt-6 text-center text-[12px] text-hint">
-            ClassPing · version 1.0
+            ClassPin version 20.11
           </p>
         </div>
 

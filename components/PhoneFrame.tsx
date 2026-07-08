@@ -25,7 +25,7 @@ export function PhoneFrame({
         style={{
           height: "100dvh",
           maxHeight: "100dvh",
-          background: dark ? "#000" : "#F2F2F7",
+          background: dark ? "#000" : "var(--bg-frame)",
         }}
       >
         <PhoneFrameInner dark={dark}>{children}</PhoneFrameInner>

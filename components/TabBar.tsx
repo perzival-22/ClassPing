@@ -22,10 +22,10 @@ export function TabBar() {
       className="absolute bottom-0 left-0 right-0 z-40 flex items-start justify-between px-4 pb-8 pt-3"
       style={{
         height: 86,
-        background: "rgba(245,244,250,0.86)",
+        background: "var(--bg-tabbar)",
         backdropFilter: "blur(18px)",
         WebkitBackdropFilter: "blur(18px)",
-        borderTop: "0.5px solid rgba(0,0,0,0.06)",
+        borderTop: "0.5px solid var(--border-tabbar)",
       }}
     >
       <TabItem

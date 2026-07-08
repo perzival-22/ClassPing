@@ -41,6 +41,7 @@ export interface TaskItem {
 export interface Profile {
   username: string;
   avatarUrl: string | null;
+  theme: "light" | "dark";
 }
 
 interface Store {
@@ -64,7 +65,7 @@ export const TODAY = new Date(2026, 6, 6); // months are 0-indexed
 const StoreContext = createContext<Store | null>(null);
 const KEY = "classping.v1";
 
-const DEFAULT_PROFILE: Profile = { username: "student", avatarUrl: null };
+const DEFAULT_PROFILE: Profile = { username: "student", avatarUrl: null, theme: "light" };
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [classes, setClasses] = useState<ClassItem[]>([]);
@@ -138,6 +139,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const setProfile = useCallback((p: Partial<Profile>) => {
     setProfileState((prev) => ({ ...prev, ...p }));
   }, []);
+
+  // Sync dark/light class to <html> whenever theme changes.
+  useEffect(() => {
+    if (profile.theme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, [profile.theme]);
 
   const value = useMemo<Store>(
     () => ({

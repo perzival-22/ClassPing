@@ -30,6 +30,37 @@
   --font-display: var(--font-fredoka), ui-sans-serif, system-ui, sans-serif;
 }
 
+/* ── Dark mode ─────────────────────────────────────────── */
+:root {
+  --bg-signin: linear-gradient(180deg, #f4f2fc 0%, #eceaf9 100%);
+  --bg-frame: #f2f2f7;
+  --bg-card: #ffffff;
+  --bg-tabbar: rgba(245, 244, 250, 0.86);
+  --border-tabbar: rgba(0, 0, 0, 0.06);
+  --bg-input: #f5f4fa;
+}
+
+html.dark {
+  --color-ink: #eeeaff;
+  --color-muted: #a49fc8;
+  --color-muted-2: #7876a0;
+  --color-faint: #504d74;
+  --color-hint: #383560;
+  --color-canvas: #13112b;
+
+  --bg-signin: linear-gradient(180deg, #1a1733 0%, #13112b 100%);
+  --bg-frame: #0d0b22;
+  --bg-card: #1e1c3a;
+  --bg-tabbar: rgba(13, 11, 34, 0.92);
+  --border-tabbar: rgba(255, 255, 255, 0.06);
+  --bg-input: #1a183a;
+}
+
+/* Automatically retheme Tailwind's bg-white in dark mode */
+html.dark .bg-white {
+  background-color: var(--bg-card);
+}
+
 * {
   box-sizing: border-box;
 }
