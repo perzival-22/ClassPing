@@ -1,5 +1,3 @@
-import { StatusBar } from "./StatusBar";
-
 /**
  * iOS-style device frame. On small screens it fills the viewport like a real
  * app; from `md` up it renders inside a floating bezel centered on a soft
@@ -43,14 +41,13 @@ function PhoneFrameInner({
 }) {
   return (
     <div className="relative flex h-full flex-col md:h-[874px] md:max-h-[calc(100dvh-80px)]">
-      {/* dynamic island */}
-      <div className="pointer-events-none absolute left-1/2 top-[11px] z-50 h-[37px] w-[126px] -translate-x-1/2 rounded-[24px] bg-black" />
-      {/* status bar */}
-      <div className="absolute left-0 right-0 top-0 z-10">
-        <StatusBar dark={dark} />
-      </div>
       {/* screen content */}
-      <div className="relative flex-1 overflow-hidden">{children}</div>
+      <div
+        className="relative flex-1 overflow-hidden"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
+        {children}
+      </div>
       {/* home indicator */}
       <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-[60] flex h-[26px] items-end justify-center pb-2">
         <div
