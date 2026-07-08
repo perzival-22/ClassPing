@@ -6,8 +6,9 @@ import { useClerk } from "@clerk/nextjs";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { TabBar } from "@/components/TabBar";
 import { SettingsSkeleton } from "@/components/Skeleton";
-import { CameraIcon, LogOutIcon } from "@/components/icons";
+import { CalendarIcon, CameraIcon, LogOutIcon } from "@/components/icons";
 import { useStore } from "@/lib/store";
+import { buildCalendarFile, downloadCalendarFile } from "@/lib/calendar";
 
 export default function SettingsScreen() {
   const { hydrated } = useStore();
@@ -24,12 +25,23 @@ export default function SettingsScreen() {
 function SettingsForm() {
   const router = useRouter();
   const { signOut } = useClerk();
-  const { profile, setProfile } = useStore();
+  const { profile, setProfile, classes, tasks, classById } = useStore();
 
   const [username, setUsername] = useState(profile.username);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.avatarUrl);
   const [saved, setSaved] = useState(false);
+  const [exported, setExported] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const openTasks = tasks.filter((t) => !t.done);
+  const hasSchedule = classes.length > 0 || openTasks.length > 0;
+
+  function handleCalendarExport() {
+    const ics = buildCalendarFile(classes, tasks, (id) => classById(id)?.name);
+    downloadCalendarFile(ics);
+    setExported(true);
+    setTimeout(() => setExported(false), 6000);
+  }
 
   function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -183,6 +195,43 @@ function SettingsForm() {
             </div>
           </div>
 
+          {/* ── Calendar sync card ── */}
+          <div
+            className="mt-4 rounded-[24px] bg-white px-5 py-5"
+            style={{ boxShadow: "0 2px 12px rgba(30,20,80,.07)" }}
+          >
+            <div className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-faint">
+              Reminders
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[10px] bg-[#EAE9FB]">
+                <CalendarIcon className="h-[18px] w-[18px] text-brand" />
+              </div>
+              <p className="text-[13px] leading-snug text-muted">
+                ClassPing can only remind you while it&apos;s open. Add your
+                schedule to your phone&apos;s calendar and it will deliver the
+                reminders — even when the app is closed.
+              </p>
+            </div>
+
+            <button
+              onClick={handleCalendarExport}
+              disabled={!hasSchedule}
+              className="btn-brand mt-4 w-full rounded-[15px] py-[14px] text-center text-[16px] font-semibold text-white transition active:scale-[0.98] disabled:opacity-50"
+            >
+              Add to phone calendar
+            </button>
+
+            <p className="mt-2.5 text-center text-[12px] text-faint">
+              {!hasSchedule
+                ? "Add a class or task first."
+                : exported
+                  ? "Downloaded classping.ics — open it to finish importing."
+                  : `Exports ${classes.length} ${classes.length === 1 ? "class" : "classes"} and ${openTasks.length} open ${openTasks.length === 1 ? "task" : "tasks"}. Re-add after you change your schedule.`}
+            </p>
+          </div>
+
           {/* ── Account card ── */}
           <div
             className="mt-4 rounded-[24px] bg-white"
@@ -207,7 +256,7 @@ function SettingsForm() {
 
           {/* app info */}
           <p className="mt-6 text-center text-[12px] text-hint">
-            ClassPin version 20.11
+            ClassPin version 25.100
           </p>
         </div>
 
