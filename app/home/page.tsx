@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { TabBar } from "@/components/TabBar";
+import { InstallPrompt } from "@/components/InstallPrompt";
 import { HomeSkeleton } from "@/components/Skeleton";
 import {
   ArrowRightIcon,
@@ -353,6 +354,7 @@ export default function HomeScreen() {
           </button>
         </div>
 
+        <InstallPrompt />
         <TabBar />
       </div>
     </PhoneFrame>

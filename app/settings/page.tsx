@@ -387,7 +387,7 @@ function SettingsForm() {
 
           {/* app info */}
           <p className="mt-6 text-center text-[12px] text-hint">
-            ClassPing v34.211
+            ClassPing v35.00
           </p>
         </div>
 
