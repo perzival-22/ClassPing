@@ -99,7 +99,7 @@ export default function EditClassScreen({
             onClick={save}
             disabled={!canSave}
             className="text-[16px] font-semibold"
-            style={{ color: canSave ? "#5B54E8" : "#C4C0DC" }}
+            style={{ color: canSave ? "var(--color-brand)" : "#C4C0DC" }}
           >
             Save
           </button>
@@ -134,7 +134,7 @@ export default function EditClassScreen({
                     className="flex h-10 w-10 items-center justify-center rounded-full text-[14px] font-semibold transition"
                     style={
                       on
-                        ? { background: "#5B54E8", color: "#fff" }
+                        ? { background: "var(--color-brand)", color: "#fff" }
                         : {
                             background: "#fff",
                             color: i > 4 ? "#C4C0DC" : "#9A96B4",
@@ -176,7 +176,7 @@ export default function EditClassScreen({
                     className="flex-1 rounded-xl py-[11px] text-center text-[14px] font-semibold transition"
                     style={
                       on
-                        ? { background: "#5B54E8", color: "#fff" }
+                        ? { background: "var(--color-brand)", color: "#fff" }
                         : {
                             background: "#fff",
                             color: "#79749B",

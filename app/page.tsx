@@ -163,7 +163,7 @@ function SignInForm() {
         <div className="flex flex-1 flex-col items-center justify-center pt-8">
           <div
             className="brand-logo-grad flex h-[84px] w-[84px] items-center justify-center rounded-[25px] text-white"
-            style={{ boxShadow: "0 14px 30px rgba(80,69,216,.4)" }}
+            style={{ boxShadow: "0 14px 30px rgba(var(--brand-rgb),.4)" }}
           >
             <svg width="42" height="42" viewBox="0 0 24 24" fill="none">
               <path

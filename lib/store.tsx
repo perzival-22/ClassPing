@@ -6,10 +6,13 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import type { SubjectColor } from "./palette";
+import type { AccentId } from "./accents";
 import { registerServiceWorker, showReminder } from "./notifications";
+import { useIsPro } from "./useIsPro";
 
 /** Days of the week the app plots (Mon–Fri). 0 = Mon … 4 = Fri */
 export type DayIndex = 0 | 1 | 2 | 3 | 4;
@@ -39,15 +42,33 @@ export interface TaskItem {
   done: boolean;
 }
 
+/** A graded event (exam, assignment, quiz) belonging to a class. */
+export interface GradeItem {
+  id: string;
+  classId: string;
+  title: string;
+  /** points earned */
+  score: number;
+  /** points possible */
+  max: number;
+  /** relative weight within the class, in percent */
+  weight: number;
+  /** ISO date of the graded event */
+  date: string;
+}
+
 export interface Profile {
   username: string;
   avatarUrl: string | null;
   theme: "light" | "dark";
+  /** app-wide accent theme; Pro except "classic" */
+  accent: AccentId;
 }
 
 interface Store {
   classes: ClassItem[];
   tasks: TaskItem[];
+  grades: GradeItem[];
   profile: Profile;
   /** false until persisted state has been loaded from localStorage */
   hydrated: boolean;
@@ -56,6 +77,8 @@ interface Store {
   deleteClass: (id: string) => void;
   addTask: (t: Omit<TaskItem, "id">) => void;
   toggleTask: (id: string) => void;
+  addGrade: (g: Omit<GradeItem, "id">) => void;
+  deleteGrade: (id: string) => void;
   classById: (id: string) => ClassItem | undefined;
   setProfile: (p: Partial<Profile>) => void;
 }
@@ -66,27 +89,46 @@ const StoreContext = createContext<Store | null>(null);
 const KEY = "classping.v1";
 const NOTIFIED_KEY = "classping.notified.v1";
 
-const DEFAULT_PROFILE: Profile = { username: "student", avatarUrl: null, theme: "light" };
+const DEFAULT_PROFILE: Profile = {
+  username: "student",
+  avatarUrl: null,
+  theme: "light",
+  accent: "classic",
+};
+
+/** Shape of the synced document (also what localStorage holds). */
+interface PersistedState {
+  classes: ClassItem[];
+  tasks: TaskItem[];
+  grades?: GradeItem[];
+  profile?: Profile;
+  /** ms timestamp of the last local mutation — drives last-write-wins sync */
+  updatedAt?: number;
+}
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [classes, setClasses] = useState<ClassItem[]>([]);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [grades, setGrades] = useState<GradeItem[]>([]);
   const [profile, setProfileState] = useState<Profile>(DEFAULT_PROFILE);
+  const [updatedAt, setUpdatedAt] = useState(0);
   const [hydrated, setHydrated] = useState(false);
+  const { isPro } = useIsPro();
 
   // Load persisted state once on mount.
   useEffect(() => {
     try {
       const raw = localStorage.getItem(KEY);
       if (raw) {
-        const parsed = JSON.parse(raw) as {
-          classes: ClassItem[];
-          tasks: TaskItem[];
-          profile?: Profile;
-        };
+        const parsed = JSON.parse(raw) as PersistedState;
         if (parsed.classes) setClasses(parsed.classes);
         if (parsed.tasks) setTasks(parsed.tasks);
-        if (parsed.profile) setProfileState(parsed.profile);
+        if (parsed.grades) setGrades(parsed.grades);
+        // Merge over defaults so profiles saved before new fields existed
+        // (e.g. accent) still get sensible values.
+        if (parsed.profile)
+          setProfileState({ ...DEFAULT_PROFILE, ...parsed.profile });
+        if (parsed.updatedAt) setUpdatedAt(parsed.updatedAt);
       }
     } catch {
       /* ignore corrupt storage */
@@ -98,14 +140,76 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!hydrated) return;
     try {
-      localStorage.setItem(KEY, JSON.stringify({ classes, tasks, profile }));
+      localStorage.setItem(
+        KEY,
+        JSON.stringify({ classes, tasks, grades, profile, updatedAt }),
+      );
     } catch {
       /* storage full / unavailable */
     }
-  }, [classes, tasks, profile, hydrated]);
+  }, [classes, tasks, grades, profile, updatedAt, hydrated]);
+
+  /* ── cloud sync (Pro) ───────────────────────────────────
+     Whole-document, last-write-wins: pull once after hydration, apply the
+     newer side, then push local changes debounced. localStorage stays the
+     offline cache, so the app keeps working without a connection. */
+  const pulledRef = useRef(false);
+  const skipPushRef = useRef(false);
+
+  useEffect(() => {
+    if (!hydrated || !isPro || pulledRef.current) return;
+    pulledRef.current = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/sync");
+        if (!res.ok) return;
+        const server = (await res.json()) as {
+          data: PersistedState | null;
+          updatedAt: number;
+        };
+        if (server.data && server.updatedAt > updatedAt) {
+          skipPushRef.current = true;
+          setClasses(server.data.classes ?? []);
+          setTasks(server.data.tasks ?? []);
+          setGrades(server.data.grades ?? []);
+          if (server.data.profile)
+            setProfileState({ ...DEFAULT_PROFILE, ...server.data.profile });
+          setUpdatedAt(server.updatedAt);
+        }
+        // If local is newer (or the server is empty — first sync migrates the
+        // device's existing data up), the push effect below sends it.
+      } catch {
+        /* offline — localStorage keeps working */
+      }
+    })();
+  }, [hydrated, isPro, updatedAt]);
+
+  useEffect(() => {
+    if (!hydrated || !isPro || !pulledRef.current || updatedAt === 0) return;
+    if (skipPushRef.current) {
+      skipPushRef.current = false;
+      return;
+    }
+    const t = setTimeout(() => {
+      fetch("/api/sync", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          data: { classes, tasks, grades, profile },
+          updatedAt,
+        }),
+      }).catch(() => {
+        /* offline — next change retries */
+      });
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [classes, tasks, grades, profile, updatedAt, hydrated, isPro]);
+
+  const touch = () => setUpdatedAt(Date.now());
 
   const addClass = useCallback((c: Omit<ClassItem, "id">) => {
     setClasses((prev) => [...prev, { ...c, id: uid() }]);
+    touch();
   }, []);
 
   const updateClass = useCallback(
@@ -113,6 +217,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setClasses((prev) =>
         prev.map((c) => (c.id === id ? { ...c, ...updates } : c)),
       );
+      touch();
     },
     [],
   );
@@ -120,16 +225,30 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const deleteClass = useCallback((id: string) => {
     setClasses((prev) => prev.filter((c) => c.id !== id));
     setTasks((prev) => prev.filter((t) => t.classId !== id));
+    setGrades((prev) => prev.filter((g) => g.classId !== id));
+    touch();
   }, []);
 
   const addTask = useCallback((t: Omit<TaskItem, "id">) => {
     setTasks((prev) => [...prev, { ...t, id: uid() }]);
+    touch();
   }, []);
 
   const toggleTask = useCallback((id: string) => {
     setTasks((prev) =>
       prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t)),
     );
+    touch();
+  }, []);
+
+  const addGrade = useCallback((g: Omit<GradeItem, "id">) => {
+    setGrades((prev) => [...prev, { ...g, id: uid() }]);
+    touch();
+  }, []);
+
+  const deleteGrade = useCallback((id: string) => {
+    setGrades((prev) => prev.filter((g) => g.id !== id));
+    touch();
   }, []);
 
   const classById = useCallback(
@@ -139,6 +258,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const setProfile = useCallback((p: Partial<Profile>) => {
     setProfileState((prev) => ({ ...prev, ...p }));
+    touch();
   }, []);
 
   useEffect(() => {
@@ -207,22 +327,23 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(iv);
   }, [classes, tasks, hydrated]);
 
-  // Sync dark/light class to <html> whenever theme changes.
+  // Sync dark/light class and accent theme to <html> whenever they change.
   useEffect(() => {
     if (profile.theme === "dark") {
       document.documentElement.classList.add("dark");
     } else {
       document.documentElement.classList.remove("dark");
     }
-  }, [profile.theme]);
+    document.documentElement.dataset.accent = profile.accent ?? "classic";
+  }, [profile.theme, profile.accent]);
 
   const value = useMemo<Store>(
     () => ({
-      classes, tasks, profile, hydrated,
+      classes, tasks, grades, profile, hydrated,
       addClass, updateClass, deleteClass,
-      addTask, toggleTask, classById, setProfile,
+      addTask, toggleTask, addGrade, deleteGrade, classById, setProfile,
     }),
-    [classes, tasks, profile, hydrated, addClass, updateClass, deleteClass, addTask, toggleTask, classById, setProfile],
+    [classes, tasks, grades, profile, hydrated, addClass, updateClass, deleteClass, addTask, toggleTask, addGrade, deleteGrade, classById, setProfile],
   );
 
   return (

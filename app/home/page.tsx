@@ -137,7 +137,7 @@ export default function HomeScreen() {
             <div className="mt-10 flex flex-col items-center text-center">
               <div
                 className="mb-5 flex h-[80px] w-[80px] items-center justify-center rounded-[28px]"
-                style={{ background: "#EAE9FB" }}
+                style={{ background: "var(--brand-soft)" }}
               >
                 <span className="text-[38px]">🌿</span>
               </div>
@@ -153,8 +153,8 @@ export default function HomeScreen() {
                 onClick={() => setOffset((o) => o + 1)}
                 className="mt-6 flex items-center gap-2 rounded-[15px] px-5 py-[13px] text-[15px] font-semibold text-white transition active:scale-[0.97]"
                 style={{
-                  background: "linear-gradient(180deg, #6157ec, #5045d8)",
-                  boxShadow: "0 10px 24px rgba(80,69,216,.32)",
+                  background: "var(--brand-grad-v)",
+                  boxShadow: "0 10px 24px rgba(var(--brand-rgb),.32)",
                 }}
               >
                 View {nextDayName}
@@ -168,7 +168,7 @@ export default function HomeScreen() {
             <div className="mt-10 flex flex-col items-center text-center">
               <div
                 className="mb-5 flex h-[80px] w-[80px] items-center justify-center rounded-[28px]"
-                style={{ background: "#EAE9FB" }}
+                style={{ background: "var(--brand-soft)" }}
               >
                 <span className="text-[38px]">🎉</span>
               </div>
@@ -181,7 +181,7 @@ export default function HomeScreen() {
               <button
                 onClick={() => setOffset(0)}
                 className="mt-6 rounded-[15px] px-5 py-[13px] text-[15px] font-semibold text-brand transition active:scale-[0.97]"
-                style={{ background: "#EAE9FB" }}
+                style={{ background: "var(--brand-soft)" }}
               >
                 Back to Today
               </button>
@@ -194,8 +194,8 @@ export default function HomeScreen() {
               onClick={() => setOffset(1)}
               className="mt-5 flex w-full items-center justify-between rounded-[18px] px-4 py-3.5 transition active:scale-[0.98]"
               style={{
-                background: "rgba(91,84,232,.06)",
-                border: "1px solid rgba(91,84,232,.1)",
+                background: "rgba(var(--brand-rgb),.06)",
+                border: "1px solid rgba(var(--brand-rgb),.1)",
               }}
             >
               <span className="text-[14px] font-semibold text-brand">
@@ -212,7 +212,7 @@ export default function HomeScreen() {
               <button
                 onClick={() => router.push("/class/new")}
                 className="flex items-center gap-1 rounded-full px-3 py-1.5 text-[13px] font-semibold text-brand transition active:scale-95"
-                style={{ background: "#EAE9FB" }}
+                style={{ background: "var(--brand-soft)" }}
               >
                 <PlusIcon className="h-[14px] w-[14px]" />
                 Add
@@ -328,6 +328,29 @@ export default function HomeScreen() {
               </div>
             )}
           </div>
+
+          {/* ── Grades & GPA ── */}
+          <button
+            onClick={() => router.push("/grades")}
+            className="mt-5 flex w-full items-center gap-3 rounded-[18px] bg-white px-4 py-4 text-left transition active:scale-[0.98]"
+            style={{ boxShadow: "0 2px 10px rgba(30,20,80,.05)" }}
+          >
+            <div
+              className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[11px] text-[17px]"
+              style={{ background: "var(--brand-soft)" }}
+            >
+              🎓
+            </div>
+            <div className="flex-1">
+              <div className="text-[15px] font-semibold text-ink">
+                Grades & GPA
+              </div>
+              <div className="mt-[2px] text-[12px] text-muted">
+                Log scores and track your GPA
+              </div>
+            </div>
+            <ArrowRightIcon className="h-[18px] w-[18px] text-brand" />
+          </button>
         </div>
 
         <TabBar />

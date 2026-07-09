@@ -10,9 +10,11 @@ import {
   CalendarIcon,
   CameraIcon,
   ChevronRightIcon,
+  LockIcon,
   LogOutIcon,
   SparkleIcon,
 } from "@/components/icons";
+import { ACCENTS, isProAccent, type AccentId } from "@/lib/accents";
 import { useStore } from "@/lib/store";
 import { downloadCalendarFile } from "@/lib/calendar";
 import { useIsPro } from "@/lib/useIsPro";
@@ -117,8 +119,8 @@ function SettingsForm() {
             onClick={() => router.push("/upgrade")}
             className="mb-4 flex w-full items-center gap-3 rounded-[24px] px-5 py-[18px] text-left text-white transition active:scale-[0.99]"
             style={{
-              background: "linear-gradient(145deg,#6c63ff,#5045d8)",
-              boxShadow: "0 4px 16px rgba(91,84,232,.3)",
+              background: "var(--brand-grad)",
+              boxShadow: "0 4px 16px rgba(var(--brand-rgb),.3)",
             }}
           >
             <div className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full bg-white/15">
@@ -158,14 +160,14 @@ function SettingsForm() {
                     src={avatarUrl}
                     alt="avatar"
                     className="h-[90px] w-[90px] rounded-full object-cover"
-                    style={{ boxShadow: "0 4px 16px rgba(91,84,232,.25)" }}
+                    style={{ boxShadow: "0 4px 16px rgba(var(--brand-rgb),.25)" }}
                   />
                 ) : (
                   <div
                     className="flex h-[90px] w-[90px] items-center justify-center rounded-full text-[28px] font-bold text-white"
                     style={{
-                      background: "linear-gradient(145deg,#6c63ff,#5045d8)",
-                      boxShadow: "0 4px 16px rgba(91,84,232,.25)",
+                      background: "var(--brand-grad)",
+                      boxShadow: "0 4px 16px rgba(var(--brand-rgb),.25)",
                     }}
                   >
                     {initials}
@@ -173,7 +175,7 @@ function SettingsForm() {
                 )}
                 <div
                   className="absolute bottom-0 right-0 flex h-[28px] w-[28px] items-center justify-center rounded-full bg-brand text-white"
-                  style={{ boxShadow: "0 2px 6px rgba(80,69,216,.4)" }}
+                  style={{ boxShadow: "0 2px 6px rgba(var(--brand-rgb),.4)" }}
                 >
                   <CameraIcon className="h-[14px] w-[14px]" />
                 </div>
@@ -193,7 +195,7 @@ function SettingsForm() {
               className="block rounded-[15px] px-4 py-[13px]"
               style={{
                 background: "var(--bg-input)",
-                border: "1px solid rgba(91,84,232,.12)",
+                border: "1px solid rgba(var(--brand-rgb),.12)",
               }}
             >
               <div className="text-[11px] font-semibold tracking-wide text-faint">
@@ -243,16 +245,69 @@ function SettingsForm() {
                     style={
                       active
                         ? {
-                            background: "#5B54E8",
+                            background: "var(--color-brand)",
                             fontWeight: 600,
                             color: "#fff",
-                            boxShadow: "0 2px 8px rgba(91,84,232,.35)",
+                            boxShadow: "0 2px 8px rgba(var(--brand-rgb),.35)",
                           }
                         : { fontWeight: 500, color: "var(--color-muted)" }
                     }
                   >
                     <span>{t === "light" ? "☀️" : "🌙"}</span>
                     <span>{t === "light" ? "Light" : "Dark"}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* app accent color (Pro except Classic) */}
+            <div className="mb-3 mt-5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-widest text-faint">
+              App color
+              {!isPro && (
+                <span
+                  className="rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white"
+                  style={{ background: "var(--color-brand)" }}
+                >
+                  PRO
+                </span>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {ACCENTS.map((a) => {
+                const locked = !isPro && isProAccent(a.id);
+                const current = (profile.accent ?? "classic") === a.id;
+                return (
+                  <button
+                    key={a.id}
+                    onClick={() =>
+                      locked
+                        ? router.push("/upgrade")
+                        : setProfile({ accent: a.id as AccentId })
+                    }
+                    aria-label={locked ? `${a.label} (Pro)` : a.label}
+                    className="flex flex-col items-center gap-1.5"
+                  >
+                    <span
+                      className="relative block h-9 w-9 rounded-full transition"
+                      style={{
+                        background: a.swatch,
+                        opacity: locked ? 0.45 : 1,
+                        outline: current ? `2px solid ${a.swatch}` : "none",
+                        outlineOffset: 2,
+                      }}
+                    >
+                      {locked && (
+                        <span
+                          className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-white"
+                          style={{ boxShadow: "0 1px 3px rgba(30,20,80,.2)" }}
+                        >
+                          <LockIcon className="h-2.5 w-2.5 text-[#79749B]" />
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-[11px] font-medium text-muted">
+                      {a.label}
+                    </span>
                   </button>
                 );
               })}
@@ -269,7 +324,10 @@ function SettingsForm() {
             </div>
 
             <div className="flex items-start gap-3">
-              <div className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[10px] bg-[#EAE9FB]">
+              <div
+                className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[10px]"
+                style={{ background: "var(--brand-soft)" }}
+              >
                 <CalendarIcon className="h-[18px] w-[18px] text-brand" />
               </div>
               <p className="text-[13px] leading-snug text-muted">
@@ -329,7 +387,7 @@ function SettingsForm() {
 
           {/* app info */}
           <p className="mt-6 text-center text-[12px] text-hint">
-            ClassPin version 25.100
+            ClassPing version 30.254
           </p>
         </div>
 

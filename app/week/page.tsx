@@ -86,7 +86,7 @@ export default function WeekScreen() {
                   <div key={d} className="flex-1 text-center">
                     <div
                       className="text-[11px] font-semibold"
-                      style={{ color: isToday ? "#5B54E8" : "#9A96B4" }}
+                      style={{ color: isToday ? "var(--color-brand)" : "#9A96B4" }}
                     >
                       {d}
                     </div>

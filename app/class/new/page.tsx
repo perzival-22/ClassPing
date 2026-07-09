@@ -98,8 +98,8 @@ export default function AddClassScreen() {
             <div
               className="flex h-[72px] w-[72px] items-center justify-center rounded-full text-white"
               style={{
-                background: "linear-gradient(145deg,#6c63ff,#5045d8)",
-                boxShadow: "0 6px 20px rgba(91,84,232,.35)",
+                background: "var(--brand-grad)",
+                boxShadow: "0 6px 20px rgba(var(--brand-rgb),.35)",
               }}
             >
               <SparkleIcon className="h-9 w-9 text-[#FFD76E]" />
@@ -140,7 +140,7 @@ export default function AddClassScreen() {
             onClick={save}
             disabled={!canSave}
             className="text-[16px] font-semibold"
-            style={{ color: canSave ? "#5B54E8" : "#C4C0DC" }}
+            style={{ color: canSave ? "var(--color-brand)" : "#C4C0DC" }}
           >
             Save
           </button>
@@ -175,7 +175,7 @@ export default function AddClassScreen() {
                     className="flex h-10 w-10 items-center justify-center rounded-full text-[14px] font-semibold transition"
                     style={
                       on
-                        ? { background: "#5B54E8", color: "#fff" }
+                        ? { background: "var(--color-brand)", color: "#fff" }
                         : {
                             background: "#fff",
                             color: i > 4 ? "#C4C0DC" : "#9A96B4",
@@ -217,7 +217,7 @@ export default function AddClassScreen() {
                     className="flex-1 rounded-xl py-[11px] text-center text-[14px] font-semibold transition"
                     style={
                       on
-                        ? { background: "#5B54E8", color: "#fff" }
+                        ? { background: "var(--color-brand)", color: "#fff" }
                         : {
                             background: "#fff",
                             color: "#79749B",

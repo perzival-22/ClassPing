@@ -30,6 +30,66 @@
   --font-display: var(--font-fredoka), ui-sans-serif, system-ui, sans-serif;
 }
 
+/* ── App accent themes ─────────────────────────────────────
+   The brand color everywhere derives from these variables, so switching
+   `data-accent` on <html> re-skins the whole app. "classic" (purple) is the
+   free default; the rest are Pro. Kept orthogonal to light/dark. */
+:root,
+html[data-accent="classic"] {
+  --brand-rgb: 91, 84, 232;
+  --brand-soft: #eae9fb;
+  --brand-grad: linear-gradient(145deg, #6c63ff, #5045d8);
+  --brand-grad-v: linear-gradient(180deg, #6157ec, #5045d8);
+}
+
+html[data-accent="ocean"] {
+  --color-brand: #2e86e8;
+  --color-brand-dark: #1b62bd;
+  --color-brand-deep: #1f6fd0;
+  --color-brand-bright: #4497f2;
+  --brand-rgb: 46, 134, 232;
+  --brand-soft: #e1eefc;
+  --brand-grad: linear-gradient(145deg, #58a6ff, #1f6fd0);
+  --brand-grad-v: linear-gradient(180deg, #4497f2, #1f6fd0);
+}
+
+html[data-accent="sunset"] {
+  --color-brand: #ee5a3c;
+  --color-brand-dark: #c43f24;
+  --color-brand-deep: #d9482b;
+  --color-brand-bright: #f76b4e;
+  --brand-rgb: 238, 90, 60;
+  --brand-soft: #fde8e2;
+  --brand-grad: linear-gradient(145deg, #ff8a65, #d9482b);
+  --brand-grad-v: linear-gradient(180deg, #f76b4e, #d9482b);
+}
+
+html[data-accent="forest"] {
+  --color-brand: #14a085;
+  --color-brand-dark: #0b7a64;
+  --color-brand-deep: #0e8a72;
+  --color-brand-bright: #23b598;
+  --brand-rgb: 20, 160, 133;
+  --brand-soft: #dff3ee;
+  --brand-grad: linear-gradient(145deg, #2fc9a8, #0e8a72);
+  --brand-grad-v: linear-gradient(180deg, #23b598, #0e8a72);
+}
+
+html[data-accent="rose"] {
+  --color-brand: #d6398b;
+  --color-brand-dark: #a81e67;
+  --color-brand-deep: #b92676;
+  --color-brand-bright: #e44e9d;
+  --brand-rgb: 214, 57, 139;
+  --brand-soft: #fae3ef;
+  --brand-grad: linear-gradient(145deg, #f368b5, #b92676);
+  --brand-grad-v: linear-gradient(180deg, #e44e9d, #b92676);
+}
+
+html.dark {
+  --brand-soft: rgba(var(--brand-rgb), 0.16);
+}
+
 /* ── Dark mode ─────────────────────────────────────────── */
 :root {
   --bg-signin:
@@ -44,7 +104,7 @@
   /* Aurora backdrop: faint glows in the app's own class-palette colors
      (brand purple, coral, teal) so glass surfaces have depth to blur. */
   --bg-aurora:
-    radial-gradient(400px 320px at 12% -4%, rgba(91, 84, 232, 0.13), transparent 70%),
+    radial-gradient(400px 320px at 12% -4%, rgba(var(--brand-rgb), 0.13), transparent 70%),
     radial-gradient(340px 280px at 108% 14%, rgba(255, 107, 87, 0.09), transparent 70%),
     radial-gradient(460px 380px at 46% 114%, rgba(14, 159, 142, 0.1), transparent 70%),
     var(--color-canvas);
@@ -78,7 +138,7 @@ html.dark {
   --bg-input: #1a183a;
 
   --bg-aurora:
-    radial-gradient(400px 320px at 12% -4%, rgba(108, 99, 255, 0.22), transparent 70%),
+    radial-gradient(400px 320px at 12% -4%, rgba(var(--brand-rgb), 0.22), transparent 70%),
     radial-gradient(340px 280px at 108% 14%, rgba(255, 107, 87, 0.11), transparent 70%),
     radial-gradient(460px 380px at 46% 114%, rgba(14, 159, 142, 0.13), transparent 70%),
     var(--color-canvas);
@@ -139,17 +199,21 @@ body {
 
 /* Shared gradient button — tinted glass: translucent gradient + inner highlight */
 .btn-brand {
-  background: linear-gradient(180deg, rgba(97, 87, 236, 0.92), rgba(80, 69, 216, 0.94));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-brand-bright) 92%, transparent),
+    color-mix(in srgb, var(--color-brand-deep) 94%, transparent)
+  );
   backdrop-filter: blur(14px) saturate(1.5);
   -webkit-backdrop-filter: blur(14px) saturate(1.5);
   border: 1px solid rgba(255, 255, 255, 0.28);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.38),
-    0 12px 26px rgba(80, 69, 216, 0.34);
+    0 12px 26px rgba(var(--brand-rgb), 0.34);
 }
 
 .brand-logo-grad {
-  background: linear-gradient(145deg, #6c63ff, #5045d8);
+  background: var(--brand-grad);
 }
 
 /* ── Skeleton loading ──────────────────────────────────────

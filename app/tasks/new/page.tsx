@@ -80,7 +80,7 @@ function AddAssignment() {
             onClick={save}
             disabled={!canSave}
             className="text-[16px] font-semibold"
-            style={{ color: canSave ? "#5B54E8" : "#C4C0DC" }}
+            style={{ color: canSave ? "var(--color-brand)" : "#C4C0DC" }}
           >
             Save
           </button>
@@ -170,7 +170,7 @@ function AddAssignment() {
                     className="rounded-xl px-[15px] py-2.5 text-[14px] font-semibold transition"
                     style={
                       on
-                        ? { background: "#5B54E8", color: "#fff" }
+                        ? { background: "var(--color-brand)", color: "#fff" }
                         : {
                             background: "#fff",
                             color: "#79749B",

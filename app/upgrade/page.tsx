@@ -8,8 +8,10 @@ import { useIsPro } from "@/lib/useIsPro";
 
 const PERKS = [
   "Unlimited classes",
+  "Cloud sync across your devices",
+  "Grades & GPA tracker",
   "Export to your phone's calendar (.ics)",
-  "4 extra premium colors",
+  "Premium app themes & class colors",
   "Support an indie student app",
 ];
 
@@ -41,8 +43,8 @@ export default function UpgradeScreen() {
           <div
             className="rounded-[24px] px-5 py-6 text-white"
             style={{
-              background: "linear-gradient(145deg,#6c63ff,#5045d8)",
-              boxShadow: "0 6px 20px rgba(91,84,232,.35)",
+              background: "var(--brand-grad)",
+              boxShadow: "0 6px 20px rgba(var(--brand-rgb),.35)",
             }}
           >
             <div className="flex items-center gap-2">
