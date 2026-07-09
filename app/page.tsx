@@ -116,10 +116,29 @@ function SignInForm() {
       const result = await signUp.attemptEmailAddressVerification({
         code: code.trim(),
       });
+
       if (result.status === "complete" && result.createdSessionId) {
         await finishAuth(result.createdSessionId, setActiveSignUp);
+        return;
+      }
+
+      // The code was accepted (email is now verified) but the sign-up isn't
+      // "complete", so Clerk hasn't created the user. This is almost always a
+      // production-instance setting requiring more than we collect — surface
+      // exactly what's missing instead of blaming the code.
+      const missing = [
+        ...(result.missingFields ?? []),
+        ...(result.unverifiedFields ?? []),
+      ];
+      if (missing.length > 0) {
+        setError(
+          `Email verified, but your account needs: ${missing.join(", ")}. ` +
+            `Adjust your Clerk sign-up requirements.`,
+        );
       } else {
-        setError("That code didn't work. Double-check and try again.");
+        setError(
+          `Couldn't finish sign-up (status: ${result.status}). Please try again.`,
+        );
       }
     } catch (err) {
       setError(clerkErrorMessage(err));
