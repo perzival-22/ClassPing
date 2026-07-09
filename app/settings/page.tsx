@@ -6,9 +6,16 @@ import { useClerk } from "@clerk/nextjs";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { TabBar } from "@/components/TabBar";
 import { SettingsSkeleton } from "@/components/Skeleton";
-import { CalendarIcon, CameraIcon, LogOutIcon } from "@/components/icons";
+import {
+  CalendarIcon,
+  CameraIcon,
+  ChevronRightIcon,
+  LogOutIcon,
+  SparkleIcon,
+} from "@/components/icons";
 import { useStore } from "@/lib/store";
-import { buildCalendarFile, downloadCalendarFile } from "@/lib/calendar";
+import { downloadCalendarFile } from "@/lib/calendar";
+import { useIsPro } from "@/lib/useIsPro";
 
 export default function SettingsScreen() {
   const { hydrated } = useStore();
@@ -25,22 +32,54 @@ export default function SettingsScreen() {
 function SettingsForm() {
   const router = useRouter();
   const { signOut } = useClerk();
-  const { profile, setProfile, classes, tasks, classById } = useStore();
+  const { profile, setProfile, classes, tasks } = useStore();
+  const { isPro } = useIsPro();
 
   const [username, setUsername] = useState(profile.username);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.avatarUrl);
   const [saved, setSaved] = useState(false);
   const [exported, setExported] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const openTasks = tasks.filter((t) => !t.done);
   const hasSchedule = classes.length > 0 || openTasks.length > 0;
 
-  function handleCalendarExport() {
-    const ics = buildCalendarFile(classes, tasks, (id) => classById(id)?.name);
-    downloadCalendarFile(ics);
-    setExported(true);
-    setTimeout(() => setExported(false), 6000);
+  // Pro feature. The server re-checks the entitlement, so this handler can't
+  // be bypassed by editing client state — free users go to the upgrade screen.
+  async function handleCalendarExport() {
+    if (!isPro) {
+      router.push("/upgrade");
+      return;
+    }
+    setExporting(true);
+    setExportError(false);
+    try {
+      // The user's local wall-clock time (naive, no timezone) so the server
+      // anchors weekly recurrences to *their* today, not the server's.
+      const d = new Date();
+      const p = (n: number) => n.toString().padStart(2, "0");
+      const now = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:00`;
+
+      const res = await fetch("/api/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ classes, tasks, now }),
+      });
+      if (res.status === 403) {
+        router.push("/upgrade");
+        return;
+      }
+      if (!res.ok) throw new Error(`export failed: ${res.status}`);
+      downloadCalendarFile(await res.text());
+      setExported(true);
+      setTimeout(() => setExported(false), 6000);
+    } catch {
+      setExportError(true);
+    } finally {
+      setExporting(false);
+    }
   }
 
   function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -73,6 +112,31 @@ function SettingsForm() {
         </div>
 
         <div className="no-scrollbar flex-1 overflow-y-auto px-5 pb-36">
+          {/* ── Pro / upgrade card ── */}
+          <button
+            onClick={() => router.push("/upgrade")}
+            className="mb-4 flex w-full items-center gap-3 rounded-[24px] px-5 py-[18px] text-left text-white transition active:scale-[0.99]"
+            style={{
+              background: "linear-gradient(145deg,#6c63ff,#5045d8)",
+              boxShadow: "0 4px 16px rgba(91,84,232,.3)",
+            }}
+          >
+            <div className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full bg-white/15">
+              <SparkleIcon className="h-5 w-5 text-[#FFD76E]" />
+            </div>
+            <div className="flex-1">
+              <div className="text-[15px] font-semibold">
+                {isPro ? "ClassPing Pro" : "Upgrade to ClassPing Pro"}
+              </div>
+              <div className="mt-px text-[12px] text-white/80">
+                {isPro
+                  ? "You're on Pro — manage your plan"
+                  : "Unlimited classes, calendar export & more"}
+              </div>
+            </div>
+            <ChevronRightIcon className="h-5 w-5 text-white/70" />
+          </button>
+
           {/* ── Profile card ── */}
           <div
             className="rounded-[24px] bg-white px-5 py-6"
@@ -217,18 +281,27 @@ function SettingsForm() {
 
             <button
               onClick={handleCalendarExport}
-              disabled={!hasSchedule}
-              className="btn-brand mt-4 w-full rounded-[15px] py-[14px] text-center text-[16px] font-semibold text-white transition active:scale-[0.98] disabled:opacity-50"
+              disabled={!hasSchedule || exporting}
+              className="btn-brand mt-4 flex w-full items-center justify-center gap-2 rounded-[15px] py-[14px] text-center text-[16px] font-semibold text-white transition active:scale-[0.98] disabled:opacity-50"
             >
-              Add to phone calendar
+              {exporting ? "Exporting…" : "Add to phone calendar"}
+              {!isPro && (
+                <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-bold tracking-wide">
+                  PRO
+                </span>
+              )}
             </button>
 
             <p className="mt-2.5 text-center text-[12px] text-faint">
               {!hasSchedule
                 ? "Add a class or task first."
-                : exported
-                  ? "Downloaded classping.ics — open it to finish importing."
-                  : `Exports ${classes.length} ${classes.length === 1 ? "class" : "classes"} and ${openTasks.length} open ${openTasks.length === 1 ? "task" : "tasks"}. Re-add after you change your schedule.`}
+                : !isPro
+                  ? "Calendar export is a Pro feature — tap to see plans."
+                  : exportError
+                    ? "Export didn't work — check your connection and try again."
+                    : exported
+                      ? "Downloaded classping.ics — open it to finish importing."
+                      : `Exports ${classes.length} ${classes.length === 1 ? "class" : "classes"} and ${openTasks.length} open ${openTasks.length === 1 ? "task" : "tasks"}. Re-add after you change your schedule.`}
             </p>
           </div>
 

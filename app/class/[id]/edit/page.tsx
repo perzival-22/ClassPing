@@ -4,10 +4,12 @@ import { use, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { Toggle } from "@/components/Toggle";
+import { ColorPicker } from "@/components/ColorPicker";
 import { BellSolid } from "@/components/icons";
-import { SUBJECT_COLORS, PALETTE, type SubjectColor } from "@/lib/palette";
+import { type SubjectColor } from "@/lib/palette";
 import { useStore, type DayIndex } from "@/lib/store";
 import { ensureNotificationPermission } from "@/lib/notifications";
+import { useIsPro } from "@/lib/useIsPro";
 
 const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
 const REMIND_OPTIONS = [
@@ -33,6 +35,7 @@ export default function EditClassScreen({
   const { id } = use(params);
   const router = useRouter();
   const { classById, updateClass } = useStore();
+  const { isPro } = useIsPro();
   const existing = classById(id);
 
   const [name, setName] = useState(existing?.name ?? "");
@@ -116,21 +119,7 @@ export default function EditClassScreen({
 
           {/* color */}
           <Field label="COLOR">
-            <div className="flex gap-2.5">
-              {SUBJECT_COLORS.map((c) => (
-                <button
-                  key={c}
-                  onClick={() => setColor(c)}
-                  aria-label={c}
-                  className="h-9 w-9 rounded-full transition"
-                  style={{
-                    background: PALETTE[c].bar,
-                    outline: color === c ? `2px solid ${PALETTE[c].bar}` : "none",
-                    outlineOffset: 2,
-                  }}
-                />
-              ))}
-            </div>
+            <ColorPicker value={color} onChange={setColor} isPro={isPro} />
           </Field>
 
           {/* days */}

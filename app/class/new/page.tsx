@@ -4,10 +4,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { Toggle } from "@/components/Toggle";
-import { BellSolid } from "@/components/icons";
-import { SUBJECT_COLORS, PALETTE, type SubjectColor } from "@/lib/palette";
+import { ColorPicker } from "@/components/ColorPicker";
+import { BellSolid, SparkleIcon } from "@/components/icons";
+import { type SubjectColor } from "@/lib/palette";
 import { useStore, type DayIndex } from "@/lib/store";
 import { ensureNotificationPermission, showReminder } from "@/lib/notifications";
+import { useIsPro } from "@/lib/useIsPro";
+import { FREE_CLASS_LIMIT } from "@/lib/plan";
 
 const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
 const REMIND_OPTIONS = [
@@ -29,7 +32,13 @@ function toInput(mins: number): string {
 
 export default function AddClassScreen() {
   const router = useRouter();
-  const { addClass } = useStore();
+  const { addClass, classes, hydrated } = useStore();
+  const { isPro, proLoaded } = useIsPro();
+
+  // Free plan: gate *adding* beyond the limit. Users who already have more
+  // classes keep them all — nothing existing is ever locked or removed.
+  const atLimit =
+    hydrated && proLoaded && !isPro && classes.length >= FREE_CLASS_LIMIT;
 
   const [name, setName] = useState("Foundations of Machine Learning");
   const [days, setDays] = useState<Set<number>>(new Set([0, 2]));
@@ -39,7 +48,7 @@ export default function AddClassScreen() {
   const [alarm, setAlarm] = useState(true);
   const [color, setColor] = useState<SubjectColor>("indigo");
 
-  const canSave = name.trim().length > 0 && days.size > 0;
+  const canSave = name.trim().length > 0 && days.size > 0 && !atLimit;
 
   const toggleDay = (i: number) => {
     setDays((prev) => {
@@ -72,6 +81,48 @@ export default function AddClassScreen() {
     }
     router.push("/week");
   };
+
+  if (atLimit) {
+    return (
+      <PhoneFrame>
+        <div className="flex h-full flex-col bg-aurora">
+          <div className="flex items-center px-5 pb-2.5 pt-[60px]">
+            <button
+              onClick={() => router.push("/week")}
+              className="text-[16px] font-medium text-muted-2"
+            >
+              Back
+            </button>
+          </div>
+          <div className="flex flex-1 flex-col items-center justify-center px-8 pb-24 text-center">
+            <div
+              className="flex h-[72px] w-[72px] items-center justify-center rounded-full text-white"
+              style={{
+                background: "linear-gradient(145deg,#6c63ff,#5045d8)",
+                boxShadow: "0 6px 20px rgba(91,84,232,.35)",
+              }}
+            >
+              <SparkleIcon className="h-9 w-9 text-[#FFD76E]" />
+            </div>
+            <h2 className="mt-5 font-[family-name:var(--font-fredoka)] text-[22px] font-semibold text-ink">
+              Your free timetable is full
+            </h2>
+            <p className="mt-2 text-[14px] leading-snug text-muted">
+              The free plan holds {FREE_CLASS_LIMIT} classes. Upgrade to
+              ClassPing Pro for unlimited classes, calendar export, and premium
+              colors.
+            </p>
+            <button
+              onClick={() => router.push("/upgrade")}
+              className="btn-brand mt-6 w-full rounded-[17px] py-[15px] text-center text-[16px] font-semibold text-white transition active:scale-[0.98]"
+            >
+              See Pro plans
+            </button>
+          </div>
+        </div>
+      </PhoneFrame>
+    );
+  }
 
   return (
     <PhoneFrame>
@@ -109,22 +160,7 @@ export default function AddClassScreen() {
 
           {/* color */}
           <Field label="COLOR">
-            <div className="flex gap-2.5">
-              {SUBJECT_COLORS.map((c) => (
-                <button
-                  key={c}
-                  onClick={() => setColor(c)}
-                  aria-label={c}
-                  className="h-9 w-9 rounded-full transition"
-                  style={{
-                    background: PALETTE[c].bar,
-                    outline:
-                      color === c ? `2px solid ${PALETTE[c].bar}` : "none",
-                    outlineOffset: 2,
-                  }}
-                />
-              ))}
-            </div>
+            <ColorPicker value={color} onChange={setColor} isPro={isPro} />
           </Field>
 
           {/* days */}

@@ -47,8 +47,8 @@ function fold(line: string): string {
 }
 
 /** Soonest date (today or later) that falls on one of the class's weekdays. */
-function nextOccurrence(days: DayIndex[], startMins: number): Date {
-  const d = new Date();
+function nextOccurrence(days: DayIndex[], startMins: number, base: Date): Date {
+  const d = new Date(base);
   for (let i = 0; i < 7; i++) {
     const dow = (d.getDay() + 6) % 7; // 0 = Mon … 6 = Sun
     if (dow <= 4 && days.includes(dow as DayIndex)) break;
@@ -62,6 +62,9 @@ export function buildCalendarFile(
   classes: ClassItem[],
   tasks: TaskItem[],
   classNameById: (id: string) => string | undefined,
+  /** The user's "today", used to anchor weekly recurrences. When this runs on
+   *  the server, the caller passes the client's local wall-clock time. */
+  now: Date = new Date(),
 ): string {
   const stamp = fmtUtcNow();
   const lines: string[] = [
@@ -75,7 +78,7 @@ export function buildCalendarFile(
 
   for (const c of classes) {
     if (c.days.length === 0) continue;
-    const start = nextOccurrence(c.days, c.start);
+    const start = nextOccurrence(c.days, c.start, now);
     const end = new Date(start);
     end.setHours(Math.floor(c.end / 60), c.end % 60, 0, 0);
     const byday = c.days

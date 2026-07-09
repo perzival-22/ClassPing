@@ -276,3 +276,33 @@ export function TrashIcon(props: P) {
     </svg>
   );
 }
+
+export function LockIcon(props: P) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" {...props}>
+      <rect
+        x="5" y="10.5" width="14" height="10" rx="2.5"
+        fill="currentColor"
+      />
+      <path
+        d="M8 10.5V7.5a4 4 0 018 0v3"
+        stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+export function SparkleIcon(props: P) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" {...props}>
+      <path
+        d="M12 2.5l2.1 5.9 5.9 2.1-5.9 2.1L12 18.5l-2.1-5.9L4 10.5l5.9-2.1L12 2.5z"
+        fill="currentColor"
+      />
+      <path
+        d="M18.8 15.5l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9.9-2.3z"
+        fill="currentColor" opacity=".7"
+      />
+    </svg>
+  );
+}
