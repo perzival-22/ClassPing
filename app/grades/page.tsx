@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { TabBar } from "@/components/TabBar";
 import { PlusIcon, SparkleIcon, TrashIcon } from "@/components/icons";
+import { FinalsCountdown } from "@/components/FinalsCountdown";
 import { PALETTE } from "@/lib/palette";
 import { useStore, longDate, type GradeItem } from "@/lib/store";
 import { classAverage, letterFor, overallGpa, pointsFor } from "@/lib/gpa";
@@ -192,6 +193,9 @@ export default function GradesScreen() {
               </button>
             </div>
           )}
+
+          {/* DaysToFinals countdown */}
+          <FinalsCountdown />
         </div>
 
         <TabBar />

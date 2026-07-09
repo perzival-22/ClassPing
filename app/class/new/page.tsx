@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { Toggle } from "@/components/Toggle";
 import { ColorPicker } from "@/components/ColorPicker";
+import { ExtraReminders } from "@/components/ExtraReminders";
 import { BellSolid, SparkleIcon } from "@/components/icons";
 import { type SubjectColor } from "@/lib/palette";
 import { useStore, type DayIndex } from "@/lib/store";
@@ -47,6 +48,7 @@ export default function AddClassScreen() {
   const [remind, setRemind] = useState(15);
   const [alarm, setAlarm] = useState(true);
   const [color, setColor] = useState<SubjectColor>("indigo");
+  const [extraReminders, setExtraReminders] = useState<number[]>([]);
 
   const canSave = name.trim().length > 0 && days.size > 0 && !atLimit;
 
@@ -70,6 +72,7 @@ export default function AddClassScreen() {
       end,
       remindBefore: remind,
       alarm,
+      reminders: extraReminders.length ? extraReminders : undefined,
     });
     // Confirm notifications work for the reminder the user just set up.
     if (alarm && (await ensureNotificationPermission())) {
@@ -230,6 +233,21 @@ export default function AddClassScreen() {
                 );
               })}
             </div>
+          </Field>
+
+          {/* extra calendar alerts (Pro) */}
+          <Field label="EXTRA CALENDAR ALERTS">
+            <ExtraReminders
+              value={extraReminders}
+              onChange={setExtraReminders}
+              isPro={isPro}
+              primary={remind}
+            />
+            <p className="mt-2 px-1 text-[12px] text-muted-2">
+              {isPro
+                ? "Baked into your calendar export so your phone alerts you even when the app is closed."
+                : "Pro — stack extra calendar alerts your phone delivers when the app is closed."}
+            </p>
           </Field>
 
           {/* alarm */}

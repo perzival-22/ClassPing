@@ -27,9 +27,11 @@ export interface ClassItem {
   /** minutes from midnight, e.g. 8:30 -> 510 */
   start: number;
   end: number;
-  /** minutes before class to remind */
+  /** minutes before class to remind (primary in-app + calendar alarm) */
   remindBefore: number;
   alarm: boolean;
+  /** extra lead times (minutes) written as additional calendar alarms — Pro */
+  reminders?: number[];
 }
 
 export interface TaskItem {
@@ -63,6 +65,8 @@ export interface Profile {
   theme: "light" | "dark";
   /** app-wide accent theme; Pro except "classic" */
   accent: AccentId;
+  /** ISO date of finals, drives the DaysToFinals countdown — Pro */
+  finalsDate?: string | null;
 }
 
 interface Store {
@@ -94,6 +98,7 @@ const DEFAULT_PROFILE: Profile = {
   avatarUrl: null,
   theme: "light",
   accent: "classic",
+  finalsDate: null,
 };
 
 /** Shape of the synced document (also what localStorage holds). */

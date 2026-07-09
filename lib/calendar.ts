@@ -13,6 +13,19 @@ const BYDAY = ["MO", "TU", "WE", "TH", "FR"] as const;
 
 const pad = (n: number) => n.toString().padStart(2, "0");
 
+/** Human lead time for an alarm description: "1 day", "3 hours", "15 minutes". */
+function leadLabel(mins: number): string {
+  if (mins % 1440 === 0) {
+    const d = mins / 1440;
+    return `${d} day${d === 1 ? "" : "s"}`;
+  }
+  if (mins % 60 === 0) {
+    const h = mins / 60;
+    return `${h} hour${h === 1 ? "" : "s"}`;
+  }
+  return `${mins} minute${mins === 1 ? "" : "s"}`;
+}
+
 function fmtLocal(d: Date): string {
   return (
     `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}` +
@@ -98,13 +111,20 @@ export function buildCalendarFile(
       `SUMMARY:${esc(c.name)}`,
     );
     if (c.alarm) {
-      lines.push(
-        "BEGIN:VALARM",
-        "ACTION:DISPLAY",
-        `TRIGGER:-PT${c.remindBefore}M`,
-        `DESCRIPTION:${esc(`${c.name} starts in ${c.remindBefore} minutes`)}`,
-        "END:VALARM",
-      );
+      // Primary reminder plus any extra Pro lead times, de-duped, earliest
+      // heads-up first — each becomes its own alarm the native calendar fires.
+      const offsets = Array.from(
+        new Set([c.remindBefore, ...(c.reminders ?? [])]),
+      ).sort((a, b) => b - a);
+      for (const mins of offsets) {
+        lines.push(
+          "BEGIN:VALARM",
+          "ACTION:DISPLAY",
+          `TRIGGER:-PT${mins}M`,
+          `DESCRIPTION:${esc(`${c.name} starts in ${leadLabel(mins)}`)}`,
+          "END:VALARM",
+        );
+      }
     }
     lines.push("END:VEVENT");
   }
