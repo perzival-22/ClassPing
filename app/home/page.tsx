@@ -20,6 +20,7 @@ import {
   useNow,
   weekInfo,
   fmtMD,
+  dueLabel,
   type ClassItem,
   type DayIndex,
 } from "@/lib/store";
@@ -57,7 +58,8 @@ function fmtRange(start: number, end: number) {
 const DAY_ABBR = ["M", "T", "W", "Th", "F"];
 
 export default function HomeScreen() {
-  const { classes, profile, deleteClass, hydrated } = useStore();
+  const { classes, tasks, profile, classById, deleteClass, hydrated } =
+    useStore();
   const router = useRouter();
   const [offset, setOffset] = useState(0);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -77,6 +79,11 @@ export default function HomeScreen() {
     .filter((c) => c.days.includes(dayIndex))
     .sort((a, b) => a.start - b.start);
 
+  // Open assignments across all classes, soonest due first.
+  const openTasks = tasks
+    .filter((t) => !t.done)
+    .sort((a, b) => a.due.localeCompare(b.due));
+
   const isEmpty = dayClasses.length === 0;
   // Have we looped through all 5 working days with no classes anywhere?
   const checkedAll = offset >= 4 && isEmpty;
@@ -93,7 +100,7 @@ export default function HomeScreen() {
     <PhoneFrame>
       <div className="flex h-full flex-col bg-aurora">
         {/* header */}
-        <div className="px-5 pb-2 pt-16">
+        <div className="px-5 pb-2 pt-12">
           <p className="text-[13px] font-semibold text-muted-2">
             {greeting(now.getHours())}, {profile.username.split(/[.\s_-]/)[0] || profile.username} 👋
           </p>
@@ -205,6 +212,83 @@ export default function HomeScreen() {
               <ArrowRightIcon className="h-[18px] w-[18px] text-brand" />
             </button>
           )}
+
+          {/* ── Assignments ── */}
+          <div className="mt-8">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <h2 className="text-[17px] font-semibold text-ink">
+                  Assignments
+                </h2>
+                {openTasks.length > 0 && (
+                  <span className="rounded-full bg-coral px-2 py-[2px] text-[11px] font-bold text-white">
+                    {openTasks.length}
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => router.push("/tasks")}
+                className="flex items-center gap-1 rounded-full px-3 py-1.5 text-[13px] font-semibold text-brand transition active:scale-95"
+                style={{ background: "var(--brand-soft)" }}
+              >
+                View all
+                <ArrowRightIcon className="h-[13px] w-[13px]" />
+              </button>
+            </div>
+
+            {openTasks.length === 0 ? (
+              <div
+                className="rounded-[18px] bg-white px-4 py-6 text-center"
+                style={{ boxShadow: "0 2px 10px rgba(30,20,80,.05)" }}
+              >
+                <p className="text-[14px] text-muted">
+                  🎉 No open assignments.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2.5">
+                {openTasks.slice(0, 4).map((t) => {
+                  const cls = classById(t.classId);
+                  const dot = PALETTE[cls?.color ?? "indigo"].bar;
+                  const due = dueLabel(t.due);
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => router.push("/tasks")}
+                      className="flex items-center gap-3 rounded-[18px] bg-white px-4 py-3.5 text-left transition active:scale-[0.98]"
+                      style={{ boxShadow: "0 2px 10px rgba(30,20,80,.05)" }}
+                    >
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ background: dot }}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[15px] font-semibold text-ink">
+                          {t.title}
+                        </div>
+                        <div className="mt-[2px] truncate text-[12px] text-muted">
+                          {cls?.name ?? "—"}
+                        </div>
+                      </div>
+                      <span
+                        className="shrink-0 whitespace-nowrap rounded-full px-2.5 py-[5px] text-[12px] font-bold"
+                        style={
+                          due.urgent
+                            ? { background: "#FFE8E3", color: "#D33B22" }
+                            : {
+                                background: "var(--brand-soft)",
+                                color: "var(--color-muted)",
+                              }
+                        }
+                      >
+                        {due.text}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           {/* ── My Classes ── */}
           <div className="mt-8">

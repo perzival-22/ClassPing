@@ -1,11 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { TabBar } from "@/components/TabBar";
 import { WeekSkeleton } from "@/components/Skeleton";
-import { BellSolid } from "@/components/icons";
+import { BellSolid, ArrowLeftIcon, ArrowRightIcon } from "@/components/icons";
 import { PALETTE } from "@/lib/palette";
 import { useStore, useNow, weekInfo, type ClassItem, type DayIndex } from "@/lib/store";
 
@@ -18,16 +17,38 @@ const y = (mins: number) => ((mins - START_HOUR * 60) / 60) * PX_PER_HOUR;
 
 export default function WeekScreen() {
   const { classes, hydrated } = useStore();
-  const router = useRouter();
   const [dismissed, setDismissed] = useState(false);
+  const [weekOffset, setWeekOffset] = useState(0);
   const now = useNow();
 
   if (!now || !hydrated) {
     return <WeekSkeleton />;
   }
 
-  const { dates, todayCol } = weekInfo(now);
+  // Anchor on the current Mon–Fri school week, then shift by whole weeks.
+  const base = weekInfo(now);
+  const monday = new Date(base.dates[0]);
+  monday.setDate(monday.getDate() + weekOffset * 7);
+  const dates = Array.from({ length: 5 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return d;
+  });
+  // "Today" markers (highlight, now-line, upcoming banner) only apply to the
+  // current week — clear them while browsing past/future weeks.
+  const todayCol = weekOffset === 0 ? base.todayCol : null;
   const nowMin = now.getHours() * 60 + now.getMinutes();
+
+  const weekLabel =
+    weekOffset === 0
+      ? "This Week"
+      : weekOffset === 1
+        ? "Next Week"
+        : weekOffset === -1
+          ? "Last Week"
+          : weekOffset > 0
+            ? `In ${weekOffset} Weeks`
+            : `${-weekOffset} Weeks Ago`;
   const rangeLabel = `${dates[0]
     .toLocaleDateString("en-US", { month: "short" })
     .toUpperCase()} ${dates[0].getDate()} – ${
@@ -62,16 +83,25 @@ export default function WeekScreen() {
               {rangeLabel}
             </div>
             <h1 className="mt-0.5 font-[family-name:var(--font-fredoka)] text-[32px] font-semibold leading-tight text-ink">
-              This Week
+              {weekLabel}
             </h1>
           </div>
-          <button
-            onClick={() => router.push("/class/new")}
-            aria-label="Add class"
-            className="glass flex h-10 w-10 items-center justify-center rounded-full text-[22px] text-brand transition active:scale-95"
-          >
-            +
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setWeekOffset((o) => o - 1)}
+              aria-label="Previous week"
+              className="glass flex h-10 w-10 items-center justify-center rounded-full text-brand transition active:scale-95"
+            >
+              <ArrowLeftIcon className="h-[18px] w-[18px]" />
+            </button>
+            <button
+              onClick={() => setWeekOffset((o) => o + 1)}
+              aria-label="Next week"
+              className="glass flex h-10 w-10 items-center justify-center rounded-full text-brand transition active:scale-95"
+            >
+              <ArrowRightIcon className="h-[18px] w-[18px]" />
+            </button>
+          </div>
         </div>
 
         {/* grid */}

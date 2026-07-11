@@ -126,8 +126,8 @@ function TaskRow({
           className="text-[16px] font-semibold"
           style={
             task.done
-              ? { color: "#A6A2BE", textDecoration: "line-through" }
-              : { color: "#211D46" }
+              ? { color: "var(--color-muted-2)", textDecoration: "line-through" }
+              : { color: "var(--color-ink)" }
           }
         >
           {task.title}
