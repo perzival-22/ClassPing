@@ -1,19 +1,35 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { ChatIcon } from "@/components/icons";
-import { justEndedClass, useNow, useStore } from "@/lib/store";
+import {
+  fmtTime,
+  justEndedClass,
+  useNow,
+  useStore,
+  type ClassItem,
+  type DayIndex,
+} from "@/lib/store";
 
 /**
  * Post-class prompt — shown right after a class ends, asking whether it came
  * with an assignment. "Yes" jumps straight into Add Assignment, pre-filled with
- * the class that actually just finished (see `justEndedClass`).
+ * the class that actually just finished.
+ *
+ * Two ways in:
+ *   • The push notification (/api/cron/post-class), which passes ?class=<id>.
+ *     On iOS this is the *only* way the question gets asked, because Safari
+ *     won't render the notification's Yes/No buttons.
+ *   • Opening it with no param, in which case we infer the class from the clock.
  */
-export default function PostClassPromptScreen() {
+function PostClassPrompt() {
   const router = useRouter();
-  const { classes, hydrated } = useStore();
+  const params = useSearchParams();
+  const { classes, classById, hydrated } = useStore();
   const now = useNow();
+  const [dismissed, setDismissed] = useState(false);
 
   // `now` is null on the server-rendered first paint, so hold the frame until
   // both the clock and persisted state are live.
@@ -25,10 +41,28 @@ export default function PostClassPromptScreen() {
     );
   }
 
-  const justEnded = justEndedClass(classes, now);
+  // Prefer the class the notification named. It's authoritative — the push was
+  // sent the moment that class ended — and it keeps working if the student only
+  // gets round to tapping the notification an hour later, by which point the
+  // clock-based guess below would have given up.
+  const fromParam = params.get("class");
+  const justEnded =
+    (fromParam ? classById(fromParam) : undefined) ??
+    justEndedClass(classes, now);
 
-  // Nothing ended in the last half hour — there's nothing to ask about.
-  if (!justEnded) return <NothingJustEnded onDismiss={() => router.push("/home")} />;
+  // Nothing ended recently — there's nothing to ask about.
+  if (!justEnded) {
+    return <NothingJustEnded onDismiss={() => router.push("/home")} />;
+  }
+
+  if (dismissed) {
+    return (
+      <SignedOff
+        next={nextClassToday(classes, now)}
+        onDone={() => router.push("/home")}
+      />
+    );
+  }
 
   return (
     <PhoneFrame>
@@ -86,7 +120,7 @@ export default function PostClassPromptScreen() {
               Yes, add it
             </button>
             <button
-              onClick={() => router.push("/week")}
+              onClick={() => setDismissed(true)}
               className="w-full rounded-[15px] bg-[#F0EFF6] py-4 text-[16px] font-semibold text-[#5A5578] transition active:scale-[0.98]"
             >
               No, I&apos;m good
@@ -99,9 +133,45 @@ export default function PostClassPromptScreen() {
 }
 
 /**
+ * The "No" answer. Previously this just bounced to /week, which read as the tap
+ * having missed — say something, and point at whatever's next so the screen is
+ * doing a small job rather than just closing.
+ */
+function SignedOff({
+  next,
+  onDone,
+}: {
+  next: ClassItem | null;
+  onDone: () => void;
+}) {
+  return (
+    <PhoneFrame>
+      <div className="flex h-full flex-col items-center justify-center bg-aurora px-8 text-center">
+        <div className="flex h-[72px] w-[72px] items-center justify-center rounded-[24px] bg-[#E6F7EE] text-[34px]">
+          🎉
+        </div>
+        <h2 className="mt-5 font-[family-name:var(--font-fredoka)] text-[22px] font-semibold text-ink">
+          Nice — nothing to log
+        </h2>
+        <p className="mt-2 text-[14px] leading-snug text-muted">
+          {next
+            ? `Enjoy ${next.name} at ${fmtTime(next.start)} 👋`
+            : "That's you done. Have a great rest of your day 👋"}
+        </p>
+        <button
+          onClick={onDone}
+          className="btn-brand mt-6 w-full rounded-[17px] py-[15px] text-[16px] font-semibold text-white transition active:scale-[0.98]"
+        >
+          Back to Home
+        </button>
+      </div>
+    </PhoneFrame>
+  );
+}
+
+/**
  * Reached when no class ended recently — someone opened /prompt directly, or
- * lingered past the window. Previously this rendered nothing at all (a blank
- * white screen), so say something useful and offer a way out.
+ * lingered past the window.
  */
 function NothingJustEnded({ onDismiss }: { onDismiss: () => void }) {
   return (
@@ -125,5 +195,25 @@ function NothingJustEnded({ onDismiss }: { onDismiss: () => void }) {
         </button>
       </div>
     </PhoneFrame>
+  );
+}
+
+/** The next class still ahead of `now` today, if any. Mirrors the cron's pick. */
+function nextClassToday(classes: ClassItem[], now: Date): ClassItem | null {
+  const dow = (now.getDay() + 6) % 7; // 0 = Mon … 6 = Sun
+  if (dow > 4) return null;
+  const mins = now.getHours() * 60 + now.getMinutes();
+  return (
+    classes
+      .filter((c) => c.days.includes(dow as DayIndex) && c.start > mins)
+      .sort((a, b) => a.start - b.start)[0] ?? null
+  );
+}
+
+export default function PostClassPromptScreen() {
+  return (
+    <Suspense fallback={null}>
+      <PostClassPrompt />
+    </Suspense>
   );
 }

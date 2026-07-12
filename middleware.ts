@@ -1,6 +1,17 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
-const isPublicRoute = createRouteMatcher(["/", "/sso-callback"]);
+/**
+ * The cron endpoint is public *to the middleware* only. It has no Clerk session
+ * to protect — Vercel Cron calls it machine-to-machine — so it authenticates
+ * itself against CRON_SECRET instead, and rejects anything without that bearer
+ * token. Leaving it behind auth.protect() would bounce the cron to the sign-in
+ * page and the job would never run at all.
+ */
+const isPublicRoute = createRouteMatcher([
+  "/",
+  "/sso-callback",
+  "/api/cron/(.*)",
+]);
 
 export default clerkMiddleware(async (auth, req) => {
   if (!isPublicRoute(req)) {

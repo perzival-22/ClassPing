@@ -75,4 +75,6 @@ export const LIMITS = {
   sync: { limit: 60, windowMs: 60_000 },
   /** Builds an .ics — real CPU, so a tighter budget. */
   export: { limit: 10, windowMs: 60_000 },
+  /** Registering a push subscription — a couple of writes per device, rarely. */
+  push: { limit: 20, windowMs: 60_000 },
 } as const;

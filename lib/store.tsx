@@ -12,6 +12,7 @@ import {
 import type { SubjectColor } from "./palette";
 import type { AccentId } from "./accents";
 import { registerServiceWorker, showReminder } from "./notifications";
+import { fmtTime } from "./time";
 import { useIsPro } from "./useIsPro";
 
 /** Days of the week the app plots (Mon–Fri). 0 = Mon … 4 = Fri */
@@ -420,13 +421,9 @@ export function useStore() {
 
 /* ── time helpers ───────────────────────────────────────── */
 
-export function fmtTime(mins: number): string {
-  const h24 = Math.floor(mins / 60);
-  const m = mins % 60;
-  const ampm = h24 >= 12 ? "PM" : "AM";
-  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
-  return `${h12}:${m.toString().padStart(2, "0")} ${ampm}`;
-}
+/** Re-exported so existing `import { fmtTime } from "@/lib/store"` callers keep
+ *  working; the definition lives in lib/time.ts, which the server shares. */
+export { fmtTime } from "./time";
 
 export function dueLabel(iso: string): { text: string; urgent: boolean } {
   const due = new Date(iso);

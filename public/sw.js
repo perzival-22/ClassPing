@@ -134,16 +134,110 @@ self.addEventListener("fetch", (event) => {
   }
 });
 
-self.addEventListener("notificationclick", (event) => {
-  event.notification.close();
+/* ── Web Push ──────────────────────────────────────────────────────────────
+ *
+ * Server-sent notifications (VAPID). Today there's one kind: the post-class
+ * nudge, fired by /api/cron/post-class once a class has finished, asking
+ * whether it came with an assignment.
+ *
+ * This is the half the in-app reminder loop can never do. That loop is a
+ * setInterval inside the page, so it only ticks while ClassPing is open — which
+ * is exactly not the case when someone is walking out of a lecture hall. A push
+ * wakes this worker up with the app closed.
+ */
+
+const ICON = "/icons/icon-192.png";
+
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    /* malformed payload — fall through to the generic notification below */
+  }
+
+  // A push event MUST end in a visible notification: if we don't show one, the
+  // browser shows its own "this site was updated in the background" message.
   event.waitUntil(
-    self.clients
-      .matchAll({ type: "window", includeUncontrolled: true })
-      .then((windows) => {
-        for (const client of windows) {
-          if ("focus" in client) return client.focus();
-        }
-        return self.clients.openWindow("/home");
-      }),
+    self.registration.showNotification(data.title || "ClassPing", {
+      body: data.body || "",
+      tag: data.tag,
+      icon: ICON,
+      badge: ICON,
+      // Carried through to notificationclick — it's how the handler below knows
+      // where "Yes" goes and what to say for "No".
+      data,
+      // Hold it on screen until they answer rather than fading away unseen.
+      requireInteraction: true,
+      // Android/Chrome/Firefox render these as buttons. iOS Safari ignores the
+      // array entirely — see the body-tap path in notificationclick, which is
+      // what carries the interaction there.
+      actions:
+        data.kind === "post-class"
+          ? [
+              { action: "yes", title: "Yes, add it" },
+              { action: "no", title: "No" },
+            ]
+          : [],
+    }),
   );
+});
+
+/** Focus an existing ClassPing window and route it, or open a new one. */
+async function openApp(url) {
+  const windows = await self.clients.matchAll({
+    type: "window",
+    includeUncontrolled: true,
+  });
+  for (const client of windows) {
+    if ("navigate" in client) {
+      await client.focus();
+      return client.navigate(url);
+    }
+  }
+  return self.clients.openWindow(url);
+}
+
+/** The "No" sign-off: a brief reply on the lock screen, no app launch. */
+async function signOff(data) {
+  const tag = `${data.tag || "post-class"}:done`;
+  await self.registration.showNotification("Nice — nothing to log 🎉", {
+    body: data.dismiss || "Have a great rest of your day 👋",
+    tag,
+    icon: ICON,
+    badge: ICON,
+  });
+  // It's an acknowledgement, not something to act on — clear it rather than
+  // leaving it parked on the lock screen for the rest of the day.
+  await new Promise((resolve) => setTimeout(resolve, 6000));
+  const shown = await self.registration.getNotifications({ tag });
+  for (const n of shown) n.close();
+}
+
+self.addEventListener("notificationclick", (event) => {
+  const data = event.notification.data || {};
+  event.notification.close();
+
+  // Locally-scheduled reminders (class starting, task due) carry no payload —
+  // keep their original behaviour of just opening the app.
+  if (data.kind !== "post-class") {
+    event.waitUntil(openApp("/home"));
+    return;
+  }
+
+  if (event.action === "no") {
+    event.waitUntil(signOff(data));
+    return;
+  }
+
+  // "Yes" goes straight to Add Assignment, prefilled with the class.
+  if (event.action === "yes") {
+    event.waitUntil(openApp(data.url || "/tasks/new"));
+    return;
+  }
+
+  // No action — they tapped the notification body. That's ambiguous, and on iOS
+  // it's the *only* thing that can happen, because Safari never drew the two
+  // buttons. So ask the question properly instead of assuming an answer.
+  event.waitUntil(openApp(data.promptUrl || "/prompt"));
 });

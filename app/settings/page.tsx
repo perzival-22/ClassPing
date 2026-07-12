@@ -1,12 +1,14 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useClerk } from "@clerk/nextjs";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { TabBar } from "@/components/TabBar";
+import { Toggle } from "@/components/Toggle";
 import { SettingsSkeleton } from "@/components/Skeleton";
 import {
+  BellIcon,
   CalendarIcon,
   CameraIcon,
   ChevronRightIcon,
@@ -17,6 +19,12 @@ import {
 import { ACCENTS, isProAccent, type AccentId } from "@/lib/accents";
 import { useStore } from "@/lib/store";
 import { downloadCalendarFile } from "@/lib/calendar";
+import {
+  isPushSubscribed,
+  pushSupported,
+  subscribeToPush,
+  unsubscribeFromPush,
+} from "@/lib/notifications";
 import {
   avatarErrorMessage,
   fileToAvatarDataUrl,
@@ -55,8 +63,55 @@ function SettingsForm() {
   const [exportError, setExportError] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  /* ── post-class push ──
+     `null` while we're still asking the browser whether this device already has
+     a subscription, so the switch doesn't flick from off to on after mount. */
+  const [pushOn, setPushOn] = useState<boolean | null>(null);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushError, setPushError] = useState<string | null>(null);
+  const canPush = pushSupported();
+
+  useEffect(() => {
+    if (!canPush) {
+      setPushOn(false);
+      return;
+    }
+    isPushSubscribed().then(setPushOn);
+  }, [canPush]);
+
   const openTasks = tasks.filter((t) => !t.done);
   const hasSchedule = classes.length > 0 || openTasks.length > 0;
+
+  async function handlePushToggle(next: boolean) {
+    if (!isPro) {
+      router.push("/upgrade");
+      return;
+    }
+    setPushBusy(true);
+    setPushError(null);
+    try {
+      if (next) {
+        const ok = await subscribeToPush();
+        setPushOn(ok);
+        if (!ok) {
+          // The overwhelmingly common cause is a denied permission prompt, and
+          // once denied the browser won't ask again — the user has to clear it
+          // in site settings, so saying "try again" would be a lie.
+          setPushError(
+            typeof Notification !== "undefined" &&
+              Notification.permission === "denied"
+              ? "Notifications are blocked for ClassPing. Enable them in your browser's site settings, then try again."
+              : "Couldn't turn on notifications. Check your connection and try again.",
+          );
+        }
+      } else {
+        await unsubscribeFromPush();
+        setPushOn(false);
+      }
+    } finally {
+      setPushBusy(false);
+    }
+  }
 
   // Pro feature. The server re-checks the entitlement, so this handler can't
   // be bypassed by editing client state — free users go to the upgrade screen.
@@ -338,7 +393,7 @@ function SettingsForm() {
             </div>
           </div>
 
-          {/* ── Calendar sync card ── */}
+          {/* ── Reminders card ── */}
           <div
             className="mt-4 rounded-[24px] bg-white px-5 py-5"
             style={{ boxShadow: "0 2px 12px rgba(30,20,80,.07)" }}
@@ -346,6 +401,58 @@ function SettingsForm() {
             <div className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-faint">
               Reminders
             </div>
+
+            {/* post-class nudge — delivered by the server, so it arrives with
+                the app closed. */}
+            <div className="flex items-start gap-3">
+              <div
+                className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[10px]"
+                style={{ background: "var(--brand-soft)" }}
+              >
+                <BellIcon className="h-[18px] w-[18px] text-brand" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[15px] font-medium text-ink">
+                    After-class nudge
+                  </span>
+                  {!isPro && (
+                    <span
+                      className="rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white"
+                      style={{ background: "var(--color-brand)" }}
+                    >
+                      PRO
+                    </span>
+                  )}
+                </div>
+                <p className="mt-0.5 text-[13px] leading-snug text-muted">
+                  When a class ends, we&apos;ll ask if it came with an
+                  assignment — even if ClassPing is closed.
+                </p>
+              </div>
+              <Toggle
+                on={pushOn === true}
+                onChange={(v) => {
+                  if (!pushBusy && canPush) handlePushToggle(v);
+                }}
+              />
+            </div>
+
+            <p className="mt-2.5 text-[12px] leading-snug text-faint">
+              {!canPush
+                ? // iOS only exposes PushManager to an installed PWA, so in a
+                  // plain Safari tab the toggle above genuinely cannot work.
+                  "Install ClassPing to your home screen to turn this on."
+                : pushBusy
+                  ? "Just a sec…"
+                  : pushError
+                    ? pushError
+                    : pushOn
+                      ? "On for this device. Turn it on again on any other phone or laptop you use."
+                      : "Off — you'll only be reminded while the app is open."}
+            </p>
+
+            <div className="my-5 h-px" style={{ background: "var(--bg-input)" }} />
 
             <div className="flex items-start gap-3">
               <div
@@ -355,9 +462,8 @@ function SettingsForm() {
                 <CalendarIcon className="h-[18px] w-[18px] text-brand" />
               </div>
               <p className="text-[13px] leading-snug text-muted">
-                ClassPing can only remind you while it&apos;s open. Add your
-                schedule to your phone&apos;s calendar and it will deliver the
-                reminders — even when the app is closed.
+                Prefer your own calendar? Add your schedule to it and your phone
+                will deliver the class reminders too.
               </p>
             </div>
 
@@ -411,7 +517,7 @@ function SettingsForm() {
 
           {/* app info */}
           <p className="mt-6 text-center text-[12px] text-hint">
-            ClassPing v36.1104
+            ClassPing v38.1638
           </p>
         </div>
 

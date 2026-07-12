@@ -23,5 +23,51 @@ export async function ensureSchema() {
       updated_at bigint NOT NULL
     )
   `;
+
+  /**
+   * Web Push subscriptions. Keyed by endpoint, not user: one student may have
+   * the PWA installed on a phone, a tablet and a laptop, and each is a separate
+   * subscription that must be pushed to individually.
+   *
+   * `tz` is load-bearing. Class times are stored as minutes-from-midnight with
+   * no timezone (see ClassItem.start/end) — meaningful on-device against the
+   * local clock, meaningless to a cron running in UTC. We record the browser's
+   * IANA zone at subscribe time so the cron can work out what the user's own
+   * wall clock currently reads.
+   */
+  await sql`
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      endpoint   text PRIMARY KEY,
+      user_id    text NOT NULL,
+      p256dh     text NOT NULL,
+      auth       text NOT NULL,
+      tz         text NOT NULL DEFAULT 'UTC',
+      created_at bigint NOT NULL
+    )
+  `;
+  await sql`
+    CREATE INDEX IF NOT EXISTS push_subscriptions_user_id_idx
+      ON push_subscriptions (user_id)
+  `;
+
+  /**
+   * One row per notification actually sent. The cron runs on an interval and
+   * matches classes that ended within a window wider than that interval (so a
+   * late or skipped run can still catch up), which means the same class can
+   * match on two consecutive runs. The primary key is what makes the send
+   * idempotent: we INSERT first and only push if the insert won the race, so a
+   * student is never pinged twice about the same class on the same day — even
+   * if two cron invocations overlap.
+   */
+  await sql`
+    CREATE TABLE IF NOT EXISTS push_sent (
+      user_id  text NOT NULL,
+      class_id text NOT NULL,
+      day      text NOT NULL,
+      sent_at  bigint NOT NULL,
+      PRIMARY KEY (user_id, class_id, day)
+    )
+  `;
+
   schemaReady = true;
 }
