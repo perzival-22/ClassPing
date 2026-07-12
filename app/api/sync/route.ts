@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { isPro } from "@/lib/entitlements";
 import { sql, ensureSchema } from "@/lib/db";
+import { check, LIMITS } from "@/lib/ratelimit";
 
 /**
  * Cloud sync (Pro): stores the user's whole ClassPing document with
@@ -23,6 +24,16 @@ async function guard(): Promise<
     return {
       ok: false,
       res: NextResponse.json({ error: "pro_required" }, { status: 403 }),
+    };
+  }
+  const rl = check(`sync:${userId}`, LIMITS.sync.limit, LIMITS.sync.windowMs);
+  if (!rl.ok) {
+    return {
+      ok: false,
+      res: NextResponse.json(
+        { error: "rate_limited" },
+        { status: 429, headers: { "Retry-After": String(rl.retryAfter) } },
+      ),
     };
   }
   if (!sql) {

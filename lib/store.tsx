@@ -87,11 +87,43 @@ interface Store {
   setProfile: (p: Partial<Profile>) => void;
 }
 
-const uid = () => Math.random().toString(36).slice(2, 9);
+/**
+ * Item IDs are UUIDs. They have to be globally unique, not just unique on this
+ * device: two devices can create classes offline and last-write-wins sync will
+ * merge whichever document is newer, and the IDs also become stable calendar
+ * UIDs (`classping-class-<id>@classping`). The old 7-char `Math.random()` slug
+ * had a birthday collision after only a few thousand items and wasn't safe for
+ * either job. `randomUUID` needs a secure context (https/localhost); the
+ * fallback covers the rest.
+ */
+const uid = (): string => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+    const b = crypto.getRandomValues(new Uint8Array(16));
+    b[6] = (b[6] & 0x0f) | 0x40; // version 4
+    b[8] = (b[8] & 0x3f) | 0x80; // variant 10
+    const hex = Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  }
+  // Last resort (ancient/insecure context): not a real UUID, but still wide
+  // enough that a collision is not a practical concern.
+  return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 14)}`;
+};
 
 const StoreContext = createContext<Store | null>(null);
 const KEY = "classping.v1";
 const NOTIFIED_KEY = "classping.notified.v1";
+
+/**
+ * Avatars are stored as `data:` URIs so they survive a reload and a sync.
+ * Documents written before that fix hold a `blob:` object URL, which is already
+ * dead by the time we read it back — drop it so the UI falls back to initials
+ * instead of rendering a broken image.
+ */
+const cleanAvatar = (url: string | null | undefined): string | null =>
+  typeof url === "string" && url.startsWith("data:image/") ? url : null;
 
 const DEFAULT_PROFILE: Profile = {
   username: "student",
@@ -132,7 +164,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         // Merge over defaults so profiles saved before new fields existed
         // (e.g. accent) still get sensible values.
         if (parsed.profile)
-          setProfileState({ ...DEFAULT_PROFILE, ...parsed.profile });
+          setProfileState({
+            ...DEFAULT_PROFILE,
+            ...parsed.profile,
+            avatarUrl: cleanAvatar(parsed.profile.avatarUrl),
+          });
         if (parsed.updatedAt) setUpdatedAt(parsed.updatedAt);
       }
     } catch {
@@ -178,7 +214,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           setTasks(server.data.tasks ?? []);
           setGrades(server.data.grades ?? []);
           if (server.data.profile)
-            setProfileState({ ...DEFAULT_PROFILE, ...server.data.profile });
+            setProfileState({
+              ...DEFAULT_PROFILE,
+              ...server.data.profile,
+              avatarUrl: cleanAvatar(server.data.profile.avatarUrl),
+            });
           setUpdatedAt(server.updatedAt);
         }
         // If local is newer (or the server is empty — first sync migrates the
@@ -281,13 +321,29 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const mins = now.getHours() * 60 + now.getMinutes();
       const dayKey = now.toISOString().slice(0, 10);
 
-      let fired: Record<string, true>;
+      let stored: Record<string, true>;
       try {
-        fired = JSON.parse(localStorage.getItem(NOTIFIED_KEY) ?? "{}");
+        stored = JSON.parse(localStorage.getItem(NOTIFIED_KEY) ?? "{}");
       } catch {
-        fired = {};
+        stored = {};
       }
+
+      // Prune before we add: class keys are per-day (`class:<id>:<date>`) and
+      // are dead weight once that day has passed, and task keys are dead once
+      // the task is gone. Without this the map grows for a whole semester and
+      // slowly bloats localStorage.
+      const liveTaskIds = new Set(tasks.map((t) => t.id));
+      const fired: Record<string, true> = {};
       let changed = false;
+      for (const key of Object.keys(stored)) {
+        const keep = key.startsWith("class:")
+          ? key.endsWith(`:${dayKey}`)
+          : key.startsWith("task:")
+            ? liveTaskIds.has(key.slice("task:".length))
+            : false;
+        if (keep) fired[key] = true;
+        else changed = true;
+      }
 
       // Pre-class reminders (only when the alarm toggle is on).
       if (dow <= 4) {
@@ -413,6 +469,33 @@ export function weekInfo(now: Date): { dates: Date[]; todayCol: DayIndex | null 
     return d;
   });
   return { dates, todayCol };
+}
+
+/**
+ * The class that just finished, for the post-class prompt: the one meeting
+ * today whose end time falls within the last `windowMins` minutes. If two
+ * ended in that window (back-to-back classes), the most recent one wins.
+ * Returns null outside a window — the caller should show nothing to prompt about.
+ */
+export function justEndedClass(
+  classes: ClassItem[],
+  now: Date,
+  windowMins = 30,
+): ClassItem | null {
+  const dow = (now.getDay() + 6) % 7; // 0 = Mon … 6 = Sun
+  if (dow > 4) return null; // weekend — no classes plotted
+  const mins = now.getHours() * 60 + now.getMinutes();
+
+  return (
+    classes
+      .filter(
+        (c) =>
+          c.days.includes(dow as DayIndex) &&
+          c.end <= mins &&
+          mins - c.end <= windowMins,
+      )
+      .sort((a, b) => b.end - a.end)[0] ?? null
+  );
 }
 
 /** "Jul 6" */

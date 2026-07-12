@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { isPro } from "@/lib/entitlements";
 import { buildCalendarFile } from "@/lib/calendar";
+import { check, LIMITS } from "@/lib/ratelimit";
 import type { ClassItem, TaskItem } from "@/lib/store";
 
 /** Sanity cap — a personal timetable will never come close to this. */
@@ -16,10 +18,27 @@ const MAX_ITEMS = 300;
  * user's timezone rather than the server's.
  */
 export async function POST(req: Request) {
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
   if (!(await isPro())) {
     return NextResponse.json(
       { error: "pro_required", message: "Calendar export is a Pro feature." },
       { status: 403 },
+    );
+  }
+
+  // Building an .ics is real CPU work — keep one account from looping on it.
+  const rl = check(
+    `export:${userId}`,
+    LIMITS.export.limit,
+    LIMITS.export.windowMs,
+  );
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "rate_limited", message: "Too many exports. Try again shortly." },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfter) } },
     );
   }
 

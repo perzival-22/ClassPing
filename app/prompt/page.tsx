@@ -3,20 +3,32 @@
 import { useRouter } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { ChatIcon } from "@/components/icons";
-import { useStore } from "@/lib/store";
+import { justEndedClass, useNow, useStore } from "@/lib/store";
 
 /**
  * Post-class prompt — shown right after a class ends, asking whether it came
- * with an assignment. "Yes" jumps straight into Add Assignment pre-filled with
- * the class that just finished (Modern Political Theory in the mockups).
+ * with an assignment. "Yes" jumps straight into Add Assignment, pre-filled with
+ * the class that actually just finished (see `justEndedClass`).
  */
 export default function PostClassPromptScreen() {
   const router = useRouter();
-  const { classes } = useStore();
-  const justEnded =
-    classes.find((c) => c.name === "Modern Political Theory") ?? classes[0];
+  const { classes, hydrated } = useStore();
+  const now = useNow();
 
-  if (!justEnded) return null;
+  // `now` is null on the server-rendered first paint, so hold the frame until
+  // both the clock and persisted state are live.
+  if (!now || !hydrated) {
+    return (
+      <PhoneFrame>
+        <div className="h-full bg-aurora" />
+      </PhoneFrame>
+    );
+  }
+
+  const justEnded = justEndedClass(classes, now);
+
+  // Nothing ended in the last half hour — there's nothing to ask about.
+  if (!justEnded) return <NothingJustEnded onDismiss={() => router.push("/home")} />;
 
   return (
     <PhoneFrame>
@@ -81,6 +93,36 @@ export default function PostClassPromptScreen() {
             </button>
           </div>
         </div>
+      </div>
+    </PhoneFrame>
+  );
+}
+
+/**
+ * Reached when no class ended recently — someone opened /prompt directly, or
+ * lingered past the window. Previously this rendered nothing at all (a blank
+ * white screen), so say something useful and offer a way out.
+ */
+function NothingJustEnded({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <PhoneFrame>
+      <div className="flex h-full flex-col items-center justify-center bg-aurora px-8 text-center">
+        <div className="flex h-[72px] w-[72px] items-center justify-center rounded-[24px] bg-[#FFE8E3] text-poli">
+          <ChatIcon className="h-9 w-9" />
+        </div>
+        <h2 className="mt-5 font-[family-name:var(--font-fredoka)] text-[22px] font-semibold text-ink">
+          No class just ended
+        </h2>
+        <p className="mt-2 text-[14px] leading-snug text-muted">
+          This nudge shows up right after one of your classes finishes, so you
+          can log an assignment while it&apos;s still fresh.
+        </p>
+        <button
+          onClick={onDismiss}
+          className="btn-brand mt-6 w-full rounded-[17px] py-[15px] text-[16px] font-semibold text-white transition active:scale-[0.98]"
+        >
+          Back to Home
+        </button>
       </div>
     </PhoneFrame>
   );

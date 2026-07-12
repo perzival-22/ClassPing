@@ -17,6 +17,11 @@ import {
 import { ACCENTS, isProAccent, type AccentId } from "@/lib/accents";
 import { useStore } from "@/lib/store";
 import { downloadCalendarFile } from "@/lib/calendar";
+import {
+  avatarErrorMessage,
+  fileToAvatarDataUrl,
+  isPersistableAvatar,
+} from "@/lib/avatar";
 import { useIsPro } from "@/lib/useIsPro";
 
 export default function SettingsScreen() {
@@ -38,7 +43,12 @@ function SettingsForm() {
   const { isPro } = useIsPro();
 
   const [username, setUsername] = useState(profile.username);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.avatarUrl);
+  // Profiles saved before avatars were stored as data URIs hold a dead `blob:`
+  // URL — drop it and fall back to initials rather than render a broken image.
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(
+    isPersistableAvatar(profile.avatarUrl) ? profile.avatarUrl : null,
+  );
+  const [avatarError, setAvatarError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [exported, setExported] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -84,11 +94,19 @@ function SettingsForm() {
     }
   }
 
-  function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
+    // Reset the input so picking the same file twice still fires a change.
+    e.target.value = "";
     if (!file) return;
-    const url = URL.createObjectURL(file);
-    setAvatarUrl(url);
+    setAvatarError(null);
+    try {
+      // Encoded to a data URI, not an object URL: the profile is serialized to
+      // localStorage and synced to Postgres, and a `blob:` URL dies with the page.
+      setAvatarUrl(await fileToAvatarDataUrl(file));
+    } catch (err) {
+      setAvatarError(avatarErrorMessage(err));
+    }
   }
 
   function handleSave() {
@@ -187,7 +205,13 @@ function SettingsForm() {
                 className="hidden"
                 onChange={handleAvatarChange}
               />
-              <p className="text-[13px] text-muted">Tap to change photo</p>
+              {avatarError ? (
+                <p className="text-[13px] font-medium text-[#E84040]">
+                  {avatarError}
+                </p>
+              ) : (
+                <p className="text-[13px] text-muted">Tap to change photo</p>
+              )}
             </div>
 
             {/* username field */}
