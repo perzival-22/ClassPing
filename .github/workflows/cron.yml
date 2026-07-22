@@ -1,0 +1,40 @@
+# Scheduler for the app's cron endpoints.
+#
+# Lives here instead of vercel.json crons because the Vercel Hobby plan only
+# allows once-a-day schedules — a sub-daily cron in vercel.json makes every
+# deployment fail outright. GitHub Actions schedules are free on public repos
+# and call the same endpoints with the same CRON_SECRET bearer token.
+#
+# Two caveats of GitHub-hosted schedules:
+#   • Runs can lag a few minutes behind the tick at busy times. The endpoints'
+#     lookback windows are sized to absorb that, and their dedupe tables make
+#     any overlap harmless.
+#   • GitHub pauses schedules on repos with no commits for 60 days; a push
+#     (or re-enabling in the Actions tab) resumes them.
+#
+# Requires an Actions secret named CRON_SECRET (repo Settings → Secrets and
+# variables → Actions) matching the CRON_SECRET env var on Vercel.
+
+name: cron
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post-class push nudge
+        run: |
+          curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
+            https://classping.space/api/cron/post-class
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      - name: End-of-day email digest
+        if: ${{ !cancelled() }}
+        run: |
+          curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
+            https://classping.space/api/cron/daily-email
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}

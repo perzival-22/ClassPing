@@ -1,16 +1,22 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
 /**
- * The cron endpoint is public *to the middleware* only. It has no Clerk session
- * to protect — Vercel Cron calls it machine-to-machine — so it authenticates
- * itself against CRON_SECRET instead, and rejects anything without that bearer
- * token. Leaving it behind auth.protect() would bounce the cron to the sign-in
- * page and the job would never run at all.
+ * The cron endpoints are public *to the middleware* only. They have no Clerk
+ * session to protect — the scheduler calls them machine-to-machine — so they
+ * authenticate themselves against CRON_SECRET instead, and reject anything
+ * without that bearer token. Leaving them behind auth.protect() would bounce
+ * the cron to the sign-in page and the job would never run at all.
+ *
+ * The email routes are public for the same shape of reason: both are reached
+ * by tapping a link inside an email client, where no Clerk session exists.
+ * The unsubscribe link carries its own HMAC proof of ownership instead.
  */
 const isPublicRoute = createRouteMatcher([
   "/",
   "/sso-callback",
   "/api/cron/(.*)",
+  "/api/email/unsubscribe",
+  "/email/dismissed",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

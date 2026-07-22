@@ -26,10 +26,12 @@ export const dynamic = "force-dynamic";
  * How far back to look for a class that ended.
  *
  * Deliberately wider than the 5-minute cron interval, so a late or skipped run
- * still catches the class rather than missing it forever. The overlap that
- * creates is harmless: `push_sent` makes the send idempotent.
+ * still catches the class rather than missing it forever — GitHub Actions
+ * schedules (see .github/workflows/cron.yml) routinely lag a few minutes at
+ * busy times. The overlap that creates is harmless: `push_sent` makes the
+ * send idempotent.
  */
-const WINDOW_MINS = 12;
+const WINDOW_MINS = 20;
 
 /** Only the fields this job actually reads out of the synced document. */
 interface StoredClass {
