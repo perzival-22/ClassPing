@@ -97,5 +97,34 @@ export async function ensureSchema() {
     )
   `;
 
+  /**
+   * One row per pre-class reminder email sent. Keyed per class per day so the
+   * cron can run on its 5-minute tick without double-sending when the reminder
+   * window spans multiple invocations.
+   */
+  await sql`
+    CREATE TABLE IF NOT EXISTS email_reminder_sent (
+      user_id  text NOT NULL,
+      class_id text NOT NULL,
+      day      text NOT NULL,
+      sent_at  bigint NOT NULL,
+      PRIMARY KEY (user_id, class_id, day)
+    )
+  `;
+
+  /**
+   * One row per per-class post-class email sent. Same idempotency guarantee as
+   * push_sent: INSERT first, send only if it won the race.
+   */
+  await sql`
+    CREATE TABLE IF NOT EXISTS email_post_class_sent (
+      user_id  text NOT NULL,
+      class_id text NOT NULL,
+      day      text NOT NULL,
+      sent_at  bigint NOT NULL,
+      PRIMARY KEY (user_id, class_id, day)
+    )
+  `;
+
   schemaReady = true;
 }

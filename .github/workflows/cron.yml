@@ -31,6 +31,20 @@ jobs:
             https://classping.space/api/cron/post-class
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      - name: Pre-class email reminder
+        if: ${{ !cancelled() }}
+        run: |
+          curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
+            https://classping.space/api/cron/pre-class-email
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      - name: Per-class post-class email
+        if: ${{ !cancelled() }}
+        run: |
+          curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
+            https://classping.space/api/cron/post-class-email
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
       - name: End-of-day email digest
         if: ${{ !cancelled() }}
         run: |
