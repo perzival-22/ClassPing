@@ -41,7 +41,7 @@ export default function AddClassScreen() {
   const atLimit =
     hydrated && proLoaded && !isPro && classes.length >= FREE_CLASS_LIMIT;
 
-  const [name, setName] = useState("Foundations of Machine Learning");
+  const [name, setName] = useState("");
   const [days, setDays] = useState<Set<number>>(new Set([0, 2]));
   const [start, setStart] = useState(600); // 10:00
   const [end, setEnd] = useState(680); // 11:20

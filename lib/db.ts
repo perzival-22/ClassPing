@@ -69,5 +69,33 @@ export async function ensureSchema() {
     )
   `;
 
+  /**
+   * One row per end-of-day digest email actually sent. Same idempotency story
+   * as push_sent: the cron INSERTs first and only emails if the insert won,
+   * so overlapping runs can't double-send. Keyed per day, not per class —
+   * the digest covers the whole school day in one message.
+   */
+  await sql`
+    CREATE TABLE IF NOT EXISTS email_sent (
+      user_id text NOT NULL,
+      day     text NOT NULL,
+      sent_at bigint NOT NULL,
+      PRIMARY KEY (user_id, day)
+    )
+  `;
+
+  /**
+   * Users who clicked the unsubscribe link in a digest. A row here means
+   * never email this user again; deleting the row (no UI for it yet) would
+   * re-enable. Kept separate from user_data so an opt-out survives even if
+   * the synced document is rewritten wholesale.
+   */
+  await sql`
+    CREATE TABLE IF NOT EXISTS email_optout (
+      user_id    text PRIMARY KEY,
+      created_at bigint NOT NULL
+    )
+  `;
+
   schemaReady = true;
 }

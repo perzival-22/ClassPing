@@ -142,6 +142,12 @@ interface PersistedState {
   profile?: Profile;
   /** ms timestamp of the last local mutation — drives last-write-wins sync */
   updatedAt?: number;
+  /**
+   * IANA timezone of the device that last pushed. Class times are stored as
+   * minutes-from-midnight with no zone, so the server-side crons (post-class
+   * push, end-of-day email) need this to read the user's wall clock.
+   */
+  tz?: string;
 }
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
@@ -241,7 +247,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          data: { classes, tasks, grades, profile },
+          data: {
+            classes,
+            tasks,
+            grades,
+            profile,
+            tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          },
           updatedAt,
         }),
       }).catch(() => {
