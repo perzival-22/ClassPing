@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
+import { authorizeCron } from "@/lib/cron-auth";
 import { sendPush, pushConfigured, type StoredSubscription } from "@/lib/push";
 import { fmtTime, localClock } from "@/lib/time";
 
@@ -61,10 +62,7 @@ function isValidClass(c: unknown): c is StoredClass {
 }
 
 export async function GET(req: NextRequest) {
-  // Vercel Cron sends `Authorization: Bearer $CRON_SECRET`. Without this check
-  // the endpoint is a public button that spams every user's phone on demand.
-  const secret = process.env.CRON_SECRET;
-  if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!authorizeCron(req)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   if (!sql || !pushConfigured) {

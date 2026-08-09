@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { clerkClient } from "@clerk/nextjs/server";
 import { sql, ensureSchema } from "@/lib/db";
+import { authorizeCron } from "@/lib/cron-auth";
 import {
   appBaseUrl,
   emailConfigured,
@@ -139,10 +140,7 @@ function renderDigest(classes: StoredClass[], unsubscribe: string | null): strin
 }
 
 export async function GET(req: NextRequest) {
-  // Vercel Cron sends `Authorization: Bearer $CRON_SECRET`. Without this check
-  // the endpoint is a public button that emails every user on demand.
-  const secret = process.env.CRON_SECRET;
-  if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!authorizeCron(req)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   if (!sql || !emailConfigured) {

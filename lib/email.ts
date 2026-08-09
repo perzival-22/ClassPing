@@ -49,7 +49,9 @@ export async function sendEmail(
       body: JSON.stringify({ from, to, subject, html }),
     });
     if (!res.ok) {
-      console.error("[email] send failed", res.status, await res.text());
+      // Status only — Resend 4xx bodies echo the recipient address back,
+      // and Vercel logs have wider access and longer retention than the DB.
+      console.error("[email] send failed", res.status);
       return false;
     }
     return true;
@@ -75,8 +77,14 @@ export function unsubscribeToken(userId: string): string | null {
 
 export function verifyUnsubscribeToken(userId: string, token: string): boolean {
   const expected = unsubscribeToken(userId);
-  if (!expected || token.length !== expected.length) return false;
-  return timingSafeEqual(Buffer.from(token), Buffer.from(expected));
+  if (!expected) return false;
+  // Shape check before the comparison: `timingSafeEqual` throws on unequal
+  // *byte* lengths, and a JS string length guard doesn't catch multi-byte
+  // characters — 64 "é"s pass `.length === 64` but decode to 128 bytes,
+  // turning a public URL into an unhandled 500. Hex-only also lets us
+  // compare the decoded bytes rather than the ASCII.
+  if (!/^[0-9a-f]{64}$/.test(token)) return false;
+  return timingSafeEqual(Buffer.from(token, "hex"), Buffer.from(expected, "hex"));
 }
 
 export function unsubscribeUrl(userId: string): string | null {

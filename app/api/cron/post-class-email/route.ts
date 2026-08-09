@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { clerkClient } from "@clerk/nextjs/server";
 import { sql, ensureSchema } from "@/lib/db";
+import { authorizeCron } from "@/lib/cron-auth";
 import {
   appBaseUrl,
   emailConfigured,
@@ -117,8 +118,7 @@ function renderPostClassEmail(
 }
 
 export async function GET(req: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!authorizeCron(req)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   if (!sql || !emailConfigured) {
