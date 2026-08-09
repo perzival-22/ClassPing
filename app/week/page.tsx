@@ -9,11 +9,11 @@ import { PALETTE } from "@/lib/palette";
 import { useStore, useNow, weekInfo, type ClassItem, type DayIndex } from "@/lib/store";
 
 const DAYS = ["MON", "TUE", "WED", "THU", "FRI"];
-const START_HOUR = 8;
-const END_HOUR = 17;
+// Defaults when the timetable fits inside a typical school day; the grid
+// stretches beyond these to fit any class, so nothing renders off-plot.
+const DEFAULT_START_HOUR = 8;
+const DEFAULT_END_HOUR = 17;
 const PX_PER_HOUR = 62;
-
-const y = (mins: number) => ((mins - START_HOUR * 60) / 60) * PX_PER_HOUR;
 
 export default function WeekScreen() {
   const { classes, hydrated } = useStore();
@@ -57,10 +57,22 @@ export default function WeekScreen() {
       : ""
   }${dates[4].getDate()}`;
 
-  const gridHeight = (END_HOUR - START_HOUR) * PX_PER_HOUR;
+  // Grid bounds hug the timetable: a 7am lecture or 6pm seminar used to fall
+  // outside the hardcoded 8–5 window and render invisibly off-grid.
+  const startHour = Math.min(
+    DEFAULT_START_HOUR,
+    ...classes.map((c) => Math.floor(c.start / 60)),
+  );
+  const endHour = Math.max(
+    DEFAULT_END_HOUR,
+    ...classes.map((c) => Math.ceil(c.end / 60)),
+  );
+  const y = (mins: number) => ((mins - startHour * 60) / 60) * PX_PER_HOUR;
+
+  const gridHeight = (endHour - startHour) * PX_PER_HOUR;
   const hours = Array.from(
-    { length: END_HOUR - START_HOUR + 1 },
-    (_, i) => START_HOUR + i,
+    { length: endHour - startHour + 1 },
+    (_, i) => startHour + i,
   );
 
   // next class on today's column starting within the next hour
@@ -166,8 +178,8 @@ export default function WeekScreen() {
 
               {/* now line — only while a school day is in the plotted window */}
               {todayCol !== null &&
-                nowMin >= START_HOUR * 60 &&
-                nowMin <= END_HOUR * 60 && (
+                nowMin >= startHour * 60 &&
+                nowMin <= endHour * 60 && (
                   <>
                     <div
                       className="absolute left-0 right-0 z-[4] h-0.5 bg-coral"
@@ -195,7 +207,7 @@ export default function WeekScreen() {
                     {classes
                       .filter((c) => c.days.includes(dayIdx as DayIndex))
                       .map((c) => (
-                        <ClassBlock key={c.id + dayIdx} c={c} />
+                        <ClassBlock key={c.id + dayIdx} c={c} y={y} />
                       ))}
                   </div>
                 ))}
@@ -234,7 +246,14 @@ export default function WeekScreen() {
   );
 }
 
-function ClassBlock({ c }: { c: ClassItem }) {
+function ClassBlock({
+  c,
+  y,
+}: {
+  c: ClassItem;
+  /** Minutes → px, anchored to the grid's derived start hour. */
+  y: (mins: number) => number;
+}) {
   const t = PALETTE[c.color];
   const top = y(c.start);
   const height = Math.max(y(c.end) - y(c.start), 34);

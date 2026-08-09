@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { TabBar } from "@/components/TabBar";
 import { TasksSkeleton } from "@/components/Skeleton";
@@ -9,6 +10,7 @@ import { PALETTE } from "@/lib/palette";
 import { useStore, dueLabel, type TaskItem } from "@/lib/store";
 
 export default function TasksScreen() {
+  const router = useRouter();
   const { tasks, classById, toggleTask, hydrated } = useStore();
   const [tab, setTab] = useState<"open" | "done">("open");
 
@@ -78,6 +80,7 @@ export default function TasksScreen() {
               className={classById(t.classId)?.name ?? "—"}
               dot={PALETTE[classById(t.classId)?.color ?? "indigo"].bar}
               onToggle={() => toggleTask(t.id)}
+              onEdit={() => router.push(`/tasks/${t.id}/edit`)}
             />
           ))}
         </div>
@@ -93,11 +96,13 @@ function TaskRow({
   className,
   dot,
   onToggle,
+  onEdit,
 }: {
   task: TaskItem;
   className: string;
   dot: string;
   onToggle: () => void;
+  onEdit: () => void;
 }) {
   const due = dueLabel(task.due);
   return (
@@ -121,7 +126,12 @@ function TaskRow({
         {task.done && <CheckIcon className="h-[15px] w-[15px]" />}
       </button>
 
-      <div className="min-w-0 flex-1">
+      {/* Row body opens the edit screen; the circle stays its own tap target. */}
+      <button
+        onClick={onEdit}
+        aria-label={`Edit ${task.title}`}
+        className="min-w-0 flex-1 text-left"
+      >
         <div
           className="text-[16px] font-semibold"
           style={
@@ -148,7 +158,7 @@ function TaskRow({
             {className}
           </span>
         </div>
-      </div>
+      </button>
 
       {!task.done && (
         <span

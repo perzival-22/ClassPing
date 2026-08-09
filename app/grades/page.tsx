@@ -170,7 +170,12 @@ export default function GradesScreen() {
                 {/* grade rows */}
                 <div className="mt-3 px-5 pb-4">
                   {classGrades.map((g) => (
-                    <GradeRow key={g.id} g={g} onDelete={deleteGrade} />
+                    <GradeRow
+                      key={g.id}
+                      g={g}
+                      onDelete={deleteGrade}
+                      onEdit={() => router.push(`/grades/${g.id}/edit`)}
+                    />
                   ))}
                 </div>
               </div>
@@ -207,9 +212,11 @@ export default function GradesScreen() {
 function GradeRow({
   g,
   onDelete,
+  onEdit,
 }: {
   g: GradeItem;
   onDelete: (id: string) => void;
+  onEdit: () => void;
 }) {
   const pct = g.max > 0 ? (g.score / g.max) * 100 : 0;
   return (
@@ -217,14 +224,19 @@ function GradeRow({
       className="flex items-center gap-3 border-t py-3"
       style={{ borderColor: "rgba(30,20,80,.06)" }}
     >
-      <div className="min-w-0 flex-1">
+      {/* Row body opens the edit screen; the trash keeps its own tap target. */}
+      <button
+        onClick={onEdit}
+        aria-label={`Edit ${g.title}`}
+        className="min-w-0 flex-1 text-left"
+      >
         <div className="truncate text-[14px] font-medium text-ink">
           {g.title}
         </div>
         <div className="mt-[2px] text-[12px] text-muted">
           {longDate(g.date)} · weight {g.weight}%
         </div>
-      </div>
+      </button>
       <div className="text-right">
         <div className="text-[14px] font-semibold text-ink">
           {g.score}/{g.max}

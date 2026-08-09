@@ -1,16 +1,14 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { use, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { Toggle } from "@/components/Toggle";
 import { FlagIcon } from "@/components/icons";
 import { PALETTE } from "@/lib/palette";
-import { useStore, longDate } from "@/lib/store";
-import { ensureNotificationPermission, showReminder } from "@/lib/notifications";
+import { useStore, longDate, type TaskItem } from "@/lib/store";
 
-// Shortcuts, not the ceiling — the date input below covers everything else
-// (a midterm three weeks out used to be impossible to enter).
+// Same shortcuts as the add screen; the date input covers everything else.
 const DUE_PRESETS = [
   { label: "Today", days: 0 },
   { label: "Tomorrow", days: 1 },
@@ -20,37 +18,75 @@ const DUE_PRESETS = [
   { label: "2 weeks", days: 14 },
 ];
 
+const pad = (n: number) => String(n).padStart(2, "0");
+
 /** Local calendar date `daysAhead` from now, as a date-input value. */
 function dateInputValue(daysAhead: number): string {
   const d = new Date();
   d.setDate(d.getDate() + daysAhead);
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-/**
- * Local wall-clock → stored ISO. No time picked means end of day, so a task
- * due "today" isn't instantly overdue and the 24h nag still fires the day
- * before rather than at some arbitrary creation-time hour.
- */
+/** Local wall-clock → stored ISO; no time picked means end of day. */
 function dueIso(date: string, time: string): string {
   const [y, m, d] = date.split("-").map(Number);
   const [hh, mm] = (time || "23:59").split(":").map(Number);
   return new Date(y, m - 1, d, hh, mm).toISOString();
 }
 
-function AddAssignment() {
-  const router = useRouter();
-  const params = useSearchParams();
-  const { classes, addTask, classById } = useStore();
+export default function EditAssignmentScreen({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = use(params);
+  const { hydrated, taskById } = useStore();
 
-  const initialClass = params.get("class") ?? classes[0]?.id ?? "";
-  const [classId, setClassId] = useState(initialClass);
+  // Wait for localStorage before deciding the task doesn't exist — a direct
+  // URL load reaches here with an empty store on the first render.
+  if (!hydrated) {
+    return (
+      <PhoneFrame>
+        <div className="h-full bg-aurora" />
+      </PhoneFrame>
+    );
+  }
+
+  const task = taskById(id);
+  if (!task) {
+    return (
+      <PhoneFrame>
+        <div className="flex h-full items-center justify-center bg-aurora">
+          <p className="text-muted">Assignment not found.</p>
+        </div>
+      </PhoneFrame>
+    );
+  }
+
+  return <EditForm task={task} />;
+}
+
+/** Mounted only once the task exists, so useState prefills see real data. */
+function EditForm({ task }: { task: TaskItem }) {
+  const router = useRouter();
+  const { classes, classById, updateTask, deleteTask } = useStore();
+
+  const existingDue = new Date(task.due);
+  // 23:59 is the "no specific time" sentinel written by the add screen.
+  const isEndOfDay =
+    existingDue.getHours() === 23 && existingDue.getMinutes() === 59;
+
+  const [classId, setClassId] = useState(task.classId);
   const [picking, setPicking] = useState(false);
-  const [title, setTitle] = useState("");
-  const [dueDate, setDueDate] = useState(dateInputValue(3));
-  const [dueTime, setDueTime] = useState("");
-  const [reminder, setReminder] = useState(true);
+  const [title, setTitle] = useState(task.title);
+  const [dueDate, setDueDate] = useState(
+    `${existingDue.getFullYear()}-${pad(existingDue.getMonth() + 1)}-${pad(existingDue.getDate())}`,
+  );
+  const [dueTime, setDueTime] = useState(
+    isEndOfDay ? "" : `${pad(existingDue.getHours())}:${pad(existingDue.getMinutes())}`,
+  );
+  const [reminder, setReminder] = useState(task.reminder);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const selected = classById(classId);
   const canSave = title.trim().length > 0 && !!selected && dueDate.length > 0;
@@ -60,23 +96,24 @@ function AddAssignment() {
     [dueDate, dueTime],
   );
 
-  const save = async () => {
+  const save = () => {
     if (!canSave) return;
-    addTask({
+    updateTask(task.id, {
       title: title.trim(),
       classId,
       due: dueIso(dueDate, dueTime),
       reminder,
-      done: false,
     });
-    // Confirm notifications work for the reminder the user just set up.
-    if (reminder && (await ensureNotificationPermission())) {
-      showReminder(
-        "Reminder set ✓",
-        `We'll nudge you 24 hours before "${title.trim()}" is due.`,
-        "setup-confirm",
-      );
+    router.push("/tasks");
+  };
+
+  const remove = () => {
+    // Two-tap confirm — same guard the class list uses before destroying data.
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
     }
+    deleteTask(task.id);
     router.push("/tasks");
   };
 
@@ -92,7 +129,7 @@ function AddAssignment() {
             Cancel
           </button>
           <div className="text-[17px] font-semibold text-ink">
-            New Assignment
+            Edit Assignment
           </div>
           <button
             onClick={save}
@@ -210,7 +247,6 @@ function AddAssignment() {
                 <input
                   type="date"
                   value={dueDate}
-                  min={dateInputValue(0)}
                   onChange={(e) => e.target.value && setDueDate(e.target.value)}
                   className="mt-0.5 w-full bg-transparent text-[16px] font-medium text-ink outline-none"
                 />
@@ -257,24 +293,27 @@ function AddAssignment() {
           </div>
         </div>
 
-        <div className="px-[18px] pb-10 pt-2.5">
+        <div className="flex flex-col gap-2.5 px-[18px] pb-10 pt-2.5">
           <button
             onClick={save}
             disabled={!canSave}
             className="btn-brand w-full rounded-[17px] py-[17px] text-center text-[17px] font-semibold text-white transition active:scale-[0.98] disabled:opacity-60"
           >
-            Save assignment
+            Save changes
+          </button>
+          <button
+            onClick={remove}
+            className="w-full rounded-[17px] py-[15px] text-center text-[16px] font-semibold transition active:scale-[0.98]"
+            style={
+              confirmDelete
+                ? { background: "#D33B22", color: "#fff" }
+                : { background: "#FFE8E3", color: "#D33B22" }
+            }
+          >
+            {confirmDelete ? "Tap again to delete" : "Delete assignment"}
           </button>
         </div>
       </div>
     </PhoneFrame>
-  );
-}
-
-export default function AddAssignmentScreen() {
-  return (
-    <Suspense fallback={null}>
-      <AddAssignment />
-    </Suspense>
   );
 }

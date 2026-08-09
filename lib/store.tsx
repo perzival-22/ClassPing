@@ -81,10 +81,15 @@ interface Store {
   updateClass: (id: string, updates: Partial<Omit<ClassItem, "id">>) => void;
   deleteClass: (id: string) => void;
   addTask: (t: Omit<TaskItem, "id">) => void;
+  updateTask: (id: string, updates: Partial<Omit<TaskItem, "id">>) => void;
+  deleteTask: (id: string) => void;
   toggleTask: (id: string) => void;
   addGrade: (g: Omit<GradeItem, "id">) => void;
+  updateGrade: (id: string, updates: Partial<Omit<GradeItem, "id">>) => void;
   deleteGrade: (id: string) => void;
   classById: (id: string) => ClassItem | undefined;
+  taskById: (id: string) => TaskItem | undefined;
+  gradeById: (id: string) => GradeItem | undefined;
   setProfile: (p: Partial<Profile>) => void;
 }
 
@@ -292,6 +297,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     touch();
   }, []);
 
+  const updateTask = useCallback(
+    (id: string, updates: Partial<Omit<TaskItem, "id">>) => {
+      setTasks((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, ...updates } : t)),
+      );
+      touch();
+    },
+    [],
+  );
+
+  const deleteTask = useCallback((id: string) => {
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+    touch();
+  }, []);
+
   const toggleTask = useCallback((id: string) => {
     setTasks((prev) =>
       prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t)),
@@ -304,6 +324,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     touch();
   }, []);
 
+  const updateGrade = useCallback(
+    (id: string, updates: Partial<Omit<GradeItem, "id">>) => {
+      setGrades((prev) =>
+        prev.map((g) => (g.id === id ? { ...g, ...updates } : g)),
+      );
+      touch();
+    },
+    [],
+  );
+
   const deleteGrade = useCallback((id: string) => {
     setGrades((prev) => prev.filter((g) => g.id !== id));
     touch();
@@ -312,6 +342,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const classById = useCallback(
     (id: string) => classes.find((c) => c.id === id),
     [classes],
+  );
+
+  const taskById = useCallback(
+    (id: string) => tasks.find((t) => t.id === id),
+    [tasks],
+  );
+
+  const gradeById = useCallback(
+    (id: string) => grades.find((g) => g.id === id),
+    [grades],
   );
 
   const setProfile = useCallback((p: Partial<Profile>) => {
@@ -349,10 +389,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const fired: Record<string, true> = {};
       let changed = false;
       for (const key of Object.keys(stored)) {
+        // Task keys are per-day too (`task:<id>:<date>`) so the daily nag can
+        // re-fire tomorrow; ids never contain ":", so lastIndexOf splits safely.
+        // Old-format `task:<id>` keys fail the date check and age out here.
         const keep = key.startsWith("class:")
           ? key.endsWith(`:${dayKey}`)
           : key.startsWith("task:")
-            ? liveTaskIds.has(key.slice("task:".length))
+            ? key.endsWith(`:${dayKey}`) &&
+              liveTaskIds.has(key.slice("task:".length, key.lastIndexOf(":")))
             : false;
         if (keep) fired[key] = true;
         else changed = true;
@@ -375,13 +419,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Task reminders — 24 hours before the due date.
+      // Task reminders — the daily nag the toggle promises ("nudge me until
+      // it's done"): from 24h before the due date until the task is checked
+      // off, once per day. The date in the dedupe key is what makes an open
+      // task re-fire tomorrow instead of going silent after one ping.
       for (const t of tasks) {
         if (!t.reminder || t.done) continue;
         const untilDue = new Date(t.due).getTime() - now.getTime();
-        const id = `task:${t.id}`;
-        if (untilDue > 0 && untilDue <= 24 * 3600 * 1000 && !fired[id]) {
-          showReminder("Due in 24 hours", `${t.title} — tap ✓ when it's done.`, id);
+        if (untilDue > 24 * 3600 * 1000) continue;
+        const id = `task:${t.id}:${dayKey}`;
+        if (!fired[id]) {
+          showReminder(
+            untilDue <= 0 ? "Overdue" : "Due in 24 hours",
+            `${t.title} — tap ✓ when it's done.`,
+            id,
+          );
           fired[id] = true;
           changed = true;
         }
@@ -415,9 +467,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     () => ({
       classes, tasks, grades, profile, hydrated,
       addClass, updateClass, deleteClass,
-      addTask, toggleTask, addGrade, deleteGrade, classById, setProfile,
+      addTask, updateTask, deleteTask, toggleTask,
+      addGrade, updateGrade, deleteGrade,
+      classById, taskById, gradeById, setProfile,
     }),
-    [classes, tasks, grades, profile, hydrated, addClass, updateClass, deleteClass, addTask, toggleTask, addGrade, deleteGrade, classById, setProfile],
+    [classes, tasks, grades, profile, hydrated, addClass, updateClass, deleteClass, addTask, updateTask, deleteTask, toggleTask, addGrade, updateGrade, deleteGrade, classById, taskById, gradeById, setProfile],
   );
 
   return (

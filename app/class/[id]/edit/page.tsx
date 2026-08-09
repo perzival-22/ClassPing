@@ -12,7 +12,8 @@ import { useStore, type DayIndex } from "@/lib/store";
 import { ensureNotificationPermission } from "@/lib/notifications";
 import { useIsPro } from "@/lib/useIsPro";
 
-const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
+// Mon–Fri only — see the note in class/new: S/S chips were a data-loss trap.
+const DAY_LABELS = ["M", "T", "W", "T", "F"];
 const REMIND_OPTIONS = [
   { label: "10 min", value: 10 },
   { label: "15 min", value: 15 },
@@ -73,12 +74,13 @@ export default function EditClassScreen({
   const save = async () => {
     if (!canSave) return;
     if (alarm) await ensureNotificationPermission();
-    const weekdays = [...days].filter((d) => d <= 4) as DayIndex[];
+    // Only weekday chips render, so the set can hold nothing else.
+    const weekdays = [...days].sort((a, b) => a - b) as DayIndex[];
     updateClass(id, {
       name: name.trim(),
       short: name.trim().split(/\s+/)[0].slice(0, 5),
       color,
-      days: weekdays.length ? weekdays : [0],
+      days: weekdays,
       start,
       end,
       remindBefore: remind,
@@ -142,7 +144,7 @@ export default function EditClassScreen({
                         ? { background: "var(--color-brand)", color: "#fff" }
                         : {
                             background: "#fff",
-                            color: i > 4 ? "#C4C0DC" : "#9A96B4",
+                            color: "#9A96B4",
                             boxShadow: "0 1px 3px rgba(30,20,80,.05)",
                           }
                     }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { clerkClient } from "@clerk/nextjs/server";
 import { sql, ensureSchema } from "@/lib/db";
+import { authorizeCron } from "@/lib/cron-auth";
 import {
   appBaseUrl,
   emailConfigured,
@@ -114,8 +115,7 @@ function renderReminderEmail(
 }
 
 export async function GET(req: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!authorizeCron(req)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   if (!sql || !emailConfigured) {
@@ -149,10 +149,11 @@ export async function GET(req: NextRequest) {
     const classes = (user.data?.classes ?? []).filter(isValidClass);
     const todays = classes.filter((c) => c.days.includes(clock.dow));
 
-    // Find the first class whose reminder window contains "now":
-    // the reminder fires at (start - remindBefore). We accept up to WINDOW_MINS
-    // past that moment so a delayed cron still delivers.
-    const toRemind = todays.find((c) => {
+    // Every class whose reminder window contains "now": the reminder fires at
+    // (start - remindBefore), accepted up to WINDOW_MINS late so a delayed
+    // cron still delivers. `filter`, not `find` — back-to-back classes with
+    // overlapping windows each get their own reminder.
+    const toRemind = todays.filter((c) => {
       const reminderAt = c.start - c.remindBefore;
       return (
         clock.mins >= reminderAt &&
@@ -160,19 +161,21 @@ export async function GET(req: NextRequest) {
         clock.mins - reminderAt <= WINDOW_MINS
       );
     });
-    if (!toRemind) continue;
+    if (toRemind.length === 0) continue;
 
-    const minsUntil = toRemind.start - clock.mins;
-
-    // Claim the send before doing it — same INSERT-first idempotency pattern as
-    // every other cron in this app.
-    const claim = await sql`
-      INSERT INTO email_reminder_sent (user_id, class_id, day, sent_at)
-      VALUES (${user.user_id}, ${toRemind.id}, ${clock.day}, ${now.getTime()})
-      ON CONFLICT (user_id, class_id, day) DO NOTHING
-      RETURNING class_id
-    `;
-    if (claim.length === 0) continue;
+    // Claim each send before doing it — same INSERT-first idempotency pattern
+    // as every other cron in this app.
+    const claimed: typeof toRemind = [];
+    for (const cls of toRemind) {
+      const claim = await sql`
+        INSERT INTO email_reminder_sent (user_id, class_id, day, sent_at)
+        VALUES (${user.user_id}, ${cls.id}, ${clock.day}, ${now.getTime()})
+        ON CONFLICT (user_id, class_id, day) DO NOTHING
+        RETURNING class_id
+      `;
+      if (claim.length > 0) claimed.push(cls);
+    }
+    if (claimed.length === 0) continue;
 
     let address: string | undefined;
     try {
@@ -188,12 +191,15 @@ export async function GET(req: NextRequest) {
       continue;
     }
 
-    const ok = await sendEmail(
-      address,
-      `${toRemind.name} starts in ${minsUntil} minute${minsUntil === 1 ? "" : "s"}`,
-      renderReminderEmail(toRemind, minsUntil, unsubscribeUrl(user.user_id)),
-    );
-    if (ok) sent++;
+    for (const cls of claimed) {
+      const minsUntil = cls.start - clock.mins;
+      const ok = await sendEmail(
+        address,
+        `${cls.name} starts in ${minsUntil} minute${minsUntil === 1 ? "" : "s"}`,
+        renderReminderEmail(cls, minsUntil, unsubscribeUrl(user.user_id)),
+      );
+      if (ok) sent++;
+    }
   }
 
   await sql`DELETE FROM email_reminder_sent WHERE sent_at < ${now.getTime() - 3 * 86400_000}`;

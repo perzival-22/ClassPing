@@ -30,7 +30,8 @@ export const viewport: Viewport = {
   themeColor: "#5b54e8",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
+  // No maximumScale: pinning zoom to 1 blocks pinch-zoom, a WCAG 1.4.4
+  // failure — low-vision users need to magnify.
   viewportFit: "cover",
 };
 
