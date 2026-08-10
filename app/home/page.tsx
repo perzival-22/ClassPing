@@ -695,6 +695,12 @@ function ClassCard({ c, nowMin }: { c: ClassItem; nowMin: number }) {
             {fmtRange(c.start, c.end)}
             {c.room ? ` · ${c.room}` : ""}
           </div>
+          {c.notes && (
+            <div className="mt-[3px] flex items-start gap-1 text-[12px] leading-snug text-muted-2">
+              <span className="shrink-0">📝</span>
+              <span className="line-clamp-2">{c.notes}</span>
+            </div>
+          )}
         </div>
 
         {isNow && (

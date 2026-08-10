@@ -55,6 +55,7 @@ export default function EditClassScreen({
   const [credits, setCredits] = useState(
     existing?.credits ? String(existing.credits) : "",
   );
+  const [notes, setNotes] = useState(existing?.notes ?? "");
 
   if (!existing) {
     return (
@@ -95,6 +96,7 @@ export default function EditClassScreen({
       room: room.trim() || undefined,
       instructor: instructor.trim() || undefined,
       credits: Number(credits) > 0 ? Number(credits) : undefined,
+      notes: notes.trim() || undefined,
     });
     router.push("/home");
   };
@@ -236,6 +238,20 @@ export default function EditClassScreen({
                 );
               })}
             </div>
+          </Field>
+
+          {/* private notes — a scratchpad for this class, only the student
+              sees it. Also rides into the calendar export DESCRIPTION. */}
+          <Field label="NOTES (JUST FOR YOU)">
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              maxLength={1000}
+              className="w-full resize-none rounded-[15px] bg-white px-4 py-[13px] text-[15px] leading-snug text-ink outline-none"
+              style={{ boxShadow: "0 1px 4px rgba(30,20,80,.05)" }}
+              placeholder="Office hours, exam dates, what to bring…"
+            />
           </Field>
 
           {/* extra calendar alerts (Pro) */}

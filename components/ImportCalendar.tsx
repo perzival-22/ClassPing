@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStore, type ClassItem, type TaskItem } from "@/lib/store";
+import { parseIcs } from "@/lib/ics-import";
 
 /**
  * Import from a school calendar feed (Canvas / Blackboard / Moodle / Google
@@ -26,8 +27,42 @@ export function ImportCalendar() {
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<Candidates | null>(null);
   const [done, setDone] = useState<number | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const total = preview ? preview.classes.length + preview.tasks.length : 0;
+
+  /** A downloaded .ics file needs no server round-trip and no SSRF screen —
+   *  it's a local file, so we read and parse it right here in the browser. */
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // reset so re-picking the same file fires again
+    if (!file) return;
+    setError(null);
+    setPreview(null);
+    setDone(null);
+    if (file.size > 3 * 1024 * 1024) {
+      setError("That file is too large to be a calendar.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const text = await file.text();
+      if (!text.includes("BEGIN:VCALENDAR")) {
+        setError("That file isn't a calendar (.ics) file.");
+        return;
+      }
+      const result = parseIcs(text);
+      if (result.classes.length + result.tasks.length === 0) {
+        setError("No classes or deadlines were found in that file.");
+        return;
+      }
+      setPreview(result);
+    } catch {
+      setError("Couldn't read that file. Try another.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function loadPreview() {
     setBusy(true);
@@ -75,8 +110,8 @@ export function ImportCalendar() {
       </div>
       <p className="text-[13px] leading-snug text-muted">
         Paste the calendar feed link from Canvas, Blackboard, Moodle or Google
-        Classroom and we&apos;ll pull in your classes and deadlines. You review
-        everything before it&apos;s added.
+        Classroom — or upload a downloaded .ics file — and we&apos;ll pull in
+        your classes and deadlines. You review everything before it&apos;s added.
       </p>
 
       <input
@@ -140,14 +175,38 @@ export function ImportCalendar() {
           </div>
         </div>
       ) : (
-        <button
-          onClick={loadPreview}
-          disabled={busy || url.trim().length === 0}
-          className="mt-3 w-full rounded-[15px] py-[13px] text-center text-[15px] font-semibold text-brand transition active:scale-[0.98] disabled:opacity-50"
-          style={{ background: "var(--brand-soft)" }}
-        >
-          {busy ? "Fetching…" : "Preview import"}
-        </button>
+        <>
+          <button
+            onClick={loadPreview}
+            disabled={busy || url.trim().length === 0}
+            className="mt-3 w-full rounded-[15px] py-[13px] text-center text-[15px] font-semibold text-brand transition active:scale-[0.98] disabled:opacity-50"
+            style={{ background: "var(--brand-soft)" }}
+          >
+            {busy ? "Working…" : "Preview import"}
+          </button>
+
+          <div className="my-3 flex items-center gap-3">
+            <div className="h-px flex-1" style={{ background: "var(--bg-input)" }} />
+            <span className="text-[11px] font-semibold text-faint">OR</span>
+            <div className="h-px flex-1" style={{ background: "var(--bg-input)" }} />
+          </div>
+
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".ics,text/calendar"
+            className="hidden"
+            onChange={handleFile}
+          />
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={busy}
+            className="w-full rounded-[15px] py-[13px] text-center text-[15px] font-semibold text-brand transition active:scale-[0.98] disabled:opacity-50"
+            style={{ background: "var(--brand-soft)" }}
+          >
+            Upload an .ics file
+          </button>
+        </>
       )}
     </div>
   );
