@@ -6,6 +6,7 @@ import {
   letterFor,
   overallGpa,
   pointsFor,
+  projectedGpa,
   whatIfNeeded,
 } from "./gpa";
 import type { ClassItem, GradeItem } from "./store";
@@ -154,6 +155,56 @@ describe("overallGpa", () => {
       SIMPLE_SCALE,
     );
     expect(gpa).toBeCloseTo(4.0, 10);
+  });
+});
+
+describe("projectedGpa", () => {
+  it("is null until any class has a goal", () => {
+    expect(projectedGpa([klass()], [grade()])).toBeNull();
+    expect(projectedGpa([], [])).toBeNull();
+  });
+
+  it("uses the goal for classes that have one", () => {
+    // Currently a C (75%) but aiming for an A — the projection believes the goal.
+    const classes = [klass({ id: "c1", goal: 95 })];
+    const grades = [grade({ classId: "c1", score: 75, max: 100 })];
+    expect(projectedGpa(classes, grades)).toBeCloseTo(4.0, 10);
+  });
+
+  it("falls back to the current average for classes without a goal", () => {
+    // c1 aims for an A (4.0); c2 has no goal and sits at a B (3.0).
+    const classes = [klass({ id: "c1", goal: 95 }), klass({ id: "c2" })];
+    const grades = [
+      grade({ id: "g1", classId: "c1", score: 60, max: 100 }),
+      grade({ id: "g2", classId: "c2", score: 85, max: 100 }),
+    ];
+    expect(projectedGpa(classes, grades)).toBeCloseTo(3.5, 10);
+  });
+
+  it("counts a goal even when the class has no grades yet", () => {
+    expect(projectedGpa([klass({ goal: 85 })], [])).toBeCloseTo(3.0, 10);
+  });
+
+  it("weights the projection by credit hours", () => {
+    // A-goal (4.0) in 4 credits, B-goal (3.0) in 1 -> (16 + 3) / 5 = 3.8.
+    const classes = [
+      klass({ id: "c1", goal: 95, credits: 4 }),
+      klass({ id: "c2", goal: 85, credits: 1 }),
+    ];
+    expect(projectedGpa(classes, [])).toBeCloseTo(3.8, 10);
+  });
+
+  it("ignores zero and negative goals", () => {
+    expect(projectedGpa([klass({ goal: 0 })], [grade()])).toBeNull();
+    expect(projectedGpa([klass({ goal: -5 })], [grade()])).toBeNull();
+  });
+
+  it("honours an alternative letter scale", () => {
+    // 90% projects to an A- (3.7) on the standard scale, a flat A (4.0) here.
+    expect(projectedGpa([klass({ goal: 90 })], [], SIMPLE_SCALE)).toBeCloseTo(
+      4.0,
+      10,
+    );
   });
 });
 

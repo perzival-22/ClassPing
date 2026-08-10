@@ -19,6 +19,7 @@ import {
 } from "@/components/icons";
 import { ACCENTS, isProAccent, type AccentId } from "@/lib/accents";
 import { useStore } from "@/lib/store";
+import { termProgress } from "@/lib/time";
 import { downloadCalendarFile } from "@/lib/calendar";
 import {
   isPushSubscribed,
@@ -787,6 +788,11 @@ function SettingsForm() {
               <div className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-faint">
                 Term
               </div>
+
+              <CurrentTerm />
+
+              <div className="my-5 h-px" style={{ background: "var(--bg-input)" }} />
+
               <p className="text-[13px] leading-snug text-muted">
                 Finished the semester? Archive these {classes.length}{" "}
                 {classes.length === 1 ? "class" : "classes"} to clear your
@@ -827,6 +833,14 @@ function SettingsForm() {
                     <button
                       onClick={() => {
                         archiveTerm(termName);
+                        // The dates and name described the term just archived,
+                        // so clear them rather than let the next semester
+                        // inherit last semester's calendar.
+                        setProfile({
+                          termName: undefined,
+                          termStart: null,
+                          termEnd: null,
+                        });
                         setArchiving(false);
                         setTermName("");
                         setArchived(true);
@@ -841,7 +855,10 @@ function SettingsForm() {
                 </>
               ) : (
                 <button
-                  onClick={() => setArchiving(true)}
+                  onClick={() => {
+                    setTermName(profile.termName ?? "");
+                    setArchiving(true);
+                  }}
                   className="mt-3 w-full rounded-[15px] py-[13px] text-center text-[15px] font-semibold text-brand transition active:scale-[0.98]"
                   style={{ background: "var(--brand-soft)" }}
                 >
@@ -959,6 +976,137 @@ function SettingsForm() {
         <TabBar />
       </div>
     </PhoneFrame>
+  );
+}
+
+/**
+ * The semester the user is currently in: what it's called and when it runs.
+ *
+ * Dates commit as they're picked (a date picker is a deliberate, discrete
+ * choice) while the name commits on blur, so neither needs its own save
+ * button. The progress read is the payoff — "week 6 of 16" is the thing a
+ * student actually wants back for having entered two dates.
+ */
+function CurrentTerm() {
+  const { profile, setProfile } = useStore();
+  const [name, setName] = useState(profile.termName ?? "");
+
+  const start = profile.termStart ?? "";
+  const end = profile.termEnd ?? "";
+  const progress = termProgress(start, end, new Date());
+  // Both dates present but no progress means end < start — say so rather than
+  // silently showing nothing after the user has filled the form in.
+  const inverted = start !== "" && end !== "" && progress === null;
+
+  return (
+    <>
+      <label
+        className="block rounded-[15px] px-4 py-[13px]"
+        style={{
+          background: "var(--bg-input)",
+          border: "1px solid rgba(var(--brand-rgb),.12)",
+        }}
+      >
+        <div className="text-[11px] font-semibold tracking-wide text-faint">
+          CURRENT TERM
+        </div>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={() => setProfile({ termName: name.trim() || undefined })}
+          placeholder="e.g. Fall 2025"
+          maxLength={64}
+          className="mt-[3px] w-full bg-transparent text-[16px] text-ink outline-none"
+        />
+      </label>
+
+      <div className="mt-2.5 flex gap-2.5">
+        <DateBox
+          label="STARTS"
+          value={start}
+          max={end || undefined}
+          onChange={(v) => setProfile({ termStart: v || null })}
+        />
+        <DateBox
+          label="ENDS"
+          value={end}
+          min={start || undefined}
+          onChange={(v) => setProfile({ termEnd: v || null })}
+        />
+      </div>
+
+      {progress ? (
+        <div className="mt-3">
+          <div
+            className="h-1.5 w-full overflow-hidden rounded-full"
+            style={{ background: "var(--bg-input)" }}
+          >
+            <div
+              className="h-full rounded-full transition-all"
+              style={{
+                width: `${Math.round(progress.fraction * 100)}%`,
+                background: "var(--brand-grad)",
+              }}
+            />
+          </div>
+          <p className="mt-2 text-[12.5px] leading-snug text-muted">
+            {progress.phase === "before"
+              ? `Starts in ${progress.totalDays - progress.remainingDays + 1} ${
+                  progress.totalDays - progress.remainingDays + 1 === 1
+                    ? "day"
+                    : "days"
+                } — ${progress.totalWeeks} weeks long.`
+              : progress.phase === "after"
+                ? "This term has ended. Archive it below to clear your timetable."
+                : `Week ${progress.week} of ${progress.totalWeeks} · ${progress.remainingDays} ${
+                    progress.remainingDays === 1 ? "day" : "days"
+                  } to go.`}
+          </p>
+        </div>
+      ) : (
+        <p className="mt-2.5 text-[12px] leading-snug text-faint">
+          {inverted
+            ? "The end date is before the start date — check the dates."
+            : "Set both dates to see how far through the semester you are. They're printed on your grade report too."}
+        </p>
+      )}
+    </>
+  );
+}
+
+function DateBox({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  min?: string;
+  max?: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <label
+      className="flex-1 rounded-[15px] px-4 py-[11px]"
+      style={{
+        background: "var(--bg-input)",
+        border: "1px solid rgba(var(--brand-rgb),.12)",
+      }}
+    >
+      <div className="text-[11px] font-semibold tracking-wide text-faint">
+        {label}
+      </div>
+      <input
+        type="date"
+        value={value}
+        min={min}
+        max={max}
+        onChange={(e) => onChange(e.target.value)}
+        className="mt-[3px] w-full bg-transparent text-[15px] text-ink outline-none"
+      />
+    </label>
   );
 }
 

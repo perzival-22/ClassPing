@@ -98,6 +98,39 @@ export function overallGpa(
   return totalPoints / totalCredits;
 }
 
+/**
+ * Projected end-of-term GPA, assuming every class lands on its goal.
+ *
+ * Classes with a goal set contribute the points that goal percentage would
+ * earn; classes without one contribute their current average, so the number
+ * always answers "where do I end up if the plan holds?". Returns null until
+ * at least one class has a goal — with no goals set there is no projection,
+ * just the actual GPA, and showing both would be showing the same number twice.
+ */
+export function projectedGpa(
+  classes: ClassItem[],
+  grades: GradeItem[],
+  scale: ScaleBand[] = DEFAULT_SCALE,
+): number | null {
+  if (!classes.some((c) => typeof c.goal === "number" && c.goal > 0)) {
+    return null;
+  }
+  let totalCredits = 0;
+  let totalPoints = 0;
+  for (const c of classes) {
+    const hasGoal = typeof c.goal === "number" && c.goal > 0;
+    const pct = hasGoal
+      ? c.goal!
+      : classAverage(grades.filter((g) => g.classId === c.id));
+    if (pct === null) continue;
+    const credits = creditsFor(c);
+    totalCredits += credits;
+    totalPoints += pointsFor(pct, scale) * credits;
+  }
+  if (totalCredits === 0) return null;
+  return totalPoints / totalCredits;
+}
+
 /* ── "what do I need on the final?" ───────────────────────── */
 
 export interface WhatIfResult {

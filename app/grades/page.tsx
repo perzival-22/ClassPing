@@ -4,18 +4,20 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { TabBar } from "@/components/TabBar";
-import { PlusIcon, SparkleIcon, TrashIcon } from "@/components/icons";
+import { PencilIcon, PlusIcon, SparkleIcon, TrashIcon } from "@/components/icons";
 import { FinalsCountdown } from "@/components/FinalsCountdown";
 import { PALETTE } from "@/lib/palette";
-import { useStore, longDate, type GradeItem } from "@/lib/store";
-import { downloadGradeReport } from "@/lib/report";
+import { useStore, longDate, type ClassItem, type GradeItem } from "@/lib/store";
+import { downloadGradeReport, downloadGradeReportPdf } from "@/lib/report";
 import {
   SCALES,
+  type ScaleBand,
   classAverage,
   creditsFor,
   letterFor,
   overallGpa,
   pointsFor,
+  projectedGpa,
   whatIfNeeded,
 } from "@/lib/gpa";
 import { useIsPro } from "@/lib/useIsPro";
@@ -74,6 +76,9 @@ export default function GradesScreen() {
   // exists — past terms keep their own GPA below.
   const scale = SCALES[profile.gradeScale ?? "standard"];
   const gpa = overallGpa(activeClasses, grades, scale);
+  // Where the term lands if every goal is met. Null until a goal exists —
+  // with none set it would just restate the GPA above it.
+  const projected = projectedGpa(activeClasses, grades, scale);
   const gradedClasses = activeClasses.filter((c) =>
     grades.some((g) => g.classId === c.id),
   );
@@ -133,6 +138,27 @@ export default function GradesScreen() {
                     usesCredits ? ", weighted by credit hours" : ""
                   }.`}
             </p>
+
+            {/* Where the term ends up if every class goal is met. */}
+            {projected !== null && (
+              <div
+                className="mt-3.5 flex items-center gap-2.5 rounded-[14px] px-3.5 py-2.5"
+                style={{ background: "rgba(255,255,255,.16)" }}
+              >
+                <span className="text-[15px]">🎯</span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[11px] font-semibold uppercase tracking-widest text-white/70">
+                    Projected by end of term
+                  </div>
+                  <div className="mt-px text-[12px] text-white/85">
+                    If you hit every goal you&apos;ve set.
+                  </div>
+                </div>
+                <span className="font-[family-name:var(--font-fredoka)] text-[24px] font-semibold leading-none">
+                  {projected.toFixed(2)}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* per-class sections */}
@@ -157,9 +183,11 @@ export default function GradesScreen() {
             const classGrades = grades
               .filter((g) => g.classId === c.id)
               .sort((a, b) => (a.date < b.date ? 1 : -1));
-            if (classGrades.length === 0) return null;
+            // A class with a goal but no grades still belongs here — that's
+            // the plan for it, and it counts toward the projection above.
+            if (classGrades.length === 0 && !c.goal) return null;
             const t = PALETTE[c.color];
-            const avg = classAverage(classGrades)!;
+            const avg = classAverage(classGrades);
 
             return (
               <div
@@ -180,38 +208,41 @@ export default function GradesScreen() {
                       {c.name}
                     </div>
                     <div className="mt-[2px] text-[12px] text-muted">
-                      {avg.toFixed(1)}% average
+                      {avg === null
+                        ? "No grades logged yet"
+                        : `${avg.toFixed(1)}% average`}
                       {typeof c.credits === "number"
                         ? ` · ${creditsFor(c)} cr`
                         : ""}
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div
-                      className="text-[20px] font-bold"
-                      style={{ color: t.bar }}
-                    >
-                      {letterFor(avg, scale)}
+                  {avg !== null && (
+                    <div className="text-right">
+                      <div
+                        className="text-[20px] font-bold"
+                        style={{ color: t.bar }}
+                      >
+                        {letterFor(avg, scale)}
+                      </div>
+                      <div className="text-[11px] text-faint">
+                        {pointsFor(avg, scale).toFixed(1)} pts
+                      </div>
                     </div>
-                    <div className="text-[11px] text-faint">
-                      {pointsFor(avg, scale).toFixed(1)} pts
-                    </div>
-                  </div>
+                  )}
                 </div>
 
-                {/* what's left to play for */}
-                <WhatIf grades={classGrades} accent={t.bar} />
-
+                {/* the target, and what's left to play for */}
+                <GoalBlock
+                  c={c}
+                  grades={classGrades}
+                  accent={t.bar}
+                  scale={scale}
+                />
 
                 {/* grade rows */}
                 <div className="mt-3 px-5 pb-4">
                   {classGrades.map((g) => (
-                    <GradeRow
-                      key={g.id}
-                      g={g}
-                      onDelete={deleteGrade}
-                      onEdit={() => router.push(`/grades/${g.id}/edit`)}
-                    />
+                    <GradeRow key={g.id} g={g} onDelete={deleteGrade} />
                   ))}
                 </div>
               </div>
@@ -235,8 +266,10 @@ export default function GradesScreen() {
             </div>
           )}
 
-          {/* ── export ── */}
-          {gpa !== null && <ExportReportButton />}
+          {/* ── export ──
+              Available as soon as there's a term to describe, not just once
+              a GPA exists: the PDF is the whole record, grades or not. */}
+          {activeClasses.length > 0 && <ExportReportButton />}
 
           {/* ── past terms ──
               Archived work keeps its own frozen GPA instead of diluting this
@@ -303,27 +336,39 @@ export default function GradesScreen() {
 }
 
 /**
- * Downloads the term's grades as a CSV report — the shareable artifact at the
- * end of a semester. Pro-gated server-side like the calendar export; this
- * screen is already behind the Pro wall, so a 403 here means a lapsed plan.
+ * Downloads the term's record — the shareable artifact at the end of a
+ * semester. PDF is the primary: it's the one you print or hand to a parent or
+ * an advisor, and it carries each class with its grades, its assignments and
+ * the note attached to it. CSV stays for anyone who wants to pivot the numbers.
+ *
+ * Pro-gated server-side like the calendar export; this screen is already behind
+ * the Pro wall, so a 403 here means a lapsed plan.
  */
 function ExportReportButton() {
   const router = useRouter();
-  const { activeClasses, grades, profile } = useStore();
-  const [exporting, setExporting] = useState(false);
+  const { activeClasses, grades, tasks, profile } = useStore();
+  const [exporting, setExporting] = useState<"pdf" | "csv" | null>(null);
   const [failed, setFailed] = useState(false);
 
-  const run = async () => {
-    setExporting(true);
+  const run = async (format: "pdf" | "csv") => {
+    setExporting(format);
     setFailed(false);
     try {
+      const classIds = new Set(activeClasses.map((c) => c.id));
       const res = await fetch("/api/export/grades", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          format,
           classes: activeClasses,
           grades,
+          // Archived terms are excluded above, so their work must be too.
+          tasks: tasks.filter((t) => classIds.has(t.classId)),
           scale: profile.gradeScale ?? "standard",
+          termName: profile.termName,
+          studentName: profile.username,
+          termStart: profile.termStart,
+          termEnd: profile.termEnd,
         }),
       });
       if (res.status === 403) {
@@ -331,23 +376,37 @@ function ExportReportButton() {
         return;
       }
       if (!res.ok) throw new Error(`export failed: ${res.status}`);
-      downloadGradeReport(await res.text());
+      if (format === "pdf") {
+        downloadGradeReportPdf(await res.arrayBuffer());
+      } else {
+        downloadGradeReport(await res.text());
+      }
     } catch {
       setFailed(true);
     } finally {
-      setExporting(false);
+      setExporting(null);
     }
   };
 
   return (
     <div className="mt-5">
       <button
-        onClick={run}
-        disabled={exporting}
-        className="w-full rounded-[15px] py-[13px] text-center text-[15px] font-semibold text-brand transition active:scale-[0.98] disabled:opacity-50"
+        onClick={() => run("pdf")}
+        disabled={exporting !== null}
+        className="btn-brand w-full rounded-[15px] py-[14px] text-center text-[15px] font-semibold text-white transition active:scale-[0.98] disabled:opacity-60"
+      >
+        {exporting === "pdf" ? "Building your report…" : "Download report (PDF)"}
+      </button>
+      <p className="mt-2 text-center text-[12px] leading-snug text-muted-2">
+        Every class with its grades, assignments and notes — ready to print.
+      </p>
+      <button
+        onClick={() => run("csv")}
+        disabled={exporting !== null}
+        className="mt-2.5 w-full rounded-[15px] py-[11px] text-center text-[14px] font-semibold text-brand transition active:scale-[0.98] disabled:opacity-50"
         style={{ background: "var(--brand-soft)" }}
       >
-        {exporting ? "Exporting…" : "Download grade report (CSV)"}
+        {exporting === "csv" ? "Exporting…" : "Spreadsheet instead (CSV)"}
       </button>
       {failed && (
         <p className="mt-2 text-center text-[12px] text-muted-2">
@@ -359,17 +418,37 @@ function ExportReportButton() {
 }
 
 /**
- * "What do I need on the final?"
+ * The class's target grade, and what it will take to get there.
  *
- * The single most-wanted number in a grade tracker, and the reason to open the
- * app in the week before finals. Only appears once some weight is still
- * ungraded — with the class finished there's nothing left to answer.
+ * The target is saved on the class rather than held in local state, because
+ * it's the input to the projected GPA in the hero — a goal you have to re-pick
+ * every visit can't predict anything. Picking the active band again clears it.
+ *
+ * "What do I need on the final?" is the single most-wanted number in a grade
+ * tracker and the reason to open the app the week before finals, so it sits
+ * directly under the target it's answering for.
  */
-function WhatIf({ grades, accent }: { grades: GradeItem[]; accent: string }) {
-  const TARGETS = [90, 80, 70];
-  const [target, setTarget] = useState(90);
-  const result = whatIfNeeded(grades, target);
-  if (!result) return null;
+function GoalBlock({
+  c,
+  grades,
+  accent,
+  scale,
+}: {
+  c: ClassItem;
+  grades: GradeItem[];
+  accent: string;
+  scale: ScaleBand[];
+}) {
+  const { updateClass } = useStore();
+  const [picking, setPicking] = useState(false);
+
+  // The top bands of whichever scale the student uses, so the chips read as
+  // real grades ("A−") instead of arbitrary percentages.
+  const bands = [...scale].sort((a, b) => b.min - a.min).slice(0, 5);
+  const goal = typeof c.goal === "number" && c.goal > 0 ? c.goal : null;
+  const result = goal === null ? null : whatIfNeeded(grades, goal);
+  const avg = classAverage(grades);
+  const open = picking || goal === null;
 
   return (
     <div
@@ -378,93 +457,241 @@ function WhatIf({ grades, accent }: { grades: GradeItem[]; accent: string }) {
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-[12px] font-semibold text-muted">
-          To finish at
+          {goal === null ? "Aiming for" : "Goal"}
         </span>
-        <div className="flex gap-1">
-          {TARGETS.map((t) => (
-            <button
-              key={t}
-              onClick={() => setTarget(t)}
-              className="rounded-full px-2.5 py-1 text-[12px] font-bold transition"
-              style={
-                target === t
-                  ? { background: accent, color: "#fff" }
-                  : { background: "#fff", color: "var(--color-muted)" }
-              }
-            >
-              {t}%
-            </button>
-          ))}
-        </div>
+        {goal !== null && !picking ? (
+          <button
+            onClick={() => setPicking(true)}
+            className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-bold text-white transition active:scale-95"
+            style={{ background: accent }}
+          >
+            {letterFor(goal, scale)} · {goal}%
+            <PencilIcon className="h-[11px] w-[11px]" />
+          </button>
+        ) : null}
       </div>
-      <p className="mt-2 text-[13px] leading-snug text-ink">
-        {result.alreadySecured ? (
-          <>
-            Already locked in — even a zero on the remaining{" "}
-            {result.remainingWeight}% keeps you there. 🎉
-          </>
-        ) : (
-          <>
-            You need{" "}
-            <span className="font-bold" style={{ color: accent }}>
-              {result.needed.toFixed(1)}%
-            </span>{" "}
-            on the remaining {result.remainingWeight}% of the grade.
-            {result.outOfReach && (
-              <span className="text-muted">
-                {" "}
-                That&apos;s above full marks — only extra credit gets you there.
-              </span>
-            )}
-          </>
-        )}
-      </p>
+
+      {open && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {bands.map((b) => {
+            const on = goal === b.min;
+            return (
+              <button
+                key={b.letter}
+                onClick={() => {
+                  updateClass(c.id, { goal: on ? undefined : b.min });
+                  setPicking(false);
+                }}
+                className="rounded-full px-2.5 py-1 text-[12px] font-bold transition"
+                style={
+                  on
+                    ? { background: accent, color: "#fff" }
+                    : { background: "#fff", color: "var(--color-muted)" }
+                }
+              >
+                {b.letter}
+              </button>
+            );
+          })}
+          {goal !== null && (
+            <button
+              onClick={() => {
+                updateClass(c.id, { goal: undefined });
+                setPicking(false);
+              }}
+              className="rounded-full bg-white px-2.5 py-1 text-[12px] font-semibold text-muted-2"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
+      {goal === null ? (
+        <p className="mt-2 text-[12.5px] leading-snug text-muted">
+          Set a target and we&apos;ll work out what you still need — and fold it
+          into your projected GPA.
+        </p>
+      ) : result ? (
+        <p className="mt-2 text-[13px] leading-snug text-ink">
+          {result.alreadySecured ? (
+            <>
+              Already locked in — even a zero on the remaining{" "}
+              {result.remainingWeight}% keeps you there. 🎉
+            </>
+          ) : (
+            <>
+              You need{" "}
+              <span className="font-bold" style={{ color: accent }}>
+                {result.needed.toFixed(1)}%
+              </span>{" "}
+              on the remaining {result.remainingWeight}% of the grade.
+              {result.outOfReach && (
+                <span className="text-muted">
+                  {" "}
+                  That&apos;s above full marks — only extra credit gets you
+                  there.
+                </span>
+              )}
+            </>
+          )}
+        </p>
+      ) : (
+        // Every point of weight is graded, so there is nothing left to
+        // predict — just say whether the goal was met.
+        <p className="mt-2 text-[13px] leading-snug text-ink">
+          {avg === null
+            ? "Nothing graded yet."
+            : avg >= goal
+              ? `Everything's graded — you finished at ${avg.toFixed(1)}%. Goal met. 🎉`
+              : `Everything's graded — you finished at ${avg.toFixed(1)}%, ${(goal - avg).toFixed(1)} points short.`}
+        </p>
+      )}
     </div>
   );
 }
 
+/**
+ * One graded item. Tapping it opens the score and weight for editing right
+ * here — changing "what I got" after a re-mark is the most common edit by far,
+ * and bouncing to a separate screen for two numbers was too much ceremony.
+ * The full editor (title, class, date) is one more tap away.
+ */
 function GradeRow({
   g,
   onDelete,
-  onEdit,
 }: {
   g: GradeItem;
   onDelete: (id: string) => void;
-  onEdit: () => void;
 }) {
+  const router = useRouter();
+  const { updateGrade } = useStore();
+  const [open, setOpen] = useState(false);
+  const [score, setScore] = useState(String(g.score));
+  const [max, setMax] = useState(String(g.max));
+  const [weight, setWeight] = useState(String(g.weight));
+
   const pct = g.max > 0 ? (g.score / g.max) * 100 : 0;
+  const scoreN = Number(score);
+  const maxN = Number(max);
+  const weightN = Number(weight);
+  const canSave =
+    Number.isFinite(scoreN) &&
+    scoreN >= 0 &&
+    Number.isFinite(maxN) &&
+    maxN > 0 &&
+    Number.isFinite(weightN) &&
+    weightN > 0 &&
+    weightN <= 100;
+
+  const openEditor = () => {
+    // Re-seed from the store each time, so a cancelled edit doesn't leave
+    // stale text in the fields when the row is reopened.
+    setScore(String(g.score));
+    setMax(String(g.max));
+    setWeight(String(g.weight));
+    setOpen(true);
+  };
+
   return (
-    <div
-      className="flex items-center gap-3 border-t py-3"
-      style={{ borderColor: "rgba(30,20,80,.06)" }}
-    >
-      {/* Row body opens the edit screen; the trash keeps its own tap target. */}
-      <button
-        onClick={onEdit}
-        aria-label={`Edit ${g.title}`}
-        className="min-w-0 flex-1 text-left"
-      >
-        <div className="truncate text-[14px] font-medium text-ink">
-          {g.title}
+    <div className="border-t" style={{ borderColor: "rgba(30,20,80,.06)" }}>
+      <div className="flex items-center gap-3 py-3">
+        <button
+          onClick={() => (open ? setOpen(false) : openEditor())}
+          aria-expanded={open}
+          aria-label={`Edit ${g.title}`}
+          className="min-w-0 flex-1 text-left"
+        >
+          <div className="truncate text-[14px] font-medium text-ink">
+            {g.title}
+          </div>
+          <div className="mt-[2px] text-[12px] text-muted">
+            {longDate(g.date)} · weight {g.weight}%
+          </div>
+        </button>
+        <div className="text-right">
+          <div className="text-[14px] font-semibold text-ink">
+            {g.score}/{g.max}
+          </div>
+          <div className="text-[11px] text-faint">{pct.toFixed(0)}%</div>
         </div>
-        <div className="mt-[2px] text-[12px] text-muted">
-          {longDate(g.date)} · weight {g.weight}%
-        </div>
-      </button>
-      <div className="text-right">
-        <div className="text-[14px] font-semibold text-ink">
-          {g.score}/{g.max}
-        </div>
-        <div className="text-[11px] text-faint">{pct.toFixed(0)}%</div>
+        <button
+          onClick={() => onDelete(g.id)}
+          aria-label={`Delete ${g.title}`}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition active:scale-95"
+          style={{ background: "#F0EFF6" }}
+        >
+          <TrashIcon className="h-[15px] w-[15px] text-[#9A96B4]" />
+        </button>
       </div>
-      <button
-        onClick={() => onDelete(g.id)}
-        aria-label={`Delete ${g.title}`}
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition active:scale-95"
-        style={{ background: "#F0EFF6" }}
-      >
-        <TrashIcon className="h-[15px] w-[15px] text-[#9A96B4]" />
-      </button>
+
+      {open && (
+        <div
+          className="mb-3 rounded-[14px] px-3 py-3"
+          style={{ background: "var(--bg-input)" }}
+        >
+          <div className="flex gap-2">
+            <QuickNumber label="EARNED" value={score} onChange={setScore} />
+            <QuickNumber label="OUT OF" value={max} onChange={setMax} />
+            <QuickNumber label="WEIGHT %" value={weight} onChange={setWeight} />
+          </div>
+          <div className="mt-2.5 flex items-center gap-2">
+            <button
+              onClick={() => router.push(`/grades/${g.id}/edit`)}
+              className="text-[12.5px] font-semibold text-muted"
+            >
+              More options
+            </button>
+            <div className="flex-1" />
+            <button
+              onClick={() => setOpen(false)}
+              className="rounded-full px-3 py-1.5 text-[13px] font-semibold text-muted"
+              style={{ background: "#fff" }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                if (!canSave) return;
+                updateGrade(g.id, {
+                  score: scoreN,
+                  max: maxN,
+                  weight: weightN,
+                });
+                setOpen(false);
+              }}
+              disabled={!canSave}
+              className="btn-brand rounded-full px-4 py-1.5 text-[13px] font-semibold text-white transition active:scale-95 disabled:opacity-50"
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function QuickNumber({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <label className="flex-1 rounded-[12px] bg-white px-3 py-2">
+      <div className="text-[10px] font-semibold text-faint">{label}</div>
+      <input
+        type="number"
+        inputMode="decimal"
+        min="0"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="mt-0.5 w-full bg-transparent text-[16px] font-medium text-ink outline-none"
+      />
+    </label>
   );
 }

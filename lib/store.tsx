@@ -56,6 +56,11 @@ export interface ClassItem {
    * so last semester stops cluttering this one without erasing the record.
    */
   archived?: boolean;
+  /**
+   * The grade (in percent) the student is aiming to finish the class at — a
+   * goal, not a measurement. Drives the projected GPA on the Grades screen.
+   */
+  goal?: number;
 }
 
 export interface TaskItem {
@@ -102,6 +107,15 @@ export interface Profile {
    * so nobody's GPA changes just because the option now exists.
    */
   gradeScale?: "standard" | "simple";
+  /**
+   * The current semester's span, ISO dates. Set in Settings → Term; shown as
+   * a progress read there and printed on the grade report. Null means unset —
+   * every profile predating the feature.
+   */
+  termStart?: string | null;
+  termEnd?: string | null;
+  /** What the current term is called, e.g. "Fall 2025". Titles the report. */
+  termName?: string;
 }
 
 interface Store {

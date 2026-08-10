@@ -1,14 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { TabBar } from "@/components/TabBar";
 import { WeekSkeleton } from "@/components/Skeleton";
-import { BellSolid, ArrowLeftIcon, ArrowRightIcon } from "@/components/icons";
+import { BellSolid, ArrowLeftIcon, ArrowRightIcon, PencilIcon } from "@/components/icons";
 import { PALETTE } from "@/lib/palette";
-import { useStore, useNow, weekInfo, type ClassItem, type DayIndex } from "@/lib/store";
+import { useStore, useNow, weekInfo, fmtMD, type ClassItem, type DayIndex } from "@/lib/store";
 
 const DAYS = ["MON", "TUE", "WED", "THU", "FRI"];
+const DAY_FULL = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+const DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri"];
 // Defaults when the timetable fits inside a typical school day; the grid
 // stretches beyond these to fit any class, so nothing renders off-plot.
 const DEFAULT_START_HOUR = 8;
@@ -19,6 +22,11 @@ export default function WeekScreen() {
   const { activeClasses: classes, hydrated } = useStore();
   const [dismissed, setDismissed] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
+  // The block the user tapped, plus which column they tapped it in — the same
+  // class meets on several days and the sheet should say which one it opened.
+  const [selected, setSelected] = useState<{ id: string; day: DayIndex } | null>(
+    null,
+  );
   const now = useNow();
 
   if (!now || !hydrated) {
@@ -84,6 +92,12 @@ export default function WeekScreen() {
           .sort((a, b) => a.start - b.start)[0];
   const minsAway = upcoming ? upcoming.start - nowMin : 0;
   const showBanner = !dismissed && upcoming && minsAway <= 60;
+
+  // Resolved from the store rather than captured on tap, so an edit made from
+  // inside the sheet is reflected the moment the user comes back.
+  const selectedClass = selected
+    ? (classes.find((c) => c.id === selected.id) ?? null)
+    : null;
 
   return (
     <PhoneFrame>
@@ -207,7 +221,14 @@ export default function WeekScreen() {
                     {classes
                       .filter((c) => c.days.includes(dayIdx as DayIndex))
                       .map((c) => (
-                        <ClassBlock key={c.id + dayIdx} c={c} y={y} />
+                        <ClassBlock
+                          key={c.id + dayIdx}
+                          c={c}
+                          y={y}
+                          onOpen={() =>
+                            setSelected({ id: c.id, day: dayIdx as DayIndex })
+                          }
+                        />
                       ))}
                   </div>
                 ))}
@@ -240,6 +261,16 @@ export default function WeekScreen() {
           </button>
         )}
 
+        {/* tapped a block → the full picture of that class */}
+        {selectedClass && selected && (
+          <ClassSheet
+            c={selectedClass}
+            day={selected.day}
+            date={dates[selected.day]}
+            onClose={() => setSelected(null)}
+          />
+        )}
+
         <TabBar />
       </div>
     </PhoneFrame>
@@ -249,17 +280,22 @@ export default function WeekScreen() {
 function ClassBlock({
   c,
   y,
+  onOpen,
 }: {
   c: ClassItem;
   /** Minutes → px, anchored to the grid's derived start hour. */
   y: (mins: number) => number;
+  onOpen: () => void;
 }) {
   const t = PALETTE[c.color];
   const top = y(c.start);
   const height = Math.max(y(c.end) - y(c.start), 34);
   return (
-    <div
-      className="absolute overflow-hidden rounded-lg px-[5px] py-[5px]"
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`${c.name}, ${fmtHM(c.start)}`}
+      className="absolute overflow-hidden rounded-lg px-[5px] py-[5px] text-left transition active:scale-[0.97]"
       style={{
         left: 2,
         right: 2,
@@ -281,6 +317,165 @@ function ClassBlock({
       >
         {fmtHM(c.start).replace(/ (AM|PM)$/, "")}
       </div>
+    </button>
+  );
+}
+
+/**
+ * Details for one class, over the grid.
+ *
+ * A timetable block is only wide enough for an abbreviation, so everything the
+ * student actually needs when they tap it — where it is, who teaches it, the
+ * full time, and whatever note they left themselves — has to live somewhere.
+ * Here, rather than on a separate screen, so glancing at the week never costs
+ * a navigation.
+ */
+function ClassSheet({
+  c,
+  day,
+  date,
+  onClose,
+}: {
+  c: ClassItem;
+  day: DayIndex;
+  date: Date;
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const t = PALETTE[c.color];
+  const mins = c.end - c.start;
+  const otherDays = [...c.days]
+    .sort((a, b) => a - b)
+    .filter((d) => d !== day)
+    .map((d) => DAY_SHORT[d]);
+
+  return (
+    <div className="absolute inset-0 z-50 flex flex-col justify-end">
+      {/* Backdrop doubles as the dismiss target, the gesture people expect. */}
+      <button
+        aria-label="Close"
+        onClick={onClose}
+        className="absolute inset-0 bg-[rgba(20,14,50,.35)]"
+      />
+      <div
+        className="relative max-h-[80%] overflow-y-auto rounded-t-[28px] bg-white px-5 pb-8 pt-3"
+        style={{ boxShadow: "0 -8px 30px rgba(30,20,80,.18)" }}
+      >
+        <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[#E0DDEE]" />
+
+        <div className="flex items-start gap-3">
+          <div
+            className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-[14px] text-[15px] font-bold"
+            style={{ background: t.bg, color: t.text }}
+          >
+            {c.short}
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-[19px] font-semibold leading-tight text-ink">
+              {c.name}
+            </h2>
+            <p className="mt-0.5 text-[13px] text-muted">
+              {DAY_FULL[day]}, {fmtMD(date)}
+            </p>
+          </div>
+          <button
+            onClick={() => router.push(`/class/${c.id}/edit`)}
+            aria-label="Edit class"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition active:scale-95"
+            style={{ background: "#F0EFF6" }}
+          >
+            <PencilIcon className="h-[15px] w-[15px] text-muted" />
+          </button>
+        </div>
+
+        <div
+          className="mt-4 rounded-[16px] px-4 py-1"
+          style={{ background: "var(--bg-input)" }}
+        >
+          <DetailRow
+            label="Time"
+            value={`${fmtHM(c.start)} – ${fmtHM(c.end)}`}
+            hint={`${mins} min`}
+          />
+          <DetailRow label="Room" value={c.room || "Not set"} muted={!c.room} />
+          <DetailRow
+            label="Teacher"
+            value={c.instructor || "Not set"}
+            muted={!c.instructor}
+          />
+          {otherDays.length > 0 && (
+            <DetailRow label="Also on" value={otherDays.join(" · ")} />
+          )}
+          {typeof c.credits === "number" && (
+            <DetailRow label="Credits" value={String(c.credits)} />
+          )}
+          <DetailRow
+            label="Reminder"
+            value={
+              c.alarm ? `${c.remindBefore} min before` : "Off"
+            }
+            muted={!c.alarm}
+          />
+        </div>
+
+        {/* the note the student left on this class */}
+        {c.notes?.trim() ? (
+          <div className="mt-3.5">
+            <div className="text-[11px] font-semibold uppercase tracking-widest text-faint">
+              Your note
+            </div>
+            <p className="mt-1.5 whitespace-pre-wrap text-[14px] leading-snug text-ink">
+              {c.notes}
+            </p>
+          </div>
+        ) : (
+          <button
+            onClick={() => router.push(`/class/${c.id}/edit`)}
+            className="mt-3.5 w-full rounded-[14px] px-4 py-3 text-left text-[13px] text-muted"
+            style={{ background: "var(--bg-input)" }}
+          >
+            + Add a note for this class — office hours, what to bring…
+          </button>
+        )}
+
+        <button
+          onClick={onClose}
+          className="mt-5 w-full rounded-[15px] py-[13px] text-center text-[15px] font-semibold text-brand transition active:scale-[0.98]"
+          style={{ background: "var(--brand-soft)" }}
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DetailRow({
+  label,
+  value,
+  hint,
+  muted,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  muted?: boolean;
+}) {
+  return (
+    <div
+      className="flex items-baseline gap-3 py-2.5"
+      style={{ borderBottom: "1px solid rgba(30,20,80,.05)" }}
+    >
+      <span className="w-[74px] shrink-0 text-[12px] font-semibold text-muted-2">
+        {label}
+      </span>
+      <span
+        className="flex-1 text-[14px]"
+        style={{ color: muted ? "var(--color-hint)" : "var(--color-ink)" }}
+      >
+        {value}
+      </span>
+      {hint && <span className="text-[12px] text-faint">{hint}</span>}
     </div>
   );
 }
