@@ -32,7 +32,13 @@ const REVOKE_EVENTS = new Set([
   "subscriptionItem.abandoned",
 ]);
 
-/** Access is (re)confirmed. */
+/**
+ * Access is (re)confirmed. `subscriptionItem.active` also fires when a free
+ * trial *starts* (the payload carries `is_free_trial: true`), which is what we
+ * want: a trialing student should get the reminders — feeling them is the
+ * entire point of the trial. If the trial lapses without converting, Clerk
+ * moves them back to the free plan and the revoke events below fire.
+ */
 const GRANT_EVENTS = new Set([
   "subscription.active",
   "subscriptionItem.active",

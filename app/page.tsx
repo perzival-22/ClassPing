@@ -9,6 +9,30 @@ import { SignInSkeleton } from "@/components/Skeleton";
 import { EyeIcon } from "@/components/icons";
 import { useStore } from "@/lib/store";
 
+/** One selling point in the public landing strip below the sign-in form. */
+function ValueProp({
+  icon,
+  title,
+  body,
+}: {
+  icon: string;
+  title: string;
+  body: string;
+}) {
+  return (
+    <div
+      className="flex items-start gap-3 rounded-[15px] bg-white px-4 py-3.5"
+      style={{ boxShadow: "0 1px 4px rgba(30,20,80,.06)" }}
+    >
+      <span className="text-[19px] leading-none">{icon}</span>
+      <div className="min-w-0 flex-1">
+        <div className="text-[14px] font-semibold text-ink">{title}</div>
+        <p className="mt-0.5 text-[12.5px] leading-snug text-muted">{body}</p>
+      </div>
+    </div>
+  );
+}
+
 function clerkErrorMessage(err: unknown): string {
   const first = (err as { errors?: { message?: string }[] })?.errors?.[0];
   return first?.message ?? "Something went wrong. Please try again.";
@@ -405,6 +429,44 @@ function SignInForm() {
               {mode === "login" ? "Create an account" : "Log in"}
             </button>
           </p>
+        )}
+
+        {/* This screen is the only public page — a shared link or a search
+            result lands here, so it has to say what ClassPing is before
+            asking anyone to make an account. Hidden during code entry so it
+            never competes with the one thing that matters there. */}
+        {view === "form" && (
+          <div className="mt-8">
+            <div className="flex items-center gap-3">
+              <div className="h-px flex-1 bg-black/10" />
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-faint">
+                What you get
+              </span>
+              <div className="h-px flex-1 bg-black/10" />
+            </div>
+
+            <div className="mt-5 flex flex-col gap-3">
+              <ValueProp
+                icon="📅"
+                title="Your week, at a glance"
+                body="Add your classes once. See today's schedule and the full Mon–Fri grid."
+              />
+              <ValueProp
+                icon="✅"
+                title="Nothing slips"
+                body="Track every assignment with real due dates, and tick it off when it's done."
+              />
+              <ValueProp
+                icon="🔔"
+                title="Reminders that reach you"
+                body="A nudge before class starts and before work is due — by push and email."
+              />
+            </div>
+
+            <p className="mt-6 text-center text-[12px] leading-snug text-hint">
+              Free to start · Works offline · Installs to your home screen
+            </p>
+          </div>
         )}
         </div>
       </div>

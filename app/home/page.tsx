@@ -21,6 +21,7 @@ import {
   weekInfo,
   fmtMD,
   dueLabel,
+  justEndedClass,
   type ClassItem,
   type DayIndex,
 } from "@/lib/store";
@@ -63,6 +64,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const [offset, setOffset] = useState(0);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [promptDismissed, setPromptDismissed] = useState<string | null>(null);
   const now = useNow();
 
   if (!now || !hydrated) {
@@ -87,6 +89,10 @@ export default function HomeScreen() {
   const isEmpty = dayClasses.length === 0;
   // Have we looped through all 5 working days with no classes anywhere?
   const checkedAll = offset >= 4 && isEmpty;
+  // Nothing has ever been added. "Looks like you're free!" is the wrong thing
+  // to tell someone who hasn't set anything up yet — it reads as a dead end
+  // on the one screen that has to get them to first value.
+  const isFirstRun = classes.length === 0;
 
   const nextDayIndex = ((dayIndex + 1) % 5) as DayIndex;
   const nextDayName = DAY_NAMES[nextDayIndex];
@@ -95,6 +101,12 @@ export default function HomeScreen() {
   const dayLabel = isToday
     ? `Today · ${DAY_SHORT[dayIndex]}, ${fmtMD(dates[dayIndex])}`
     : `${DAY_NAMES[dayIndex]} · ${fmtMD(dates[dayIndex])}`;
+
+  // A class that finished in the last half hour. Pro users get asked this by
+  // push; without this banner free users never see the post-class capture loop
+  // at all, even though it's the most distinctive thing the app does.
+  const justEnded = isToday ? justEndedClass(classes, now) : null;
+  const showPrompt = justEnded !== null && promptDismissed !== justEnded.id;
 
   return (
     <PhoneFrame>
@@ -131,6 +143,46 @@ export default function HomeScreen() {
         </div>
 
         <div className="no-scrollbar flex-1 overflow-y-auto px-5 pb-32 pt-1">
+          {/* ── just-ended class → capture what it assigned ── */}
+          {showPrompt && justEnded && (
+            <div
+              className="mb-3 flex items-center gap-3 rounded-[18px] px-4 py-3.5"
+              style={{
+                background: "rgba(var(--brand-rgb),.07)",
+                border: "1px solid rgba(var(--brand-rgb),.14)",
+              }}
+            >
+              <div
+                className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[11px] text-[17px]"
+                style={{ background: "var(--brand-soft)" }}
+              >
+                ✍️
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[14px] font-semibold text-ink">
+                  {justEnded.name} just finished
+                </div>
+                <div className="mt-px text-[12.5px] text-muted">
+                  Did it come with an assignment?
+                </div>
+              </div>
+              <button
+                onClick={() => router.push(`/prompt?class=${justEnded.id}`)}
+                className="shrink-0 rounded-full px-3.5 py-1.5 text-[13px] font-semibold text-white"
+                style={{ background: "var(--color-brand)" }}
+              >
+                Log it
+              </button>
+              <button
+                onClick={() => setPromptDismissed(justEnded.id)}
+                aria-label="Dismiss"
+                className="shrink-0 px-1 text-[18px] leading-none text-hint"
+              >
+                ×
+              </button>
+            </div>
+          )}
+
           {/* ── classes exist ── */}
           {!isEmpty && (
             <div className="flex flex-col gap-3">
@@ -140,8 +192,54 @@ export default function HomeScreen() {
             </div>
           )}
 
+          {/* ── first run: one job, get a class in ── */}
+          {isFirstRun && (
+            <div className="mt-6">
+              <div
+                className="rounded-[24px] px-5 py-6 text-white"
+                style={{
+                  background: "var(--brand-grad)",
+                  boxShadow: "0 6px 20px rgba(var(--brand-rgb),.3)",
+                }}
+              >
+                <div className="font-[family-name:var(--font-fredoka)] text-[22px] font-semibold leading-tight">
+                  Let&apos;s set up your week
+                </div>
+                <p className="mt-1.5 text-[14px] leading-snug text-white/85">
+                  Add your classes once and ClassPing takes it from there —
+                  your timetable, your deadlines, and a nudge before each one.
+                </p>
+                <button
+                  onClick={() => router.push("/class/new")}
+                  className="mt-4 w-full rounded-[15px] bg-white py-[14px] text-center text-[16px] font-semibold transition active:scale-[0.98]"
+                  style={{ color: "var(--color-brand)" }}
+                >
+                  Add your first class
+                </button>
+              </div>
+
+              <div className="mt-4 flex flex-col gap-2.5">
+                <OnboardStep
+                  n={1}
+                  title="Add a class"
+                  body="Name it, pick the days and times. Takes about 20 seconds."
+                />
+                <OnboardStep
+                  n={2}
+                  title="Your week fills in"
+                  body="See today at a glance, and the whole week on the Week tab."
+                />
+                <OnboardStep
+                  n={3}
+                  title="Get reminded"
+                  body="A heads-up before class starts, and before work is due."
+                />
+              </div>
+            </div>
+          )}
+
           {/* ── empty state ── */}
-          {isEmpty && !checkedAll && (
+          {!isFirstRun && isEmpty && !checkedAll && (
             <div className="mt-10 flex flex-col items-center text-center">
               <div
                 className="mb-5 flex h-[80px] w-[80px] items-center justify-center rounded-[28px]"
@@ -172,7 +270,7 @@ export default function HomeScreen() {
           )}
 
           {/* ── whole week is free ── */}
-          {checkedAll && (
+          {!isFirstRun && checkedAll && (
             <div className="mt-10 flex flex-col items-center text-center">
               <div
                 className="mb-5 flex h-[80px] w-[80px] items-center justify-center rounded-[28px]"
@@ -213,6 +311,11 @@ export default function HomeScreen() {
             </button>
           )}
 
+          {/* Everything below is empty-by-definition before the first class,
+              so first run shows the setup card alone rather than a stack of
+              empty sections. */}
+          {!isFirstRun && (
+            <>
           {/* ── Assignments ── */}
           <div className="mt-8">
             <div className="mb-3 flex items-center justify-between">
@@ -436,12 +539,43 @@ export default function HomeScreen() {
             </div>
             <ArrowRightIcon className="h-[18px] w-[18px] text-brand" />
           </button>
+            </>
+          )}
         </div>
 
         <InstallPrompt />
         <TabBar />
       </div>
     </PhoneFrame>
+  );
+}
+
+/** One numbered step in the first-run setup card. */
+function OnboardStep({
+  n,
+  title,
+  body,
+}: {
+  n: number;
+  title: string;
+  body: string;
+}) {
+  return (
+    <div
+      className="flex items-start gap-3 rounded-[18px] bg-white px-4 py-3.5"
+      style={{ boxShadow: "0 2px 10px rgba(30,20,80,.05)" }}
+    >
+      <div
+        className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-[13px] font-bold text-brand"
+        style={{ background: "var(--brand-soft)" }}
+      >
+        {n}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-[14px] font-semibold text-ink">{title}</div>
+        <p className="mt-0.5 text-[12.5px] leading-snug text-muted">{body}</p>
+      </div>
+    </div>
   );
 }
 
