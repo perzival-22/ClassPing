@@ -160,6 +160,12 @@ export async function GET(req: NextRequest) {
        ORDER BY s.created_at DESC LIMIT 1) AS sub_tz
     FROM user_data u
     WHERE NOT EXISTS (SELECT 1 FROM email_optout o WHERE o.user_id = u.user_id)
+      AND COALESCE(
+        (SELECT p.daily_digest FROM email_prefs p WHERE p.user_id = u.user_id),
+        TRUE)
+      AND COALESCE(
+        (SELECT e.pro FROM entitlements e WHERE e.user_id = u.user_id),
+        TRUE)
   `) as unknown as UserRow[];
 
   const clerk = await clerkClient();

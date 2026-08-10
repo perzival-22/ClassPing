@@ -70,21 +70,56 @@ export async function sendEmail(
 
 const linkSecret = process.env.EMAIL_LINK_SECRET ?? process.env.CRON_SECRET;
 
+/** How long a freshly minted unsubscribe link stays valid. */
+const TOKEN_TTL_MS = 90 * 86400_000;
+
+const hmacHex = (payload: string): string | null =>
+  linkSecret
+    ? createHmac("sha256", linkSecret).update(payload).digest("hex")
+    : null;
+
+/** Constant-time compare of two hex digests of known-equal length. */
+function sameDigest(a: string, b: string): boolean {
+  // `timingSafeEqual` throws on unequal *byte* lengths, and a JS string length
+  // guard doesn't catch multi-byte characters — 64 "é"s pass `.length === 64`
+  // but decode to 128 bytes, which would turn a public URL into an unhandled
+  // 500. The hex shape check upstream is what makes this safe.
+  return timingSafeEqual(Buffer.from(a, "hex"), Buffer.from(b, "hex"));
+}
+
+/**
+ * Mint an unsubscribe token: `<issuedAtSeconds>.<hmac>`, signed over the user
+ * id *and* the timestamp so the expiry can't be edited without breaking the
+ * signature. A link forwarded out of an inbox stops working after 90 days.
+ */
 export function unsubscribeToken(userId: string): string | null {
-  if (!linkSecret) return null;
-  return createHmac("sha256", linkSecret).update(userId).digest("hex");
+  const ts = Math.floor(Date.now() / 1000);
+  const mac = hmacHex(`${userId}.${ts}`);
+  return mac ? `${ts}.${mac}` : null;
 }
 
 export function verifyUnsubscribeToken(userId: string, token: string): boolean {
-  const expected = unsubscribeToken(userId);
-  if (!expected) return false;
-  // Shape check before the comparison: `timingSafeEqual` throws on unequal
-  // *byte* lengths, and a JS string length guard doesn't catch multi-byte
-  // characters — 64 "é"s pass `.length === 64` but decode to 128 bytes,
-  // turning a public URL into an unhandled 500. Hex-only also lets us
-  // compare the decoded bytes rather than the ASCII.
-  if (!/^[0-9a-f]{64}$/.test(token)) return false;
-  return timingSafeEqual(Buffer.from(token, "hex"), Buffer.from(expected, "hex"));
+  if (!linkSecret) return false;
+
+  // Legacy format: a bare digest over the user id, no expiry. Still accepted
+  // because links in already-delivered mail carry it; drop this branch once
+  // those emails are older than anyone would plausibly act on.
+  if (/^[0-9a-f]{64}$/.test(token)) {
+    const expected = hmacHex(userId);
+    return expected ? sameDigest(token, expected) : false;
+  }
+
+  const m = /^(\d{1,15})\.([0-9a-f]{64})$/.exec(token);
+  if (!m) return false;
+  const issuedAt = Number(m[1]) * 1000;
+  // Reject the future too — a clock-skewed or forged-looking stamp is not
+  // something to honour, and the signature covers it either way.
+  if (!Number.isFinite(issuedAt)) return false;
+  const age = Date.now() - issuedAt;
+  if (age < -5 * 60_000 || age > TOKEN_TTL_MS) return false;
+
+  const expected = hmacHex(`${userId}.${m[1]}`);
+  return expected ? sameDigest(m[2], expected) : false;
 }
 
 export function unsubscribeUrl(userId: string): string | null {

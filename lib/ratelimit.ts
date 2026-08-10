@@ -78,4 +78,6 @@ export const LIMITS = {
   export: { limit: 10, windowMs: 60_000 },
   /** Registering a push subscription — a couple of writes per device, rarely. */
   push: { limit: 20, windowMs: 60_000 },
+  /** Reading/writing email preferences — a few toggle taps at most. */
+  prefs: { limit: 30, windowMs: 60_000 },
 } as const;

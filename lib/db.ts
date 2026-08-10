@@ -98,6 +98,46 @@ export async function ensureSchema() {
   `;
 
   /**
+   * Server-side entitlement snapshot, maintained by the Clerk billing webhook.
+   *
+   * The crons can't call isPro() — that reads the *request's* session, and a
+   * cron has none — so without this a cancelled subscriber keeps receiving
+   * paid notifications forever. Deliberately separate from `email_optout`: a
+   * lapsed subscription is not the same thing as a user asking for no mail,
+   * and conflating them would leave someone opted out after they resubscribe.
+   *
+   * An absent row means "assume entitled": users who predate the webhook are
+   * in user_data because they were Pro, and we'd rather over-deliver to a
+   * lapsed account than silently cut off a paying one on a missed event.
+   */
+  await sql`
+    CREATE TABLE IF NOT EXISTS entitlements (
+      user_id    text PRIMARY KEY,
+      pro        boolean NOT NULL,
+      updated_at bigint  NOT NULL
+    )
+  `;
+
+  /**
+   * Per-stream email preferences. `email_optout` above is the blunt master
+   * switch an unsubscribe link flips; this is the granular version the user
+   * manages in Settings, so turning off pre-class reminders doesn't also kill
+   * the end-of-day digest.
+   *
+   * An absent row means "all on" — the historical default — so no backfill is
+   * needed and the crons can COALESCE to TRUE.
+   */
+  await sql`
+    CREATE TABLE IF NOT EXISTS email_prefs (
+      user_id      text PRIMARY KEY,
+      pre_class    boolean NOT NULL DEFAULT TRUE,
+      post_class   boolean NOT NULL DEFAULT TRUE,
+      daily_digest boolean NOT NULL DEFAULT TRUE,
+      updated_at   bigint  NOT NULL
+    )
+  `;
+
+  /**
    * One row per pre-class reminder email sent. Keyed per class per day so the
    * cron can run on its 5-minute tick without double-sending when the reminder
    * window spans multiple invocations.

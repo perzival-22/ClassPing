@@ -79,6 +79,59 @@ function SettingsForm() {
     isPushSubscribed().then(setPushOn);
   }, [canPush]);
 
+  /* ── email preferences ──
+     Server-held (the crons read them), not part of the synced document: an
+     opt-out has to take effect even if this device never syncs again. `null`
+     until loaded so the switches don't flick after mount. */
+  const [emailPrefs, setEmailPrefs] = useState<{
+    preClass: boolean;
+    postClass: boolean;
+    dailyDigest: boolean;
+    unsubscribedAll: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    fetch("/api/email/prefs")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (live && d) setEmailPrefs(d);
+      })
+      .catch(() => {
+        /* offline — leave the card in its loading state */
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  function handleEmailPref(key: "preClass" | "postClass" | "dailyDigest") {
+    return (next: boolean) => {
+      if (!emailPrefs) return;
+      // Optimistic: the switch answers immediately and the write follows.
+      // Turning any stream on also clears the master unsubscribe, otherwise
+      // the toggle would read on and still deliver nothing.
+      const clearOptout = next && emailPrefs.unsubscribedAll;
+      const optimistic = {
+        ...emailPrefs,
+        [key]: next,
+        unsubscribedAll: clearOptout ? false : emailPrefs.unsubscribedAll,
+      };
+      setEmailPrefs(optimistic);
+      fetch("/api/email/prefs", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          [key]: next,
+          ...(clearOptout ? { unsubscribedAll: false } : {}),
+        }),
+      }).catch(() => {
+        /* offline — revert so the switch never lies about server state */
+        setEmailPrefs(emailPrefs);
+      });
+    };
+  }
+
   const openTasks = tasks.filter((t) => !t.done);
   const hasSchedule = classes.length > 0 || openTasks.length > 0;
 
@@ -454,6 +507,54 @@ function SettingsForm() {
 
             <div className="my-5 h-px" style={{ background: "var(--bg-input)" }} />
 
+            {/* email streams — each one separately switchable, so turning off
+                pre-class mail doesn't also kill the end-of-day digest. */}
+            <div className="mb-3 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-widest text-faint">
+              Email
+              {!isPro && (
+                <span
+                  className="rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white"
+                  style={{ background: "var(--color-brand)" }}
+                >
+                  PRO
+                </span>
+              )}
+            </div>
+
+            {emailPrefs === null ? (
+              <p className="text-[13px] text-faint">Loading your email settings…</p>
+            ) : (
+              <>
+                <EmailPrefRow
+                  label="Before class"
+                  hint="A heads-up email before each class starts."
+                  on={emailPrefs.preClass && !emailPrefs.unsubscribedAll}
+                  onChange={handleEmailPref("preClass")}
+                />
+                <EmailPrefRow
+                  label="After class"
+                  hint="A prompt to log anything the class assigned."
+                  on={emailPrefs.postClass && !emailPrefs.unsubscribedAll}
+                  onChange={handleEmailPref("postClass")}
+                />
+                <EmailPrefRow
+                  label="End-of-day digest"
+                  hint="What's still open, once the school day is done."
+                  on={emailPrefs.dailyDigest && !emailPrefs.unsubscribedAll}
+                  onChange={handleEmailPref("dailyDigest")}
+                  last
+                />
+                {emailPrefs.unsubscribedAll && (
+                  <p className="mt-2.5 text-[12px] leading-snug text-faint">
+                    You unsubscribed from all ClassPing email. Turn any switch
+                    back on to start receiving it again.
+                  </p>
+                )}
+              </>
+            )}
+
+            <div className="my-5 h-px" style={{ background: "var(--bg-input)" }} />
+
             <div className="flex items-start gap-3">
               <div
                 className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[10px]"
@@ -524,5 +625,33 @@ function SettingsForm() {
         <TabBar />
       </div>
     </PhoneFrame>
+  );
+}
+
+/** One switchable email stream inside the Reminders card. */
+function EmailPrefRow({
+  label,
+  hint,
+  on,
+  onChange,
+  last,
+}: {
+  label: string;
+  hint: string;
+  on: boolean;
+  onChange: (next: boolean) => void;
+  last?: boolean;
+}) {
+  return (
+    <div
+      className="flex items-start gap-3"
+      style={last ? undefined : { marginBottom: 14 }}
+    >
+      <div className="flex-1">
+        <div className="text-[15px] font-medium text-ink">{label}</div>
+        <p className="mt-0.5 text-[13px] leading-snug text-muted">{hint}</p>
+      </div>
+      <Toggle on={on} onChange={onChange} />
+    </div>
   );
 }

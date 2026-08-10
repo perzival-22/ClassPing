@@ -10,12 +10,16 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
  * The email routes are public for the same shape of reason: both are reached
  * by tapping a link inside an email client, where no Clerk session exists.
  * The unsubscribe link carries its own HMAC proof of ownership instead.
+ *
+ * The webhook is public on the same terms: Clerk calls it machine-to-machine
+ * and it authenticates the Svix signature over the raw body itself.
  */
 const isPublicRoute = createRouteMatcher([
   "/",
   "/sso-callback",
   "/api/cron/(.*)",
   "/api/email/unsubscribe",
+  "/api/webhooks/(.*)",
   "/email/dismissed",
 ]);
 
