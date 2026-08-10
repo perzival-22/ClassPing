@@ -60,6 +60,9 @@ export function InstallPrompt() {
     if (dismissed) return;
     const p = detectPlatform();
     if (!p) return; // desktop / unknown — the phone tutorial doesn't apply
+    // Display mode, platform and the dismissal flag are all browser-only
+    // reads that would desync hydration if done during render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPlatform(p);
     setVisible(true);
   }, []);

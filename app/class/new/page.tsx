@@ -53,13 +53,15 @@ export default function AddClassScreen() {
   const [extraReminders, setExtraReminders] = useState<number[]>([]);
   const [room, setRoom] = useState("");
   const [instructor, setInstructor] = useState("");
+  const [credits, setCredits] = useState("");
 
   const canSave = name.trim().length > 0 && days.size > 0 && !atLimit;
 
   const toggleDay = (i: number) => {
     setDays((prev) => {
       const next = new Set(prev);
-      next.has(i) ? next.delete(i) : next.add(i);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
       return next;
     });
   };
@@ -80,6 +82,7 @@ export default function AddClassScreen() {
       reminders: extraReminders.length ? extraReminders : undefined,
       room: room.trim() || undefined,
       instructor: instructor.trim() || undefined,
+      credits: Number(credits) > 0 ? Number(credits) : undefined,
     });
     // Confirm notifications work for the reminder the user just set up.
     if (alarm && (await ensureNotificationPermission())) {
@@ -187,6 +190,17 @@ export default function AddClassScreen() {
                 placeholder="Teacher"
               />
             </div>
+            <input
+              value={credits}
+              onChange={(e) => setCredits(e.target.value)}
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.5"
+              className="mt-2.5 w-full rounded-[15px] bg-white px-4 py-[15px] text-[16px] text-ink outline-none"
+              style={{ boxShadow: "0 1px 4px rgba(30,20,80,.05)" }}
+              placeholder="Credit hours (for GPA weighting)"
+            />
           </Field>
 
           {/* color */}

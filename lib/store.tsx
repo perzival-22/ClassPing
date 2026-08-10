@@ -33,6 +33,12 @@ export interface ClassItem {
   alarm: boolean;
   /** extra lead times (minutes) written as additional calendar alarms — Pro */
   reminders?: number[];
+  /**
+   * Credit hours, used to weight this class in the overall GPA. Undefined
+   * counts as 1, which reproduces the unweighted average the app used before
+   * credits existed.
+   */
+  credits?: number;
   /** where it meets, e.g. "Sci 204" — exported as the calendar LOCATION */
   room?: string;
   /** who teaches it */
@@ -91,6 +97,11 @@ export interface Profile {
   accent: AccentId;
   /** ISO date of finals, drives the DaysToFinals countdown — Pro */
   finalsDate?: string | null;
+  /**
+   * Which letter-grade scale to apply. Undefined means the US A/A-/B+ default,
+   * so nobody's GPA changes just because the option now exists.
+   */
+  gradeScale?: "standard" | "simple";
 }
 
 interface Store {
@@ -198,11 +209,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const { isPro } = useIsPro();
 
   // Load persisted state once on mount.
+  //
+  // The setState calls below are flagged by react-hooks/set-state-in-effect,
+  // and disabled deliberately: localStorage does not exist during SSR, so
+  // hydration genuinely has to happen after mount. This is the "subscribe to
+  // an external system" case the rule permits — it just can't tell, because
+  // the read is synchronous.
   useEffect(() => {
     try {
       const raw = localStorage.getItem(KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as PersistedState;
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         if (parsed.classes) setClasses(parsed.classes);
         if (parsed.tasks) setTasks(parsed.tasks);
         if (parsed.grades) setGrades(parsed.grades);
@@ -631,6 +649,9 @@ export function fmtMD(d: Date): string {
 export function useNow(intervalMs = 30_000): Date | null {
   const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
+    // The null-then-set is the point: the server and the first client paint
+    // must agree, and they can't if the initial render reads a clock.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setNow(new Date());
     const iv = setInterval(() => setNow(new Date()), intervalMs);
     return () => clearInterval(iv);

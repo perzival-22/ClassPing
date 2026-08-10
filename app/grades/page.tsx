@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { TabBar } from "@/components/TabBar";
@@ -7,12 +8,22 @@ import { PlusIcon, SparkleIcon, TrashIcon } from "@/components/icons";
 import { FinalsCountdown } from "@/components/FinalsCountdown";
 import { PALETTE } from "@/lib/palette";
 import { useStore, longDate, type GradeItem } from "@/lib/store";
-import { classAverage, letterFor, overallGpa, pointsFor } from "@/lib/gpa";
+import { downloadGradeReport } from "@/lib/report";
+import {
+  SCALES,
+  classAverage,
+  creditsFor,
+  letterFor,
+  overallGpa,
+  pointsFor,
+  whatIfNeeded,
+} from "@/lib/gpa";
 import { useIsPro } from "@/lib/useIsPro";
 
 export default function GradesScreen() {
   const router = useRouter();
-  const { classes, activeClasses, grades, deleteGrade, hydrated } = useStore();
+  const { classes, activeClasses, grades, profile, deleteGrade, hydrated } =
+    useStore();
   const { isPro, proLoaded } = useIsPro();
 
   if (!hydrated || !proLoaded) {
@@ -61,10 +72,13 @@ export default function GradesScreen() {
   // GPA covers the current term only. Blending every course ever taken makes
   // the number meaningless by year two, which is the whole reason archiving
   // exists — past terms keep their own GPA below.
-  const gpa = overallGpa(activeClasses, grades);
+  const scale = SCALES[profile.gradeScale ?? "standard"];
+  const gpa = overallGpa(activeClasses, grades, scale);
   const gradedClasses = activeClasses.filter((c) =>
     grades.some((g) => g.classId === c.id),
   );
+  // Only worth mentioning credits once they'd actually change the number.
+  const usesCredits = activeClasses.some((c) => typeof c.credits === "number");
 
   // Archived classes that have grades, bucketed by the term they were
   // archived under. Undated archives fall back to a neutral heading.
@@ -115,7 +129,9 @@ export default function GradesScreen() {
             <p className="mt-2 text-[12px] text-white/75">
               {gpa === null
                 ? "Add your first grade to see your GPA."
-                : `Across ${gradedClasses.length} graded ${gradedClasses.length === 1 ? "class" : "classes"}.`}
+                : `Across ${gradedClasses.length} graded ${gradedClasses.length === 1 ? "class" : "classes"}${
+                    usesCredits ? ", weighted by credit hours" : ""
+                  }.`}
             </p>
           </div>
 
@@ -165,6 +181,9 @@ export default function GradesScreen() {
                     </div>
                     <div className="mt-[2px] text-[12px] text-muted">
                       {avg.toFixed(1)}% average
+                      {typeof c.credits === "number"
+                        ? ` · ${creditsFor(c)} cr`
+                        : ""}
                     </div>
                   </div>
                   <div className="text-right">
@@ -172,13 +191,17 @@ export default function GradesScreen() {
                       className="text-[20px] font-bold"
                       style={{ color: t.bar }}
                     >
-                      {letterFor(avg)}
+                      {letterFor(avg, scale)}
                     </div>
                     <div className="text-[11px] text-faint">
-                      {pointsFor(avg).toFixed(1)} pts
+                      {pointsFor(avg, scale).toFixed(1)} pts
                     </div>
                   </div>
                 </div>
+
+                {/* what's left to play for */}
+                <WhatIf grades={classGrades} accent={t.bar} />
+
 
                 {/* grade rows */}
                 <div className="mt-3 px-5 pb-4">
@@ -212,11 +235,14 @@ export default function GradesScreen() {
             </div>
           )}
 
+          {/* ── export ── */}
+          {gpa !== null && <ExportReportButton />}
+
           {/* ── past terms ──
               Archived work keeps its own frozen GPA instead of diluting this
               term's. This is what makes the app usable in year two. */}
           {[...pastTerms.entries()].map(([term, termClasses]) => {
-            const termGpa = overallGpa(termClasses, grades);
+            const termGpa = overallGpa(termClasses, grades, scale);
             return (
               <div key={term} className="mt-6">
                 <div className="mb-2 flex items-baseline justify-between px-1">
@@ -256,7 +282,7 @@ export default function GradesScreen() {
                           {c.name}
                         </div>
                         <div className="text-[14px] font-semibold text-muted">
-                          {avg === null ? "—" : letterFor(avg)}
+                          {avg === null ? "—" : letterFor(avg, scale)}
                         </div>
                       </div>
                     );
@@ -273,6 +299,127 @@ export default function GradesScreen() {
         <TabBar />
       </div>
     </PhoneFrame>
+  );
+}
+
+/**
+ * Downloads the term's grades as a CSV report — the shareable artifact at the
+ * end of a semester. Pro-gated server-side like the calendar export; this
+ * screen is already behind the Pro wall, so a 403 here means a lapsed plan.
+ */
+function ExportReportButton() {
+  const router = useRouter();
+  const { activeClasses, grades, profile } = useStore();
+  const [exporting, setExporting] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  const run = async () => {
+    setExporting(true);
+    setFailed(false);
+    try {
+      const res = await fetch("/api/export/grades", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          classes: activeClasses,
+          grades,
+          scale: profile.gradeScale ?? "standard",
+        }),
+      });
+      if (res.status === 403) {
+        router.push("/upgrade");
+        return;
+      }
+      if (!res.ok) throw new Error(`export failed: ${res.status}`);
+      downloadGradeReport(await res.text());
+    } catch {
+      setFailed(true);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  return (
+    <div className="mt-5">
+      <button
+        onClick={run}
+        disabled={exporting}
+        className="w-full rounded-[15px] py-[13px] text-center text-[15px] font-semibold text-brand transition active:scale-[0.98] disabled:opacity-50"
+        style={{ background: "var(--brand-soft)" }}
+      >
+        {exporting ? "Exporting…" : "Download grade report (CSV)"}
+      </button>
+      {failed && (
+        <p className="mt-2 text-center text-[12px] text-muted-2">
+          Export didn&apos;t work — check your connection and try again.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * "What do I need on the final?"
+ *
+ * The single most-wanted number in a grade tracker, and the reason to open the
+ * app in the week before finals. Only appears once some weight is still
+ * ungraded — with the class finished there's nothing left to answer.
+ */
+function WhatIf({ grades, accent }: { grades: GradeItem[]; accent: string }) {
+  const TARGETS = [90, 80, 70];
+  const [target, setTarget] = useState(90);
+  const result = whatIfNeeded(grades, target);
+  if (!result) return null;
+
+  return (
+    <div
+      className="mx-5 mt-1 rounded-[14px] px-3.5 py-3"
+      style={{ background: "var(--bg-input)" }}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[12px] font-semibold text-muted">
+          To finish at
+        </span>
+        <div className="flex gap-1">
+          {TARGETS.map((t) => (
+            <button
+              key={t}
+              onClick={() => setTarget(t)}
+              className="rounded-full px-2.5 py-1 text-[12px] font-bold transition"
+              style={
+                target === t
+                  ? { background: accent, color: "#fff" }
+                  : { background: "#fff", color: "var(--color-muted)" }
+              }
+            >
+              {t}%
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="mt-2 text-[13px] leading-snug text-ink">
+        {result.alreadySecured ? (
+          <>
+            Already locked in — even a zero on the remaining{" "}
+            {result.remainingWeight}% keeps you there. 🎉
+          </>
+        ) : (
+          <>
+            You need{" "}
+            <span className="font-bold" style={{ color: accent }}>
+              {result.needed.toFixed(1)}%
+            </span>{" "}
+            on the remaining {result.remainingWeight}% of the grade.
+            {result.outOfReach && (
+              <span className="text-muted">
+                {" "}
+                That&apos;s above full marks — only extra credit gets you there.
+              </span>
+            )}
+          </>
+        )}
+      </p>
+    </div>
   );
 }
 

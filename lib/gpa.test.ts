@@ -1,0 +1,199 @@
+import { describe, expect, it } from "vitest";
+import {
+  SIMPLE_SCALE,
+  classAverage,
+  creditsFor,
+  letterFor,
+  overallGpa,
+  pointsFor,
+  whatIfNeeded,
+} from "./gpa";
+import type { ClassItem, GradeItem } from "./store";
+
+const grade = (over: Partial<GradeItem> = {}): GradeItem => ({
+  id: "g1",
+  classId: "c1",
+  title: "Quiz",
+  score: 90,
+  max: 100,
+  weight: 100,
+  date: "2026-08-01",
+  ...over,
+});
+
+const klass = (over: Partial<ClassItem> = {}): ClassItem => ({
+  id: "c1",
+  name: "Chemistry",
+  short: "Chem",
+  color: "indigo",
+  days: [0, 2],
+  start: 600,
+  end: 680,
+  remindBefore: 15,
+  alarm: true,
+  ...over,
+});
+
+describe("classAverage", () => {
+  it("returns null with nothing usable", () => {
+    expect(classAverage([])).toBeNull();
+    expect(classAverage([grade({ max: 0 })])).toBeNull();
+    expect(classAverage([grade({ weight: 0 })])).toBeNull();
+  });
+
+  it("weights each grade by its declared weight", () => {
+    // 100% at weight 30, 50% at weight 70 -> 65%.
+    const avg = classAverage([
+      grade({ id: "a", score: 10, max: 10, weight: 30 }),
+      grade({ id: "b", score: 5, max: 10, weight: 70 }),
+    ]);
+    expect(avg).toBeCloseTo(65, 10);
+  });
+
+  it("normalises when weights do not total 100", () => {
+    // Same 50/50 split expressed as 5 and 5 rather than 50 and 50.
+    const avg = classAverage([
+      grade({ id: "a", score: 100, max: 100, weight: 5 }),
+      grade({ id: "b", score: 80, max: 100, weight: 5 }),
+    ]);
+    expect(avg).toBeCloseTo(90, 10);
+  });
+
+  it("ignores unusable entries but keeps the rest", () => {
+    const avg = classAverage([
+      grade({ id: "a", score: 100, max: 100, weight: 50 }),
+      grade({ id: "b", score: 1, max: 0, weight: 50 }), // max 0 -> dropped
+    ]);
+    expect(avg).toBeCloseTo(100, 10);
+  });
+
+  it("handles extra credit above the maximum", () => {
+    expect(classAverage([grade({ score: 110, max: 100 })])).toBeCloseTo(110, 10);
+  });
+});
+
+describe("letterFor / pointsFor", () => {
+  it("maps the boundaries of each band exactly", () => {
+    expect(letterFor(100)).toBe("A");
+    expect(letterFor(93)).toBe("A");
+    expect(letterFor(92.9)).toBe("A-");
+    expect(letterFor(90)).toBe("A-");
+    expect(letterFor(89.9)).toBe("B+");
+    expect(letterFor(60)).toBe("D-");
+    expect(letterFor(59.9)).toBe("F");
+    expect(letterFor(0)).toBe("F");
+  });
+
+  it("gives F zero points and A four", () => {
+    expect(pointsFor(95)).toBe(4.0);
+    expect(pointsFor(90)).toBe(3.7);
+    expect(pointsFor(59)).toBe(0);
+  });
+});
+
+describe("overallGpa", () => {
+  it("is null until something is graded", () => {
+    expect(overallGpa([klass()], [])).toBeNull();
+    expect(overallGpa([], [grade()])).toBeNull();
+  });
+
+  it("averages the points of graded classes only", () => {
+    const classes = [klass({ id: "c1" }), klass({ id: "c2" }), klass({ id: "c3" })];
+    const grades = [
+      grade({ id: "g1", classId: "c1", score: 95, max: 100 }), // A  -> 4.0
+      grade({ id: "g2", classId: "c2", score: 85, max: 100 }), // B  -> 3.0
+      // c3 has no grades and must not drag the average toward zero.
+    ];
+    expect(overallGpa(classes, grades)).toBeCloseTo(3.5, 10);
+  });
+
+  it("ignores grades belonging to classes not in the list", () => {
+    // This is what scopes the headline GPA to the current term: archived
+    // classes are excluded from `classes`, so their grades must not count.
+    const grades = [
+      grade({ id: "g1", classId: "c1", score: 95, max: 100 }),
+      grade({ id: "g2", classId: "archived", score: 10, max: 100 }),
+    ];
+    expect(overallGpa([klass({ id: "c1" })], grades)).toBeCloseTo(4.0, 10);
+  });
+
+  it("weights classes by credit hours", () => {
+    // A (4.0) in a 4-credit class, B (3.0) in a 1-credit class.
+    // Unweighted that's 3.5; credit-weighted it's (16 + 3) / 5 = 3.8.
+    const classes = [
+      klass({ id: "c1", credits: 4 }),
+      klass({ id: "c2", credits: 1 }),
+    ];
+    const grades = [
+      grade({ id: "g1", classId: "c1", score: 95, max: 100 }),
+      grade({ id: "g2", classId: "c2", score: 85, max: 100 }),
+    ];
+    expect(overallGpa(classes, grades)).toBeCloseTo(3.8, 10);
+  });
+
+  it("treats a class with no credits as one credit", () => {
+    // Guarantees the pre-credits behaviour is unchanged for existing users.
+    const classes = [klass({ id: "c1" }), klass({ id: "c2" })];
+    const grades = [
+      grade({ id: "g1", classId: "c1", score: 95, max: 100 }),
+      grade({ id: "g2", classId: "c2", score: 85, max: 100 }),
+    ];
+    expect(overallGpa(classes, grades)).toBeCloseTo(3.5, 10);
+    expect(creditsFor(klass())).toBe(1);
+    expect(creditsFor(klass({ credits: 0 }))).toBe(1);
+    expect(creditsFor(klass({ credits: -3 }))).toBe(1);
+  });
+
+  it("honours an alternative letter scale", () => {
+    // 90% is an A- (3.7) on the default scale but a flat A (4.0) here.
+    expect(letterFor(90, SIMPLE_SCALE)).toBe("A");
+    expect(pointsFor(90, SIMPLE_SCALE)).toBe(4.0);
+    const gpa = overallGpa(
+      [klass({ id: "c1" })],
+      [grade({ classId: "c1", score: 90, max: 100 })],
+      SIMPLE_SCALE,
+    );
+    expect(gpa).toBeCloseTo(4.0, 10);
+  });
+});
+
+describe("whatIfNeeded", () => {
+  it("returns null when nothing is left to grade", () => {
+    expect(whatIfNeeded([grade({ weight: 100 })], 90)).toBeNull();
+  });
+
+  it("works out the score the remaining weight must average", () => {
+    // 80% banked on 50 weight = 40 points. To finish at 90 the other half
+    // must supply 50 points out of 50 weight — i.e. 100%.
+    const res = whatIfNeeded([grade({ score: 80, max: 100, weight: 50 })], 90)!;
+    expect(res.remainingWeight).toBe(50);
+    expect(res.needed).toBeCloseTo(100, 10);
+    expect(res.outOfReach).toBe(false);
+    expect(res.alreadySecured).toBe(false);
+  });
+
+  it("flags a target that is already locked in", () => {
+    // 100% on 80 weight already exceeds a target of 70.
+    const res = whatIfNeeded([grade({ score: 100, max: 100, weight: 80 })], 70)!;
+    expect(res.alreadySecured).toBe(true);
+    expect(res.needed).toBeLessThanOrEqual(0);
+  });
+
+  it("flags a target that cannot be reached", () => {
+    // 20% banked on 90 weight; 10 weight left can't rescue a 90 target.
+    const res = whatIfNeeded([grade({ score: 20, max: 100, weight: 90 })], 90)!;
+    expect(res.outOfReach).toBe(true);
+    expect(res.needed).toBeGreaterThan(100);
+  });
+
+  it("ignores unusable grades when measuring used weight", () => {
+    const res = whatIfNeeded(
+      [
+        grade({ id: "a", score: 90, max: 100, weight: 40 }),
+        grade({ id: "b", score: 1, max: 0, weight: 30 }), // dropped
+      ],
+      90,
+    )!;
+    expect(res.remainingWeight).toBe(60);
+  });
+});

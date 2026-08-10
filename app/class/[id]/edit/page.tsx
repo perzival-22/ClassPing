@@ -52,6 +52,9 @@ export default function EditClassScreen({
   );
   const [room, setRoom] = useState(existing?.room ?? "");
   const [instructor, setInstructor] = useState(existing?.instructor ?? "");
+  const [credits, setCredits] = useState(
+    existing?.credits ? String(existing.credits) : "",
+  );
 
   if (!existing) {
     return (
@@ -68,7 +71,8 @@ export default function EditClassScreen({
   const toggleDay = (i: number) => {
     setDays((prev) => {
       const next = new Set(prev);
-      next.has(i) ? next.delete(i) : next.add(i);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
       return next;
     });
   };
@@ -90,6 +94,7 @@ export default function EditClassScreen({
       reminders: extraReminders.length ? extraReminders : undefined,
       room: room.trim() || undefined,
       instructor: instructor.trim() || undefined,
+      credits: Number(credits) > 0 ? Number(credits) : undefined,
     });
     router.push("/home");
   };
@@ -146,6 +151,17 @@ export default function EditClassScreen({
                 placeholder="Teacher"
               />
             </div>
+            <input
+              value={credits}
+              onChange={(e) => setCredits(e.target.value)}
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.5"
+              className="mt-2.5 w-full rounded-[15px] bg-white px-4 py-[15px] text-[16px] text-ink outline-none"
+              style={{ boxShadow: "0 1px 4px rgba(30,20,80,.05)" }}
+              placeholder="Credit hours (for GPA weighting)"
+            />
           </Field>
 
           {/* color */}

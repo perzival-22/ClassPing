@@ -1,0 +1,31 @@
+# Verification for every push and pull request.
+#
+# The three checks mirror what has to pass locally before a commit: lint (which
+# only started checking anything real once eslint.config.mjs existed), the
+# TypeScript build, and the unit tests over the pure logic — GPA, calendar and
+# timezone maths, where a silent regression means a wrong grade or a 3am
+# notification rather than a visible crash.
+
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch: {}
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test

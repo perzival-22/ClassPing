@@ -79,6 +79,8 @@ function SettingsForm() {
 
   useEffect(() => {
     if (!canPush) {
+      // Push support is a browser capability, unknowable until after mount.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPushOn(false);
       return;
     }
@@ -606,6 +608,54 @@ function SettingsForm() {
                     : exported
                       ? "Downloaded classping.ics — open it to finish importing."
                       : `Exports ${classes.length} ${classes.length === 1 ? "class" : "classes"} and ${openTasks.length} open ${openTasks.length === 1 ? "task" : "tasks"}. Re-add after you change your schedule.`}
+            </p>
+          </div>
+
+          {/* ── Grading card ──
+              The A/A-/B+ bands are a US convention, not a universal one. */}
+          <div
+            className="mt-4 rounded-[24px] bg-white px-5 py-5"
+            style={{ boxShadow: "0 2px 12px rgba(30,20,80,.07)" }}
+          >
+            <div className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-faint">
+              Grading scale
+            </div>
+            <div
+              className="flex w-full rounded-[14px] p-1"
+              style={{ background: "var(--bg-input)" }}
+            >
+              {(
+                [
+                  { id: "standard", label: "A / A− / B+" },
+                  { id: "simple", label: "A / B / C" },
+                ] as const
+              ).map((s) => {
+                const active = (profile.gradeScale ?? "standard") === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => setProfile({ gradeScale: s.id })}
+                    className="flex flex-1 items-center justify-center rounded-[11px] py-[11px] text-[15px] transition"
+                    style={
+                      active
+                        ? {
+                            background: "var(--color-brand)",
+                            fontWeight: 600,
+                            color: "#fff",
+                            boxShadow: "0 2px 8px rgba(var(--brand-rgb),.35)",
+                          }
+                        : { fontWeight: 500, color: "var(--color-muted)" }
+                    }
+                  >
+                    {s.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-2.5 text-[12px] leading-snug text-faint">
+              {(profile.gradeScale ?? "standard") === "standard"
+                ? "93+ is an A, 90+ an A−. The usual US scale."
+                : "90+ is an A, 80+ a B. No plus or minus bands."}
             </p>
           </div>
 
