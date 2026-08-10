@@ -5,9 +5,12 @@ import { useRouter } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { PALETTE } from "@/lib/palette";
 import { useStore } from "@/lib/store";
+import { extraCreditHint, remainingWeight, usedWeight } from "@/lib/gpa";
+import { WeightBudget } from "@/components/GradeFields";
 import { useIsPro } from "@/lib/useIsPro";
 
 const KIND_PRESETS = ["Exam", "Assignment", "Quiz", "Project"];
+const DEFAULT_WEIGHT = 20;
 
 function todayIso(): string {
   const d = new Date();
@@ -17,15 +20,20 @@ function todayIso(): string {
 
 export default function AddGradeScreen() {
   const router = useRouter();
-  const { classes, addGrade, hydrated } = useStore();
+  const { classes, grades, addGrade, hydrated } = useStore();
   const { isPro, proLoaded } = useIsPro();
 
-  const [classId, setClassId] = useState<string | null>(null);
+  // Logging a term's grades means several in a row for the same class, so
+  // start on the class the last grade went to rather than on nothing.
+  const [classId, setClassId] = useState<string | null>(
+    () => grades[grades.length - 1]?.classId ?? null,
+  );
   const [title, setTitle] = useState("");
   const [score, setScore] = useState("");
   const [max, setMax] = useState("100");
-  const [weight, setWeight] = useState("20");
+  const [weight, setWeight] = useState(String(DEFAULT_WEIGHT));
   const [date, setDate] = useState(todayIso());
+  const [addedCount, setAddedCount] = useState(0);
 
   if (!hydrated || !proLoaded) {
     return (
@@ -45,10 +53,22 @@ export default function AddGradeScreen() {
     );
   }
 
+  // A class the store no longer has (deleted since mount) must not stay
+  // selected, or Save would write a grade with a dangling classId.
   const selectedClass = classes.find((c) => c.id === classId) ?? null;
+  const classGrades = selectedClass
+    ? grades.filter((g) => g.classId === selectedClass.id)
+    : [];
+  const used = usedWeight(classGrades);
+  const left = remainingWeight(classGrades);
+
   const scoreN = Number(score);
   const maxN = Number(max);
   const weightN = Number(weight);
+  const extraCredit = extraCreditHint(scoreN, maxN);
+  // score > max is allowed on purpose: extra credit is real, and classAverage
+  // already handles it. The form used to block it, which meant a 105/100 could
+  // be logged by tapping a row on the Grades screen but not created here.
   const canSave =
     selectedClass !== null &&
     title.trim().length > 0 &&
@@ -56,14 +76,13 @@ export default function AddGradeScreen() {
     scoreN >= 0 &&
     Number.isFinite(maxN) &&
     maxN > 0 &&
-    scoreN <= maxN &&
     Number.isFinite(weightN) &&
     weightN > 0 &&
     weightN <= 100 &&
     date.length > 0;
 
-  const save = () => {
-    if (!canSave || !selectedClass) return;
+  const commit = () => {
+    if (!canSave || !selectedClass) return false;
     addGrade({
       classId: selectedClass.id,
       title: title.trim(),
@@ -72,7 +91,25 @@ export default function AddGradeScreen() {
       weight: weightN,
       date,
     });
-    router.push("/grades");
+    return true;
+  };
+
+  const save = () => {
+    if (commit()) router.push("/grades");
+  };
+
+  /** Keeps the class and the date, clears what changes per item. */
+  const saveAndAddAnother = () => {
+    if (!commit()) return;
+    setTitle("");
+    setScore("");
+    setMax("100");
+    // Suggest what's left after this one rather than the flat default, so a
+    // run of assignments doesn't walk itself past 100%. Once the class is
+    // full, fall back to the default and let the budget meter say why.
+    const leftAfter = Math.max(left - weightN, 0);
+    setWeight(String(leftAfter > 0 ? Math.min(DEFAULT_WEIGHT, leftAfter) : DEFAULT_WEIGHT));
+    setAddedCount((n) => n + 1);
   };
 
   return (
@@ -177,6 +214,19 @@ export default function AddGradeScreen() {
                     onChange={setWeight}
                   />
                 </div>
+                {extraCredit && (
+                  <p className="mt-2 px-1 text-[12px] leading-snug text-[#A96A00]">
+                    {extraCredit}
+                  </p>
+                )}
+                {selectedClass && (
+                  <WeightBudget
+                    used={used}
+                    entered={weightN}
+                    className={selectedClass.name}
+                    onUseRemaining={(w) => setWeight(String(w))}
+                  />
+                )}
               </Field>
 
               {/* date */}
@@ -199,12 +249,28 @@ export default function AddGradeScreen() {
 
         {classes.length > 0 && (
           <div className="px-[18px] pb-10 pt-2.5">
+            {addedCount > 0 && (
+              <p className="mb-2 text-center text-[13px] font-medium text-brand">
+                {addedCount} grade{addedCount === 1 ? "" : "s"} added —
+                {selectedClass ? ` still on ${selectedClass.short}.` : ""}
+              </p>
+            )}
             <button
               onClick={save}
               disabled={!canSave}
               className="btn-brand w-full rounded-[17px] py-[17px] text-center text-[17px] font-semibold text-white transition active:scale-[0.98] disabled:opacity-60"
             >
               Add grade
+            </button>
+            {/* Logging a term means several in a row for one class; this keeps
+                the class and the date so only the item's own numbers change. */}
+            <button
+              onClick={saveAndAddAnother}
+              disabled={!canSave}
+              className="mt-2.5 w-full rounded-[17px] py-[13px] text-center text-[15px] font-semibold text-brand transition active:scale-[0.98] disabled:opacity-50"
+              style={{ background: "var(--brand-soft)" }}
+            >
+              Save & add another
             </button>
           </div>
         )}

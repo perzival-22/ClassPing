@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { PALETTE } from "@/lib/palette";
 import { useStore, type GradeItem } from "@/lib/store";
+import { extraCreditHint, usedWeight } from "@/lib/gpa";
+import { WeightBudget } from "@/components/GradeFields";
 import { useIsPro } from "@/lib/useIsPro";
 
 const KIND_PRESETS = ["Exam", "Assignment", "Quiz", "Project"];
@@ -56,7 +58,7 @@ export default function EditGradeScreen({
 /** Mounted only once the grade exists, so useState prefills see real data. */
 function EditForm({ grade }: { grade: GradeItem }) {
   const router = useRouter();
-  const { classes, updateGrade } = useStore();
+  const { classes, grades, updateGrade } = useStore();
 
   const [classId, setClassId] = useState<string | null>(grade.classId);
   const [title, setTitle] = useState(grade.title);
@@ -66,9 +68,20 @@ function EditForm({ grade }: { grade: GradeItem }) {
   const [date, setDate] = useState(grade.date);
 
   const selectedClass = classes.find((c) => c.id === classId) ?? null;
+  // Everything else in the class — this grade's own weight is what's being
+  // edited, so counting it would make the budget read as full already.
+  const used = selectedClass
+    ? usedWeight(
+        grades.filter((g) => g.classId === selectedClass.id && g.id !== grade.id),
+      )
+    : 0;
+
   const scoreN = Number(score);
   const maxN = Number(max);
   const weightN = Number(weight);
+  const extraCredit = extraCreditHint(scoreN, maxN);
+  // score > max stays allowed — extra credit is real and classAverage handles
+  // it. See the same note on the add form.
   const canSave =
     selectedClass !== null &&
     title.trim().length > 0 &&
@@ -76,7 +89,6 @@ function EditForm({ grade }: { grade: GradeItem }) {
     scoreN >= 0 &&
     Number.isFinite(maxN) &&
     maxN > 0 &&
-    scoreN <= maxN &&
     Number.isFinite(weightN) &&
     weightN > 0 &&
     weightN <= 100 &&
@@ -176,6 +188,19 @@ function EditForm({ grade }: { grade: GradeItem }) {
               <NumberBox label="OUT OF" value={max} onChange={setMax} />
               <NumberBox label="WEIGHT %" value={weight} onChange={setWeight} />
             </div>
+            {extraCredit && (
+              <p className="mt-2 px-1 text-[12px] leading-snug text-[#A96A00]">
+                {extraCredit}
+              </p>
+            )}
+            {selectedClass && (
+              <WeightBudget
+                used={used}
+                entered={weightN}
+                className={selectedClass.name}
+                onUseRemaining={(w) => setWeight(String(w))}
+              />
+            )}
           </Field>
 
           {/* date */}

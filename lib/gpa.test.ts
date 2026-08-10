@@ -3,10 +3,13 @@ import {
   SIMPLE_SCALE,
   classAverage,
   creditsFor,
+  extraCreditHint,
   letterFor,
   overallGpa,
   pointsFor,
   projectedGpa,
+  remainingWeight,
+  usedWeight,
   whatIfNeeded,
 } from "./gpa";
 import type { ClassItem, GradeItem } from "./store";
@@ -155,6 +158,78 @@ describe("overallGpa", () => {
       SIMPLE_SCALE,
     );
     expect(gpa).toBeCloseTo(4.0, 10);
+  });
+});
+
+describe("usedWeight / remainingWeight", () => {
+  it("is zero for a class with nothing logged", () => {
+    expect(usedWeight([])).toBe(0);
+    expect(remainingWeight([])).toBe(100);
+  });
+
+  it("adds up the weights already spent", () => {
+    const gs = [
+      grade({ id: "a", weight: 20 }),
+      grade({ id: "b", weight: 30 }),
+    ];
+    expect(usedWeight(gs)).toBe(50);
+    expect(remainingWeight(gs)).toBe(50);
+  });
+
+  it("ignores entries a percentage can't be taken from", () => {
+    // Same filter classAverage and whatIfNeeded apply, so the budget shown in
+    // the form agrees with the maths on the Grades screen.
+    const gs = [
+      grade({ id: "a", weight: 40 }),
+      grade({ id: "b", weight: 30, max: 0 }),
+      grade({ id: "c", weight: 0 }),
+    ];
+    expect(usedWeight(gs)).toBe(40);
+    expect(remainingWeight(gs)).toBe(60);
+  });
+
+  it("reports over-allocation but never negative remaining", () => {
+    // Six assignments at the form's default 20% — the case that used to make
+    // the what-if answer vanish with no explanation.
+    const six = Array.from({ length: 6 }, (_, i) =>
+      grade({ id: `g${i}`, weight: 20 }),
+    );
+    expect(usedWeight(six)).toBe(120);
+    expect(remainingWeight(six)).toBe(0);
+    expect(whatIfNeeded(six, 90)).toBeNull();
+  });
+
+  it("agrees with whatIfNeeded about where the boundary is", () => {
+    const five = Array.from({ length: 5 }, (_, i) =>
+      grade({ id: `g${i}`, weight: 20 }),
+    );
+    expect(remainingWeight(five)).toBe(0);
+    expect(whatIfNeeded(five, 90)).toBeNull();
+
+    const four = five.slice(0, 4);
+    expect(remainingWeight(four)).toBe(20);
+    expect(whatIfNeeded(four, 90)!.remainingWeight).toBe(20);
+  });
+});
+
+describe("extraCreditHint", () => {
+  it("says nothing for a score within range", () => {
+    expect(extraCreditHint(90, 100)).toBeNull();
+    expect(extraCreditHint(100, 100)).toBeNull();
+    expect(extraCreditHint(0, 100)).toBeNull();
+  });
+
+  it("labels a score above the maximum", () => {
+    // classAverage supports this (see "handles extra credit above the
+    // maximum"), so the forms label it instead of refusing to save it.
+    expect(extraCreditHint(110, 100)).toContain("extra credit");
+    expect(extraCreditHint(110, 100)).toContain("110%");
+  });
+
+  it("stays quiet on a half-typed form", () => {
+    expect(extraCreditHint(NaN, 100)).toBeNull();
+    expect(extraCreditHint(50, NaN)).toBeNull();
+    expect(extraCreditHint(50, 0)).toBeNull();
   });
 });
 

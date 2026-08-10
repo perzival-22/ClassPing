@@ -92,6 +92,22 @@ describe("buildGradeReport", () => {
     expect(csv.indexOf("Earlier")).toBeLessThan(csv.indexOf("Later"));
   });
 
+  it("keeps same-day items in the order they were added", () => {
+    // Logging several grades in one sitting gives them all today's date. The
+    // old comparator never returned 0, so their order was whatever V8's sort
+    // happened to produce for that array length.
+    const csv = build(
+      [klass()],
+      ["First", "Second", "Third", "Fourth"].map((title, i) =>
+        grade({ id: `g${i}`, title, date: "2026-08-01" }),
+      ),
+    );
+    const at = (t: string) => csv.indexOf(t);
+    expect(at("First")).toBeLessThan(at("Second"));
+    expect(at("Second")).toBeLessThan(at("Third"));
+    expect(at("Third")).toBeLessThan(at("Fourth"));
+  });
+
   it("summarises each class and the overall GPA", () => {
     const csv = build([klass()], [grade({ score: 95, max: 100 })]);
     expect(csv).toContain("Class summary");

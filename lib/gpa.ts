@@ -131,6 +131,46 @@ export function projectedGpa(
   return totalPoints / totalCredits;
 }
 
+/* ── weight budget ────────────────────────────────────────── */
+
+/**
+ * How much of a class's 100% is already spoken for.
+ *
+ * Weights are shares of a class, so they have a budget — but each grade is
+ * entered on its own, with nothing on screen saying how much is left. Five
+ * items at the default 20% fill a class exactly, and a sixth quietly takes it
+ * past 100, at which point `whatIfNeeded` has nothing to answer. Surfacing
+ * this is what lets the forms warn before that happens.
+ *
+ * Counts only grades a percentage can be computed from, matching what
+ * `classAverage` and `whatIfNeeded` consider.
+ */
+export function usedWeight(grades: GradeItem[]): number {
+  return grades
+    .filter((g) => g.max > 0 && g.weight > 0)
+    .reduce((s, g) => s + g.weight, 0);
+}
+
+/** Weight left before a class is fully allocated. Never negative. */
+export function remainingWeight(grades: GradeItem[]): number {
+  return Math.max(100 - usedWeight(grades), 0);
+}
+
+/**
+ * Copy for a score above its maximum, or null when there's nothing to say.
+ *
+ * Scoring over the maximum is real — extra credit — and `classAverage` has
+ * always supported it. The forms used to reject it while the quick editor on
+ * the Grades screen allowed it, so the same 105/100 could be edited into
+ * existence but not created. It's labelled now rather than blocked, because
+ * the only reason to flag it is that it looks like a typo.
+ */
+export function extraCreditHint(score: number, max: number): string | null {
+  if (!Number.isFinite(score) || !Number.isFinite(max)) return null;
+  if (max <= 0 || score <= max) return null;
+  return `That's above full marks — logged as extra credit (${((score / max) * 100).toFixed(0)}%).`;
+}
+
 /* ── "what do I need on the final?" ───────────────────────── */
 
 export interface WhatIfResult {

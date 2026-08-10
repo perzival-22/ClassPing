@@ -75,7 +75,7 @@ export function buildGradeReport(
 
   for (const c of classes) {
     const mine = [...grades.filter((g) => g.classId === c.id)].sort((a, b) =>
-      a.date < b.date ? -1 : 1,
+      a.date.localeCompare(b.date),
     );
     if (mine.length === 0) continue;
 
@@ -370,11 +370,14 @@ export function buildGradeReportPdf(
 
   /* ── one section per class ── */
   for (const c of classes) {
+    // localeCompare, not `a < b ? -1 : 1` — the latter never returns 0, so two
+    // items sharing a date get an order decided by the sort implementation
+    // rather than by us. Stable sort keeps same-day entries as entered.
     const mine = [...grades.filter((g) => g.classId === c.id)].sort((a, b) =>
-      a.date < b.date ? -1 : 1,
+      a.date.localeCompare(b.date),
     );
     const work = [...tasks.filter((t) => t.classId === c.id)].sort((a, b) =>
-      a.due < b.due ? -1 : 1,
+      a.due.localeCompare(b.due),
     );
     const avg = classAverage(mine);
     const bar = PALETTE[c.color]?.bar ?? BRAND;

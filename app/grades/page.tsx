@@ -18,6 +18,8 @@ import {
   overallGpa,
   pointsFor,
   projectedGpa,
+  extraCreditHint,
+  usedWeight,
   whatIfNeeded,
 } from "@/lib/gpa";
 import { useIsPro } from "@/lib/useIsPro";
@@ -180,9 +182,15 @@ export default function GradesScreen() {
           )}
 
           {activeClasses.map((c) => {
+            // Newest first. localeCompare rather than `a < b ? 1 : -1`, which
+            // never returns 0 and so claims either order for two grades sharing
+            // a date — logging several in one sitting is the common case, and
+            // the result was left to whichever sort V8 picked for that length.
+            // Sort is stable, so same-day grades stay in the order they were
+            // added.
             const classGrades = grades
               .filter((g) => g.classId === c.id)
-              .sort((a, b) => (a.date < b.date ? 1 : -1));
+              .sort((a, b) => b.date.localeCompare(a.date));
             // A class with a goal but no grades still belongs here — that's
             // the plan for it, and it counts toward the projection above.
             if (classGrades.length === 0 && !c.goal) return null;
@@ -449,6 +457,12 @@ function GoalBlock({
   const result = goal === null ? null : whatIfNeeded(grades, goal);
   const avg = classAverage(grades);
   const open = picking || goal === null;
+  // whatIfNeeded goes quiet once the weights total 100 or more. That's correct
+  // for a class that really is fully graded and wrong for one where the
+  // weights were mistyped, and the two look identical from here — so tell them
+  // apart rather than letting the answer disappear without explanation.
+  const used = usedWeight(grades);
+  const over = used > 100;
 
   return (
     <div
@@ -508,9 +522,23 @@ function GoalBlock({
       )}
 
       {goal === null ? (
+        // The over-weight warning has to reach people who never set a goal
+        // too — it's a data problem, not a goal problem.
         <p className="mt-2 text-[12.5px] leading-snug text-muted">
-          Set a target and we&apos;ll work out what you still need — and fold it
-          into your projected GPA.
+          {over ? (
+            <>
+              Heads up: your logged weights add up to{" "}
+              <span className="font-bold" style={{ color: "#C0392B" }}>
+                {Math.round(used * 10) / 10}%
+              </span>
+              , more than the 100% a class has. Tap a grade to fix its weight.
+            </>
+          ) : (
+            <>
+              Set a target and we&apos;ll work out what you still need — and
+              fold it into your projected GPA.
+            </>
+          )}
         </p>
       ) : result ? (
         <p className="mt-2 text-[13px] leading-snug text-ink">
@@ -536,9 +564,19 @@ function GoalBlock({
             </>
           )}
         </p>
+      ) : over ? (
+        <p className="mt-2 text-[13px] leading-snug text-ink">
+          Your logged weights add up to{" "}
+          <span className="font-bold" style={{ color: "#C0392B" }}>
+            {Math.round(used * 10) / 10}%
+          </span>
+          , more than the 100% a class has. The average still works — it&apos;s
+          scaled to fit — but there&apos;s no &ldquo;remaining&rdquo; left to
+          work out what you need. Tap a grade to fix its weight.
+        </p>
       ) : (
-        // Every point of weight is graded, so there is nothing left to
-        // predict — just say whether the goal was met.
+        // Weights total exactly 100, so the class really is fully graded —
+        // there's nothing left to predict, just a result to report.
         <p className="mt-2 text-[13px] leading-snug text-ink">
           {avg === null
             ? "Nothing graded yet."
@@ -575,6 +613,7 @@ function GradeRow({
   const scoreN = Number(score);
   const maxN = Number(max);
   const weightN = Number(weight);
+  const extraCredit = extraCreditHint(scoreN, maxN);
   const canSave =
     Number.isFinite(scoreN) &&
     scoreN >= 0 &&
@@ -635,6 +674,11 @@ function GradeRow({
             <QuickNumber label="OUT OF" value={max} onChange={setMax} />
             <QuickNumber label="WEIGHT %" value={weight} onChange={setWeight} />
           </div>
+          {extraCredit && (
+            <p className="mt-2 px-0.5 text-[12px] leading-snug text-[#A96A00]">
+              {extraCredit}
+            </p>
+          )}
           <div className="mt-2.5 flex items-center gap-2">
             <button
               onClick={() => router.push(`/grades/${g.id}/edit`)}
