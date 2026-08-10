@@ -182,7 +182,10 @@ const NOTIFIED_KEY = "classping.notified.v1";
  * instead of rendering a broken image.
  */
 const cleanAvatar = (url: string | null | undefined): string | null =>
-  typeof url === "string" && url.startsWith("data:image/") ? url : null;
+  typeof url === "string" &&
+  (url.startsWith("data:image/") || url.startsWith("https://"))
+    ? url
+    : null;
 
 const DEFAULT_PROFILE: Profile = {
   username: "student",

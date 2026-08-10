@@ -90,10 +90,36 @@ export function avatarErrorMessage(err: unknown): string {
 }
 
 /**
- * True for avatar values we can actually render after a reload. Legacy
- * profiles (and pre-fix syncs) hold `blob:` URLs that are already dead —
- * treat them as "no avatar" and fall back to initials.
+ * True for avatar values we can actually render after a reload: an inline
+ * data URI, or an https URL (a Vercel Blob upload). Legacy profiles hold
+ * `blob:` object URLs that are already dead — treat those as "no avatar" and
+ * fall back to initials.
  */
 export function isPersistableAvatar(url: string | null | undefined): boolean {
-  return typeof url === "string" && url.startsWith("data:image/");
+  return (
+    typeof url === "string" &&
+    (url.startsWith("data:image/") || url.startsWith("https://"))
+  );
+}
+
+/**
+ * Upload a data-URI avatar to Blob and return its https URL, or return the
+ * data URI unchanged when Blob isn't configured (501) or the upload fails.
+ * Callers store whatever comes back — so a Pro sync carries a short URL when
+ * possible and the full data URI otherwise, never breaking either way.
+ */
+export async function uploadAvatar(dataUrl: string): Promise<string> {
+  if (!dataUrl.startsWith("data:image/")) return dataUrl;
+  try {
+    const res = await fetch("/api/avatar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dataUrl }),
+    });
+    if (!res.ok) return dataUrl;
+    const { url } = (await res.json()) as { url?: string };
+    return typeof url === "string" && url.startsWith("https://") ? url : dataUrl;
+  } catch {
+    return dataUrl;
+  }
 }

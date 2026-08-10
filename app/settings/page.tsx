@@ -30,6 +30,7 @@ import {
   avatarErrorMessage,
   fileToAvatarDataUrl,
   isPersistableAvatar,
+  uploadAvatar,
 } from "@/lib/avatar";
 import { useIsPro } from "@/lib/useIsPro";
 
@@ -49,13 +50,86 @@ function SettingsForm() {
   const router = useRouter();
   const { signOut } = useClerk();
   // activeClasses for anything describing "now" — an archived term shouldn't
-  // be exported to the phone calendar or counted in the export summary.
-  const { profile, setProfile, activeClasses: classes, archiveTerm, tasks } =
-    useStore();
+  // be exported to the phone calendar or counted in the export summary. The
+  // full `classes`/`grades` sets are used only for the account-data export.
+  const {
+    profile,
+    setProfile,
+    activeClasses: classes,
+    classes: allClasses,
+    grades,
+    archiveTerm,
+    tasks,
+  } = useStore();
   const { isPro } = useIsPro();
   const [termName, setTermName] = useState("");
   const [archiving, setArchiving] = useState(false);
   const [archived, setArchived] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  function handleExportData() {
+    // The whole document — including archived classes — straight from the
+    // store. No server round-trip: localStorage is the source of truth.
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      app: "ClassPing",
+      classes: allClasses,
+      tasks,
+      grades,
+      profile,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "classping-data.json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  }
+
+  async function handleDeleteAccount() {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch("/api/account", { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setDeleteError(
+          data.dataDeleted
+            ? "Your data was removed, but the account itself couldn't be deleted. Please try again."
+            : "Couldn't delete your account. Please try again.",
+        );
+        setDeleting(false);
+        return;
+      }
+      // The Clerk user is gone, so the session is dead — clear the local copy
+      // and leave, wiping the SW page cache too, as on sign-out.
+      try {
+        localStorage.clear();
+      } catch {
+        /* private mode */
+      }
+      navigator.serviceWorker?.controller?.postMessage({ type: "signout" });
+      // A hard navigation on purpose: the Clerk user no longer exists, so we
+      // want a full reload that tears down all in-memory auth state, not a
+      // soft SPA transition that keeps the dead session's providers mounted.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      window.location.href = "/";
+    } catch {
+      setDeleteError("Couldn't delete your account. Please try again.");
+      setDeleting(false);
+    }
+  }
 
   const [username, setUsername] = useState(profile.username);
   // Profiles saved before avatars were stored as data URIs hold a dead `blob:`
@@ -65,6 +139,7 @@ function SettingsForm() {
   );
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [savingAvatar, setSavingAvatar] = useState(false);
   const [exported, setExported] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState(false);
@@ -229,8 +304,22 @@ function SettingsForm() {
     }
   }
 
-  function handleSave() {
-    setProfile({ username: username.trim() || profile.username, avatarUrl });
+  async function handleSave() {
+    // Upload a freshly-picked avatar to Blob on save (not on pick, so a
+    // cancelled change never creates a blob), and store the returned URL so a
+    // Pro sync carries ~90 bytes instead of ~180KB. Falls back to the data URI
+    // untouched when Blob isn't configured — see uploadAvatar.
+    let avatarToSave = avatarUrl;
+    if (avatarUrl && avatarUrl.startsWith("data:image/")) {
+      setSavingAvatar(true);
+      avatarToSave = await uploadAvatar(avatarUrl);
+      setAvatarUrl(avatarToSave);
+      setSavingAvatar(false);
+    }
+    setProfile({
+      username: username.trim() || profile.username,
+      avatarUrl: avatarToSave,
+    });
     setSaved(true);
     setTimeout(() => setSaved(false), 1800);
   }
@@ -360,9 +449,10 @@ function SettingsForm() {
             {/* save button */}
             <button
               onClick={handleSave}
-              className="btn-brand mt-4 w-full rounded-[15px] py-[14px] text-center text-[16px] font-semibold text-white transition active:scale-[0.98]"
+              disabled={savingAvatar}
+              className="btn-brand mt-4 w-full rounded-[15px] py-[14px] text-center text-[16px] font-semibold text-white transition active:scale-[0.98] disabled:opacity-60"
             >
-              {saved ? "Saved ✓" : "Save Changes"}
+              {savingAvatar ? "Saving…" : saved ? "Saved ✓" : "Save Changes"}
             </button>
           </div>
 
@@ -776,9 +866,33 @@ function SettingsForm() {
               Account
             </div>
 
+            {/* Download my data — a plain JSON copy of everything. */}
             <button
-              onClick={() => signOut(() => router.push("/"))}
+              onClick={handleExportData}
               className="flex w-full items-center gap-3 px-5 py-4 transition active:bg-canvas"
+              style={{ borderBottom: "1px solid var(--bg-input)" }}
+            >
+              <div className="flex h-[36px] w-[36px] items-center justify-center rounded-[10px] bg-[var(--brand-soft)] text-[17px]">
+                📁
+              </div>
+              <span className="flex-1 text-left text-[15px] font-medium text-ink">
+                Download my data
+              </span>
+            </button>
+
+            <button
+              onClick={() =>
+                signOut(() => {
+                  // Drop this user's cached app shells before the next person
+                  // uses the device — see the signout handler in sw.js.
+                  navigator.serviceWorker?.controller?.postMessage({
+                    type: "signout",
+                  });
+                  router.push("/");
+                })
+              }
+              className="flex w-full items-center gap-3 px-5 py-4 transition active:bg-canvas"
+              style={{ borderBottom: "1px solid var(--bg-input)" }}
             >
               <div className="flex h-[36px] w-[36px] items-center justify-center rounded-[10px] bg-[#FEECEB]">
                 <LogOutIcon className="h-[18px] w-[18px] text-[#E84040]" />
@@ -787,6 +901,53 @@ function SettingsForm() {
                 Log out
               </span>
             </button>
+
+            {/* Delete account — irreversible, so two-tap confirm and a plain
+                warning about what goes. */}
+            <div className="px-5 py-4">
+              {confirmDelete ? (
+                <div>
+                  <p className="text-[13px] leading-snug text-muted">
+                    This permanently deletes your account, cloud data and
+                    reminders. Your on-device data is cleared too. This can&apos;t
+                    be undone — export first if you want a copy.
+                  </p>
+                  {deleteError && (
+                    <p className="mt-2 text-[13px] font-medium text-[#E84040]">
+                      {deleteError}
+                    </p>
+                  )}
+                  <div className="mt-3 flex gap-2.5">
+                    <button
+                      onClick={() => {
+                        setConfirmDelete(false);
+                        setDeleteError(null);
+                      }}
+                      disabled={deleting}
+                      className="flex-1 rounded-[15px] py-[13px] text-center text-[15px] font-semibold text-muted disabled:opacity-50"
+                      style={{ background: "var(--bg-input)" }}
+                    >
+                      Keep my account
+                    </button>
+                    <button
+                      onClick={handleDeleteAccount}
+                      disabled={deleting}
+                      className="flex-1 rounded-[15px] py-[13px] text-center text-[15px] font-semibold text-white transition active:scale-[0.98] disabled:opacity-60"
+                      style={{ background: "#E84040" }}
+                    >
+                      {deleting ? "Deleting…" : "Delete forever"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={handleDeleteAccount}
+                  className="text-[14px] font-medium text-[#E84040]"
+                >
+                  Delete account
+                </button>
+              )}
+            </div>
           </div>
 
           {/* app info */}

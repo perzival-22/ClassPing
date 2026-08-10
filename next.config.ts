@@ -24,8 +24,9 @@ const CSP_REPORT_ONLY = [
   // dropping 'unsafe-eval' once report-only shows it clean in production.
   `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${CLERK_ORIGIN} https://challenges.cloudflare.com`,
   `connect-src 'self' ${CLERK_ORIGIN} https://clerk-telemetry.com`,
-  // data: — avatars are stored as data URIs (lib/avatar.ts); img.clerk.com — OAuth profile pictures.
-  "img-src 'self' data: blob: https://img.clerk.com",
+  // data: — avatars can be inline data URIs (lib/avatar.ts); the blob host —
+  // avatars uploaded to Vercel Blob; img.clerk.com — OAuth profile pictures.
+  "img-src 'self' data: blob: https://img.clerk.com https://*.public.blob.vercel-storage.com",
   "style-src 'self' 'unsafe-inline'",
   `frame-src ${CLERK_ORIGIN} https://challenges.cloudflare.com`,
   // Service worker + Clerk's web workers.

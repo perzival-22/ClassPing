@@ -134,6 +134,20 @@ self.addEventListener("fetch", (event) => {
   }
 });
 
+/* ── Sign-out cleanup ───────────────────────────────────────────────────────
+ *
+ * The page cache holds server-rendered app shells (e.g. /home). On a shared
+ * device, user B going offline could otherwise be served user A's cached shell
+ * from the offline fallback. The payload is thin — a shell, not the
+ * localStorage data — but it's still A's screen, so we drop the whole page
+ * cache when the app tells us someone signed out.
+ */
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "signout") {
+    event.waitUntil(caches.delete(PAGES_CACHE));
+  }
+});
+
 /* ── Web Push ──────────────────────────────────────────────────────────────
  *
  * Server-sent notifications (VAPID). Today there's one kind: the post-class
