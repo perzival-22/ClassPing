@@ -136,6 +136,26 @@ export async function ensureSchema() {
       updated_at   bigint  NOT NULL
     )
   `;
+  // Added after the table shipped, so it needs its own migration rather than
+  // living in the CREATE above — existing rows default to on.
+  await sql`
+    ALTER TABLE email_prefs
+      ADD COLUMN IF NOT EXISTS weekly boolean NOT NULL DEFAULT TRUE
+  `;
+
+  /**
+   * One row per Sunday "week ahead" email. Keyed on the local date the send
+   * was claimed, which is unique per week because the job only ever fires on
+   * a Sunday evening — same INSERT-first idempotency as every other cron.
+   */
+  await sql`
+    CREATE TABLE IF NOT EXISTS email_weekly_sent (
+      user_id text NOT NULL,
+      day     text NOT NULL,
+      sent_at bigint NOT NULL,
+      PRIMARY KEY (user_id, day)
+    )
+  `;
 
   /**
    * One row per pre-class reminder email sent. Keyed per class per day so the

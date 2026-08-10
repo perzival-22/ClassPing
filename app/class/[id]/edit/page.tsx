@@ -50,6 +50,8 @@ export default function EditClassScreen({
   const [extraReminders, setExtraReminders] = useState<number[]>(
     existing?.reminders ?? [],
   );
+  const [room, setRoom] = useState(existing?.room ?? "");
+  const [instructor, setInstructor] = useState(existing?.instructor ?? "");
 
   if (!existing) {
     return (
@@ -86,6 +88,8 @@ export default function EditClassScreen({
       remindBefore: remind,
       alarm,
       reminders: extraReminders.length ? extraReminders : undefined,
+      room: room.trim() || undefined,
+      instructor: instructor.trim() || undefined,
     });
     router.push("/home");
   };
@@ -122,6 +126,26 @@ export default function EditClassScreen({
               style={{ boxShadow: "0 1px 4px rgba(30,20,80,.05)" }}
               placeholder="e.g. Organic Chemistry II"
             />
+          </Field>
+
+          {/* where & who — exported as calendar LOCATION / DESCRIPTION */}
+          <Field label="ROOM & TEACHER (OPTIONAL)">
+            <div className="flex gap-2.5">
+              <input
+                value={room}
+                onChange={(e) => setRoom(e.target.value)}
+                className="w-full flex-1 rounded-[15px] bg-white px-4 py-[15px] text-[16px] text-ink outline-none"
+                style={{ boxShadow: "0 1px 4px rgba(30,20,80,.05)" }}
+                placeholder="Room"
+              />
+              <input
+                value={instructor}
+                onChange={(e) => setInstructor(e.target.value)}
+                className="w-full flex-1 rounded-[15px] bg-white px-4 py-[15px] text-[16px] text-ink outline-none"
+                style={{ boxShadow: "0 1px 4px rgba(30,20,80,.05)" }}
+                placeholder="Teacher"
+              />
+            </div>
           </Field>
 
           {/* color */}

@@ -110,6 +110,16 @@ export function buildCalendarFile(
       `RRULE:FREQ=WEEKLY;BYDAY=${byday}`,
       `SUMMARY:${esc(c.name)}`,
     );
+    // LOCATION is what makes a calendar entry actually useful on a phone —
+    // most apps turn it into a tappable map or show it on the lock screen.
+    if (c.room) lines.push(`LOCATION:${esc(c.room)}`);
+    const detail = [
+      c.instructor ? `With ${c.instructor}` : null,
+      c.notes || null,
+    ].filter(Boolean);
+    if (detail.length > 0) {
+      lines.push(`DESCRIPTION:${esc(detail.join("\n"))}`);
+    }
     if (c.alarm) {
       // Primary reminder plus any extra Pro lead times, de-duped, earliest
       // heads-up first — each becomes its own alarm the native calendar fires.
@@ -133,25 +143,35 @@ export function buildCalendarFile(
     if (t.done) continue;
     const due = new Date(t.due);
     if (Number.isNaN(due.getTime())) continue;
-    const end = new Date(due.getTime() + 30 * 60 * 1000);
+    const isExam = t.kind === "exam";
+    // An exam blocks out a realistic sitting; an assignment is a deadline
+    // moment, so it stays a short marker.
+    const end = new Date(due.getTime() + (isExam ? 90 : 30) * 60 * 1000);
     lines.push(
       "BEGIN:VEVENT",
       `UID:classping-task-${t.id}@classping`,
       `DTSTAMP:${stamp}`,
       `DTSTART:${fmtLocal(due)}`,
       `DTEND:${fmtLocal(end)}`,
-      `SUMMARY:${esc(`${t.title} due`)}`,
+      `SUMMARY:${esc(isExam ? `📝 ${t.title}` : `${t.title} due`)}`,
     );
     const className = classNameById(t.classId);
     if (className) lines.push(`DESCRIPTION:${esc(className)}`);
     if (t.reminder) {
-      lines.push(
-        "BEGIN:VALARM",
-        "ACTION:DISPLAY",
-        "TRIGGER:-PT24H",
-        `DESCRIPTION:${esc(`${t.title} is due in 24 hours`)}`,
-        "END:VALARM",
-      );
+      // Exams deserve more than a day's warning — nobody revises overnight
+      // on purpose. A week out, then the usual 24 hours.
+      const offsets = isExam
+        ? [{ trigger: "-P7D", label: "in a week" }, { trigger: "-PT24H", label: "in 24 hours" }]
+        : [{ trigger: "-PT24H", label: "in 24 hours" }];
+      for (const o of offsets) {
+        lines.push(
+          "BEGIN:VALARM",
+          "ACTION:DISPLAY",
+          `TRIGGER:${o.trigger}`,
+          `DESCRIPTION:${esc(`${t.title} is ${isExam ? "" : "due "}${o.label}`)}`,
+          "END:VALARM",
+        );
+      }
     }
     lines.push("END:VEVENT");
   }

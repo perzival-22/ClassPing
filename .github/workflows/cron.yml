@@ -52,3 +52,13 @@ jobs:
             https://classping.space/api/cron/daily-email
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      # Sunday "week ahead". Runs on the same 5-minute tick as everything else
+      # rather than its own schedule: the endpoint decides whether it's Sunday
+      # evening *in each user's timezone*, which a UTC cron expression cannot.
+      - name: Weekly week-ahead email
+        if: ${{ !cancelled() }}
+        run: |
+          curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
+            https://classping.space/api/cron/weekly-email
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}

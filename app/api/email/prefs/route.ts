@@ -21,9 +21,15 @@ interface Prefs {
   preClass: boolean;
   postClass: boolean;
   dailyDigest: boolean;
+  weekly: boolean;
 }
 
-const DEFAULTS: Prefs = { preClass: true, postClass: true, dailyDigest: true };
+const DEFAULTS: Prefs = {
+  preClass: true,
+  postClass: true,
+  dailyDigest: true,
+  weekly: true,
+};
 
 async function guard(): Promise<
   { ok: true; userId: string } | { ok: false; res: NextResponse }
@@ -60,7 +66,7 @@ export async function GET() {
 
   await ensureSchema();
   const rows = await sql!`
-    SELECT pre_class, post_class, daily_digest
+    SELECT pre_class, post_class, daily_digest, weekly
     FROM email_prefs WHERE user_id = ${g.userId}
   `;
   // The master switch an unsubscribe link flips. Surfaced so Settings can
@@ -76,6 +82,7 @@ export async function GET() {
           preClass: rows[0].pre_class === true,
           postClass: rows[0].post_class === true,
           dailyDigest: rows[0].daily_digest === true,
+          weekly: rows[0].weekly === true,
         };
 
   return NextResponse.json({ ...prefs, unsubscribedAll: optout.length > 0 });
@@ -98,7 +105,7 @@ export async function PUT(req: Request) {
   // the caller didn't mention.
   await ensureSchema();
   const rows = await sql!`
-    SELECT pre_class, post_class, daily_digest
+    SELECT pre_class, post_class, daily_digest, weekly
     FROM email_prefs WHERE user_id = ${g.userId}
   `;
   const current: Prefs =
@@ -108,6 +115,7 @@ export async function PUT(req: Request) {
           preClass: rows[0].pre_class === true,
           postClass: rows[0].post_class === true,
           dailyDigest: rows[0].daily_digest === true,
+          weekly: rows[0].weekly === true,
         };
 
   const pick = (v: unknown, fallback: boolean) =>
@@ -116,15 +124,17 @@ export async function PUT(req: Request) {
     preClass: pick(body.preClass, current.preClass),
     postClass: pick(body.postClass, current.postClass),
     dailyDigest: pick(body.dailyDigest, current.dailyDigest),
+    weekly: pick(body.weekly, current.weekly),
   };
 
   await sql!`
-    INSERT INTO email_prefs (user_id, pre_class, post_class, daily_digest, updated_at)
-    VALUES (${g.userId}, ${next.preClass}, ${next.postClass}, ${next.dailyDigest}, ${Date.now()})
+    INSERT INTO email_prefs (user_id, pre_class, post_class, daily_digest, weekly, updated_at)
+    VALUES (${g.userId}, ${next.preClass}, ${next.postClass}, ${next.dailyDigest}, ${next.weekly}, ${Date.now()})
     ON CONFLICT (user_id) DO UPDATE
       SET pre_class = EXCLUDED.pre_class,
           post_class = EXCLUDED.post_class,
           daily_digest = EXCLUDED.daily_digest,
+          weekly = EXCLUDED.weekly,
           updated_at = EXCLUDED.updated_at
   `;
 

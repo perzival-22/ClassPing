@@ -33,6 +33,23 @@ export interface ClassItem {
   alarm: boolean;
   /** extra lead times (minutes) written as additional calendar alarms — Pro */
   reminders?: number[];
+  /** where it meets, e.g. "Sci 204" — exported as the calendar LOCATION */
+  room?: string;
+  /** who teaches it */
+  instructor?: string;
+  /** anything else worth remembering; exported in the calendar DESCRIPTION */
+  notes?: string;
+  /**
+   * Which term this class belongs to, e.g. "Fall 2025". Free text rather than
+   * a Term entity: a student names their own terms, and this keeps the synced
+   * document flat. Undefined means "current" — every class predating terms.
+   */
+  term?: string;
+  /**
+   * Archived classes drop out of Today and the week grid but keep their grades,
+   * so last semester stops cluttering this one without erasing the record.
+   */
+  archived?: boolean;
 }
 
 export interface TaskItem {
@@ -43,6 +60,12 @@ export interface TaskItem {
   due: string;
   reminder: boolean;
   done: boolean;
+  /**
+   * Exams are the highest-stakes thing a student tracks and the thing they
+   * most fear missing, so they get their own treatment on Today and in the
+   * calendar export. Undefined means "assignment" — every task predating this.
+   */
+  kind?: "assignment" | "exam";
 }
 
 /** A graded event (exam, assignment, quiz) belonging to a class. */
@@ -71,13 +94,23 @@ export interface Profile {
 }
 
 interface Store {
+  /** Every class ever added, archived ones included. */
   classes: ClassItem[];
+  /**
+   * The classes that count as "now" — what Today, the week grid and the
+   * calendar export should show. Archived terms are excluded.
+   */
+  activeClasses: ClassItem[];
   tasks: TaskItem[];
   grades: GradeItem[];
   profile: Profile;
   /** false until persisted state has been loaded from localStorage */
   hydrated: boolean;
   addClass: (c: Omit<ClassItem, "id">) => void;
+  /** Label every current class with `term` and archive them in one action. */
+  archiveTerm: (term: string) => void;
+  /** Bring a single archived class back into the current term. */
+  unarchiveClass: (id: string) => void;
   updateClass: (id: string, updates: Partial<Omit<ClassItem, "id">>) => void;
   deleteClass: (id: string) => void;
   addTask: (t: Omit<TaskItem, "id">) => void;
@@ -285,6 +318,23 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  const archiveTerm = useCallback((term: string) => {
+    const label = term.trim();
+    setClasses((prev) =>
+      prev.map((c) =>
+        c.archived ? c : { ...c, archived: true, term: label || c.term },
+      ),
+    );
+    touch();
+  }, []);
+
+  const unarchiveClass = useCallback((id: string) => {
+    setClasses((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, archived: false } : c)),
+    );
+    touch();
+  }, []);
+
   const deleteClass = useCallback((id: string) => {
     setClasses((prev) => prev.filter((c) => c.id !== id));
     setTasks((prev) => prev.filter((t) => t.classId !== id));
@@ -338,6 +388,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setGrades((prev) => prev.filter((g) => g.id !== id));
     touch();
   }, []);
+
+  // Archived classes stay in `classes` so grades and history survive; every
+  // "what's happening now" surface reads this instead.
+  const activeClasses = useMemo(
+    () => classes.filter((c) => !c.archived),
+    [classes],
+  );
 
   const classById = useCallback(
     (id: string) => classes.find((c) => c.id === id),
@@ -405,6 +462,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       // Pre-class reminders (only when the alarm toggle is on).
       if (dow <= 4) {
         for (const c of classes) {
+          if (c.archived) continue;
           if (!c.alarm || !c.days.includes(dow as DayIndex)) continue;
           const id = `class:${c.id}:${dayKey}`;
           if (mins >= c.start - c.remindBefore && mins < c.start && !fired[id]) {
@@ -465,13 +523,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<Store>(
     () => ({
-      classes, tasks, grades, profile, hydrated,
-      addClass, updateClass, deleteClass,
+      classes, activeClasses, tasks, grades, profile, hydrated,
+      addClass, updateClass, deleteClass, archiveTerm, unarchiveClass,
       addTask, updateTask, deleteTask, toggleTask,
       addGrade, updateGrade, deleteGrade,
       classById, taskById, gradeById, setProfile,
     }),
-    [classes, tasks, grades, profile, hydrated, addClass, updateClass, deleteClass, addTask, updateTask, deleteTask, toggleTask, addGrade, updateGrade, deleteGrade, classById, taskById, gradeById, setProfile],
+    [classes, activeClasses, tasks, grades, profile, hydrated, addClass, updateClass, deleteClass, archiveTerm, unarchiveClass, addTask, updateTask, deleteTask, toggleTask, addGrade, updateGrade, deleteGrade, classById, taskById, gradeById, setProfile],
   );
 
   return (

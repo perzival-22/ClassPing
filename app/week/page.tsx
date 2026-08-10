@@ -16,7 +16,7 @@ const DEFAULT_END_HOUR = 17;
 const PX_PER_HOUR = 62;
 
 export default function WeekScreen() {
-  const { classes, hydrated } = useStore();
+  const { activeClasses: classes, hydrated } = useStore();
   const [dismissed, setDismissed] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
   const now = useNow();

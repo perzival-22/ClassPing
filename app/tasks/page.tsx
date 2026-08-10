@@ -140,6 +140,14 @@ function TaskRow({
               : { color: "var(--color-ink)" }
           }
         >
+          {task.kind === "exam" && !task.done && (
+            <span
+              className="mr-1.5 rounded-full px-1.5 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide"
+              style={{ background: "#FFF0D6", color: "#A96A00" }}
+            >
+              Exam
+            </span>
+          )}
           {task.title}
         </div>
         <div className="mt-1.5 flex items-center gap-1.5">

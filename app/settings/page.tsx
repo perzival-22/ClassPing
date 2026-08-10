@@ -47,8 +47,14 @@ export default function SettingsScreen() {
 function SettingsForm() {
   const router = useRouter();
   const { signOut } = useClerk();
-  const { profile, setProfile, classes, tasks } = useStore();
+  // activeClasses for anything describing "now" — an archived term shouldn't
+  // be exported to the phone calendar or counted in the export summary.
+  const { profile, setProfile, activeClasses: classes, archiveTerm, tasks } =
+    useStore();
   const { isPro } = useIsPro();
+  const [termName, setTermName] = useState("");
+  const [archiving, setArchiving] = useState(false);
+  const [archived, setArchived] = useState(false);
 
   const [username, setUsername] = useState(profile.username);
   // Profiles saved before avatars were stored as data URIs hold a dead `blob:`
@@ -87,6 +93,7 @@ function SettingsForm() {
     preClass: boolean;
     postClass: boolean;
     dailyDigest: boolean;
+    weekly: boolean;
     unsubscribedAll: boolean;
   } | null>(null);
 
@@ -105,7 +112,9 @@ function SettingsForm() {
     };
   }, []);
 
-  function handleEmailPref(key: "preClass" | "postClass" | "dailyDigest") {
+  function handleEmailPref(
+    key: "preClass" | "postClass" | "dailyDigest" | "weekly",
+  ) {
     return (next: boolean) => {
       if (!emailPrefs) return;
       // Optimistic: the switch answers immediately and the write follows.
@@ -542,6 +551,12 @@ function SettingsForm() {
                   hint="What's still open, once the school day is done."
                   on={emailPrefs.dailyDigest && !emailPrefs.unsubscribedAll}
                   onChange={handleEmailPref("dailyDigest")}
+                />
+                <EmailPrefRow
+                  label="Week ahead"
+                  hint="Sunday evening: your classes and what's due this week."
+                  on={emailPrefs.weekly && !emailPrefs.unsubscribedAll}
+                  onChange={handleEmailPref("weekly")}
                   last
                 />
                 {emailPrefs.unsubscribedAll && (
@@ -593,6 +608,88 @@ function SettingsForm() {
                       : `Exports ${classes.length} ${classes.length === 1 ? "class" : "classes"} and ${openTasks.length} open ${openTasks.length === 1 ? "task" : "tasks"}. Re-add after you change your schedule.`}
             </p>
           </div>
+
+          {/* ── Term card ──
+              Without this a class added in September is still on the timetable
+              the following June, and the GPA blends every course ever taken.
+              Archiving keeps the grades and clears the schedule. */}
+          {classes.length > 0 && (
+            <div
+              className="mt-4 rounded-[24px] bg-white px-5 py-5"
+              style={{ boxShadow: "0 2px 12px rgba(30,20,80,.07)" }}
+            >
+              <div className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-faint">
+                Term
+              </div>
+              <p className="text-[13px] leading-snug text-muted">
+                Finished the semester? Archive these {classes.length}{" "}
+                {classes.length === 1 ? "class" : "classes"} to clear your
+                timetable. Their grades stay on the Grades screen under the
+                term name.
+              </p>
+
+              {archiving ? (
+                <>
+                  <label
+                    className="mt-3 block rounded-[15px] px-4 py-[13px]"
+                    style={{
+                      background: "var(--bg-input)",
+                      border: "1px solid rgba(var(--brand-rgb),.12)",
+                    }}
+                  >
+                    <div className="text-[11px] font-semibold tracking-wide text-faint">
+                      NAME THIS TERM
+                    </div>
+                    <input
+                      value={termName}
+                      onChange={(e) => setTermName(e.target.value)}
+                      placeholder="e.g. Fall 2025"
+                      className="mt-[3px] w-full bg-transparent text-[16px] text-ink outline-none"
+                    />
+                  </label>
+                  <div className="mt-3 flex gap-2.5">
+                    <button
+                      onClick={() => {
+                        setArchiving(false);
+                        setTermName("");
+                      }}
+                      className="flex-1 rounded-[15px] py-[13px] text-center text-[15px] font-semibold text-muted"
+                      style={{ background: "var(--bg-input)" }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        archiveTerm(termName);
+                        setArchiving(false);
+                        setTermName("");
+                        setArchived(true);
+                        setTimeout(() => setArchived(false), 4000);
+                      }}
+                      disabled={termName.trim().length === 0}
+                      className="btn-brand flex-1 rounded-[15px] py-[13px] text-center text-[15px] font-semibold text-white transition active:scale-[0.98] disabled:opacity-50"
+                    >
+                      Archive
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <button
+                  onClick={() => setArchiving(true)}
+                  className="mt-3 w-full rounded-[15px] py-[13px] text-center text-[15px] font-semibold text-brand transition active:scale-[0.98]"
+                  style={{ background: "var(--brand-soft)" }}
+                >
+                  Start a new term
+                </button>
+              )}
+            </div>
+          )}
+
+          {archived && (
+            <p className="mt-3 text-center text-[13px] font-medium text-brand">
+              Term archived — your timetable is clear. 🎉
+            </p>
+          )}
 
           {/* ── Account card ── */}
           <div

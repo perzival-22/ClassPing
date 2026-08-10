@@ -12,7 +12,7 @@ import { useIsPro } from "@/lib/useIsPro";
 
 export default function GradesScreen() {
   const router = useRouter();
-  const { classes, grades, deleteGrade, hydrated } = useStore();
+  const { classes, activeClasses, grades, deleteGrade, hydrated } = useStore();
   const { isPro, proLoaded } = useIsPro();
 
   if (!hydrated || !proLoaded) {
@@ -58,10 +58,23 @@ export default function GradesScreen() {
     );
   }
 
-  const gpa = overallGpa(classes, grades);
-  const gradedClasses = classes.filter((c) =>
+  // GPA covers the current term only. Blending every course ever taken makes
+  // the number meaningless by year two, which is the whole reason archiving
+  // exists — past terms keep their own GPA below.
+  const gpa = overallGpa(activeClasses, grades);
+  const gradedClasses = activeClasses.filter((c) =>
     grades.some((g) => g.classId === c.id),
   );
+
+  // Archived classes that have grades, bucketed by the term they were
+  // archived under. Undated archives fall back to a neutral heading.
+  const pastTerms = new Map<string, typeof classes>();
+  for (const c of classes) {
+    if (!c.archived) continue;
+    if (!grades.some((g) => g.classId === c.id)) continue;
+    const key = c.term?.trim() || "Earlier";
+    pastTerms.set(key, [...(pastTerms.get(key) ?? []), c]);
+  }
 
   return (
     <PhoneFrame>
@@ -124,7 +137,7 @@ export default function GradesScreen() {
             </div>
           )}
 
-          {classes.map((c) => {
+          {activeClasses.map((c) => {
             const classGrades = grades
               .filter((g) => g.classId === c.id)
               .sort((a, b) => (a.date < b.date ? 1 : -1));
@@ -198,6 +211,60 @@ export default function GradesScreen() {
               </button>
             </div>
           )}
+
+          {/* ── past terms ──
+              Archived work keeps its own frozen GPA instead of diluting this
+              term's. This is what makes the app usable in year two. */}
+          {[...pastTerms.entries()].map(([term, termClasses]) => {
+            const termGpa = overallGpa(termClasses, grades);
+            return (
+              <div key={term} className="mt-6">
+                <div className="mb-2 flex items-baseline justify-between px-1">
+                  <h2 className="text-[15px] font-semibold text-muted">
+                    {term}
+                  </h2>
+                  <span className="text-[13px] font-semibold text-muted-2">
+                    {termGpa === null ? "—" : `${termGpa.toFixed(2)} GPA`}
+                  </span>
+                </div>
+                <div
+                  className="overflow-hidden rounded-[18px] bg-white"
+                  style={{ boxShadow: "0 2px 10px rgba(30,20,80,.05)" }}
+                >
+                  {termClasses.map((c, i) => {
+                    const avg = classAverage(
+                      grades.filter((g) => g.classId === c.id),
+                    );
+                    return (
+                      <div
+                        key={c.id}
+                        className="flex items-center gap-3 px-4 py-3"
+                        style={
+                          i ? { borderTop: "1px solid rgba(30,20,80,.06)" } : undefined
+                        }
+                      >
+                        <div
+                          className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px] text-[11px] font-bold"
+                          style={{
+                            background: PALETTE[c.color].bg,
+                            color: PALETTE[c.color].text,
+                          }}
+                        >
+                          {c.short}
+                        </div>
+                        <div className="min-w-0 flex-1 truncate text-[14px] text-ink">
+                          {c.name}
+                        </div>
+                        <div className="text-[14px] font-semibold text-muted">
+                          {avg === null ? "—" : letterFor(avg)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
 
           {/* DaysToFinals countdown */}
           <FinalsCountdown />

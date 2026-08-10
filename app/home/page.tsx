@@ -24,7 +24,9 @@ import {
   justEndedClass,
   type ClassItem,
   type DayIndex,
+  type TaskItem,
 } from "@/lib/store";
+import { termStats } from "@/lib/streak";
 
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 const DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri"];
@@ -59,8 +61,16 @@ function fmtRange(start: number, end: number) {
 const DAY_ABBR = ["M", "T", "W", "Th", "F"];
 
 export default function HomeScreen() {
-  const { classes, tasks, profile, classById, deleteClass, hydrated } =
-    useStore();
+  // activeClasses, not classes: an archived term keeps its grades but must
+  // stop showing up in Today, the week grid and My Classes.
+  const {
+    activeClasses: classes,
+    tasks,
+    profile,
+    classById,
+    deleteClass,
+    hydrated,
+  } = useStore();
   const router = useRouter();
   const [offset, setOffset] = useState(0);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -316,6 +326,9 @@ export default function HomeScreen() {
               empty sections. */}
           {!isFirstRun && (
             <>
+          {/* ── this term at a glance ── */}
+          <TermGlance tasks={tasks} now={now} />
+
           {/* ── Assignments ── */}
           <div className="mt-8">
             <div className="mb-3 flex items-center justify-between">
@@ -367,6 +380,14 @@ export default function HomeScreen() {
                       />
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-[15px] font-semibold text-ink">
+                          {t.kind === "exam" && (
+                            <span
+                              className="mr-1.5 rounded-full px-1.5 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide"
+                              style={{ background: "#FFF0D6", color: "#A96A00" }}
+                            >
+                              Exam
+                            </span>
+                          )}
                           {t.title}
                         </div>
                         <div className="mt-[2px] truncate text-[12px] text-muted">
@@ -550,6 +571,68 @@ export default function HomeScreen() {
   );
 }
 
+/**
+ * A quiet progress read, derived entirely from tasks the user already has.
+ * Hidden until there's something to say — an empty stat row on day one is
+ * noise, and a zeroed streak is discouraging for no reason.
+ */
+function TermGlance({ tasks, now }: { tasks: TaskItem[]; now: Date }) {
+  const stats = termStats(tasks, now);
+  if (tasks.length === 0) return null;
+
+  return (
+    <div
+      className="mt-6 flex gap-2.5 rounded-[18px] bg-white px-4 py-3.5"
+      style={{ boxShadow: "0 2px 10px rgba(30,20,80,.05)" }}
+    >
+      <Stat value={stats.completed} label="done" />
+      <div className="w-px shrink-0" style={{ background: "#F0EFF6" }} />
+      <Stat
+        value={stats.dueThisWeek}
+        label="this week"
+        tone={stats.dueThisWeek > 0 ? "brand" : undefined}
+      />
+      <div className="w-px shrink-0" style={{ background: "#F0EFF6" }} />
+      {stats.overdue > 0 ? (
+        <Stat value={stats.overdue} label="overdue" tone="warn" />
+      ) : (
+        <Stat
+          value={stats.streak}
+          label={stats.streak === 1 ? "day clear" : "days clear"}
+          tone="good"
+        />
+      )}
+    </div>
+  );
+}
+
+function Stat({
+  value,
+  label,
+  tone,
+}: {
+  value: number;
+  label: string;
+  tone?: "warn" | "good" | "brand";
+}) {
+  const color =
+    tone === "warn"
+      ? "#D33B22"
+      : tone === "good"
+        ? "#2E9E4F"
+        : tone === "brand"
+          ? "var(--color-brand)"
+          : "var(--color-ink)";
+  return (
+    <div className="flex-1 text-center">
+      <div className="text-[19px] font-bold leading-none" style={{ color }}>
+        {value}
+      </div>
+      <div className="mt-1 text-[11px] font-medium text-muted-2">{label}</div>
+    </div>
+  );
+}
+
 /** One numbered step in the first-run setup card. */
 function OnboardStep({
   n,
@@ -608,8 +691,9 @@ function ClassCard({ c, nowMin }: { c: ClassItem; nowMin: number }) {
           <div className="truncate text-[15px] font-semibold text-ink">
             {c.name}
           </div>
-          <div className="mt-[3px] text-[13px] text-muted">
+          <div className="mt-[3px] truncate text-[13px] text-muted">
             {fmtRange(c.start, c.end)}
+            {c.room ? ` · ${c.room}` : ""}
           </div>
         </div>
 

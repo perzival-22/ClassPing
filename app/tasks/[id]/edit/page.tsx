@@ -79,6 +79,9 @@ function EditForm({ task }: { task: TaskItem }) {
   const [classId, setClassId] = useState(task.classId);
   const [picking, setPicking] = useState(false);
   const [title, setTitle] = useState(task.title);
+  const [kind, setKind] = useState<"assignment" | "exam">(
+    task.kind === "exam" ? "exam" : "assignment",
+  );
   const [dueDate, setDueDate] = useState(
     `${existingDue.getFullYear()}-${pad(existingDue.getMonth() + 1)}-${pad(existingDue.getDate())}`,
   );
@@ -103,6 +106,7 @@ function EditForm({ task }: { task: TaskItem }) {
       classId,
       due: dueIso(dueDate, dueTime),
       reminder,
+      kind,
     });
     router.push("/tasks");
   };
@@ -196,10 +200,43 @@ function EditForm({ task }: { task: TaskItem }) {
             )}
           </div>
 
+          {/* what kind */}
+          <div>
+            <div className="mb-[7px] px-1 text-[12px] font-semibold tracking-wide text-muted-2">
+              TYPE
+            </div>
+            <div className="flex w-full rounded-xl bg-[#E5E2F1] p-[3px]">
+              {(
+                [
+                  { id: "assignment", label: "Assignment" },
+                  { id: "exam", label: "Exam" },
+                ] as const
+              ).map((k) => (
+                <button
+                  key={k.id}
+                  onClick={() => setKind(k.id)}
+                  className="flex-1 rounded-[9px] py-[7px] text-center text-[14px] transition"
+                  style={
+                    kind === k.id
+                      ? {
+                          background: "#fff",
+                          fontWeight: 600,
+                          color: "#211D46",
+                          boxShadow: "0 1px 3px rgba(0,0,0,.08)",
+                        }
+                      : { fontWeight: 500, color: "#7A759C" }
+                  }
+                >
+                  {k.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* name */}
           <div>
             <div className="mb-[7px] px-1 text-[12px] font-semibold tracking-wide text-muted-2">
-              ASSIGNMENT
+              {kind === "exam" ? "EXAM" : "ASSIGNMENT"}
             </div>
             <input
               value={title}
