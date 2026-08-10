@@ -4,12 +4,15 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { PALETTE } from "@/lib/palette";
-import { useStore } from "@/lib/store";
+import { useStore, type GradeKind } from "@/lib/store";
 import { extraCreditHint, remainingWeight, usedWeight } from "@/lib/gpa";
-import { WeightBudget } from "@/components/GradeFields";
+import {
+  GRADE_KINDS,
+  GradeKindPicker,
+  WeightBudget,
+} from "@/components/GradeFields";
 import { useIsPro } from "@/lib/useIsPro";
 
-const KIND_PRESETS = ["Exam", "Assignment", "Quiz", "Project"];
 const DEFAULT_WEIGHT = 20;
 
 function todayIso(): string {
@@ -29,11 +32,25 @@ export default function AddGradeScreen() {
     () => grades[grades.length - 1]?.classId ?? null,
   );
   const [title, setTitle] = useState("");
+  const [kind, setKind] = useState<GradeKind | undefined>("assignment");
   const [score, setScore] = useState("");
   const [max, setMax] = useState("100");
   const [weight, setWeight] = useState(String(DEFAULT_WEIGHT));
   const [date, setDate] = useState(todayIso());
   const [addedCount, setAddedCount] = useState(0);
+
+  /**
+   * Picking a type fills an empty title with its label, which is what the old
+   * preset buttons did — except the type is now real data, so renaming this to
+   * "Midterm" no longer throws away the fact that it was an exam.
+   */
+  const pickKind = (next: GradeKind | undefined) => {
+    setKind(next);
+    const wasLabel = GRADE_KINDS.some((k) => k.label === title.trim());
+    if (next && (title.trim() === "" || wasLabel)) {
+      setTitle(GRADE_KINDS.find((k) => k.id === next)!.label);
+    }
+  };
 
   if (!hydrated || !proLoaded) {
     return (
@@ -90,6 +107,7 @@ export default function AddGradeScreen() {
       max: maxN,
       weight: weightN,
       date,
+      kind,
     });
     return true;
   };
@@ -180,6 +198,11 @@ export default function AddGradeScreen() {
                 </div>
               </Field>
 
+              {/* type */}
+              <Field label="TYPE">
+                <GradeKindPicker value={kind} onChange={pickKind} />
+              </Field>
+
               {/* title */}
               <Field label="WHAT WAS GRADED?">
                 <input
@@ -189,18 +212,6 @@ export default function AddGradeScreen() {
                   style={{ boxShadow: "0 1px 4px rgba(30,20,80,.05)" }}
                   placeholder="e.g. Midterm exam"
                 />
-                <div className="mt-2 flex gap-2">
-                  {KIND_PRESETS.map((k) => (
-                    <button
-                      key={k}
-                      onClick={() => setTitle(k)}
-                      className="rounded-full px-3 py-1.5 text-[12px] font-semibold text-brand"
-                      style={{ background: "var(--brand-soft)" }}
-                    >
-                      {k}
-                    </button>
-                  ))}
-                </div>
               </Field>
 
               {/* score */}

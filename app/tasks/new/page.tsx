@@ -52,6 +52,7 @@ function AddAssignment() {
   const [dueDate, setDueDate] = useState(dateInputValue(3));
   const [dueTime, setDueTime] = useState("");
   const [reminder, setReminder] = useState(true);
+  const [notes, setNotes] = useState("");
 
   const selected = classById(classId);
   const canSave = title.trim().length > 0 && !!selected && dueDate.length > 0;
@@ -70,6 +71,7 @@ function AddAssignment() {
       reminder,
       done: false,
       kind,
+      notes: notes.trim() || undefined,
     });
     // Confirm notifications work for the reminder the user just set up.
     if (reminder && (await ensureNotificationPermission())) {
@@ -296,6 +298,23 @@ function AddAssignment() {
               </div>
             </div>
             <Toggle on={reminder} onChange={setReminder} />
+          </div>
+
+          {/* notes — the brief, the page range, what to bring. Shown when the
+              task is tapped open on the Tasks list. */}
+          <div>
+            <div className="mb-[7px] px-1 text-[12px] font-semibold tracking-wide text-muted-2">
+              NOTES (OPTIONAL)
+            </div>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              maxLength={2000}
+              className="w-full resize-none rounded-[15px] bg-white px-4 py-[13px] text-[15px] leading-snug text-ink outline-none"
+              style={{ boxShadow: "0 1px 4px rgba(30,20,80,.05)" }}
+              placeholder="What the brief asks for, pages to read, what to bring…"
+            />
           </div>
         </div>
 

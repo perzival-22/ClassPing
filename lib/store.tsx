@@ -77,7 +77,15 @@ export interface TaskItem {
    * calendar export. Undefined means "assignment" — every task predating this.
    */
   kind?: "assignment" | "exam";
+  /**
+   * Anything worth remembering about this piece of work — the brief, what to
+   * bring, a page range. Shown when the task is tapped open on the Tasks list.
+   */
+  notes?: string;
 }
+
+/** What a graded item was. Undefined on everything logged before the field. */
+export type GradeKind = "exam" | "quiz" | "assignment" | "project";
 
 /** A graded event (exam, assignment, quiz) belonging to a class. */
 export interface GradeItem {
@@ -92,6 +100,12 @@ export interface GradeItem {
   weight: number;
   /** ISO date of the graded event */
   date: string;
+  /**
+   * Exam, quiz, assignment or project. Undefined on grades logged before the
+   * field existed — the title was the only clue then, because the "Exam" and
+   * "Quiz" buttons on the add form just typed those words into it.
+   */
+  kind?: GradeKind;
 }
 
 export interface Profile {

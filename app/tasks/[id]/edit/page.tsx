@@ -89,6 +89,7 @@ function EditForm({ task }: { task: TaskItem }) {
     isEndOfDay ? "" : `${pad(existingDue.getHours())}:${pad(existingDue.getMinutes())}`,
   );
   const [reminder, setReminder] = useState(task.reminder);
+  const [notes, setNotes] = useState(task.notes ?? "");
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const selected = classById(classId);
@@ -107,6 +108,7 @@ function EditForm({ task }: { task: TaskItem }) {
       due: dueIso(dueDate, dueTime),
       reminder,
       kind,
+      notes: notes.trim() || undefined,
     });
     router.push("/tasks");
   };
@@ -327,6 +329,23 @@ function EditForm({ task }: { task: TaskItem }) {
               </div>
             </div>
             <Toggle on={reminder} onChange={setReminder} />
+          </div>
+
+          {/* notes — the brief, the page range, what to bring. Shown when the
+              task is tapped open on the Tasks list. */}
+          <div>
+            <div className="mb-[7px] px-1 text-[12px] font-semibold tracking-wide text-muted-2">
+              NOTES (OPTIONAL)
+            </div>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              maxLength={2000}
+              className="w-full resize-none rounded-[15px] bg-white px-4 py-[13px] text-[15px] leading-snug text-ink outline-none"
+              style={{ boxShadow: "0 1px 4px rgba(30,20,80,.05)" }}
+              placeholder="What the brief asks for, pages to read, what to bring…"
+            />
           </div>
         </div>
 

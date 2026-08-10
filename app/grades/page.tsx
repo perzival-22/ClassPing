@@ -4,10 +4,23 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { TabBar } from "@/components/TabBar";
-import { PencilIcon, PlusIcon, SparkleIcon, TrashIcon } from "@/components/icons";
+import {
+  ChevronRightIcon,
+  PencilIcon,
+  PlusIcon,
+  SparkleIcon,
+  TrashIcon,
+} from "@/components/icons";
 import { FinalsCountdown } from "@/components/FinalsCountdown";
+import { GradeKindPicker, GradeKindTag } from "@/components/GradeFields";
 import { PALETTE } from "@/lib/palette";
-import { useStore, longDate, type ClassItem, type GradeItem } from "@/lib/store";
+import {
+  useStore,
+  longDate,
+  type ClassItem,
+  type GradeItem,
+  type GradeKind,
+} from "@/lib/store";
 import { downloadGradeReport, downloadGradeReportPdf } from "@/lib/report";
 import {
   SCALES,
@@ -298,36 +311,16 @@ export default function GradesScreen() {
                   className="overflow-hidden rounded-[18px] bg-white"
                   style={{ boxShadow: "0 2px 10px rgba(30,20,80,.05)" }}
                 >
-                  {termClasses.map((c, i) => {
-                    const avg = classAverage(
-                      grades.filter((g) => g.classId === c.id),
-                    );
-                    return (
-                      <div
-                        key={c.id}
-                        className="flex items-center gap-3 px-4 py-3"
-                        style={
-                          i ? { borderTop: "1px solid rgba(30,20,80,.06)" } : undefined
-                        }
-                      >
-                        <div
-                          className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px] text-[11px] font-bold"
-                          style={{
-                            background: PALETTE[c.color].bg,
-                            color: PALETTE[c.color].text,
-                          }}
-                        >
-                          {c.short}
-                        </div>
-                        <div className="min-w-0 flex-1 truncate text-[14px] text-ink">
-                          {c.name}
-                        </div>
-                        <div className="text-[14px] font-semibold text-muted">
-                          {avg === null ? "—" : letterFor(avg, scale)}
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {termClasses.map((c, i) => (
+                    <PastTermClass
+                      key={c.id}
+                      c={c}
+                      grades={grades.filter((g) => g.classId === c.id)}
+                      scale={scale}
+                      divider={i > 0}
+                      onDelete={deleteGrade}
+                    />
+                  ))}
                 </div>
               </div>
             );
@@ -340,6 +333,73 @@ export default function GradesScreen() {
         <TabBar />
       </div>
     </PhoneFrame>
+  );
+}
+
+/**
+ * One class from an archived term, expandable to its grades.
+ *
+ * Archiving a term used to make its grades read-only — the row showed a letter
+ * and nothing else, so a mark that came in late, or one typed wrong, could
+ * never be corrected. Nothing about archiving should mean "frozen": it clears
+ * the timetable, it isn't a lock. So these rows open onto exactly the same
+ * editable grade list the current term gets.
+ */
+function PastTermClass({
+  c,
+  grades,
+  scale,
+  divider,
+  onDelete,
+}: {
+  c: ClassItem;
+  grades: GradeItem[];
+  scale: ScaleBand[];
+  divider: boolean;
+  onDelete: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const avg = classAverage(grades);
+  const t = PALETTE[c.color];
+  const sorted = [...grades].sort((a, b) => b.date.localeCompare(a.date));
+
+  return (
+    <div style={divider ? { borderTop: "1px solid rgba(30,20,80,.06)" } : undefined}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left transition active:bg-canvas"
+      >
+        <div
+          className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px] text-[11px] font-bold"
+          style={{ background: t.bg, color: t.text }}
+        >
+          {c.short}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[14px] text-ink">{c.name}</div>
+          <div className="mt-[2px] text-[11px] text-faint">
+            {sorted.length} {sorted.length === 1 ? "grade" : "grades"}
+            {avg === null ? "" : ` · ${avg.toFixed(1)}%`} · tap to edit
+          </div>
+        </div>
+        <div className="text-[14px] font-semibold text-muted">
+          {avg === null ? "—" : letterFor(avg, scale)}
+        </div>
+        <ChevronRightIcon
+          className="h-4 w-4 shrink-0 text-hint transition-transform"
+          style={{ transform: open ? "rotate(90deg)" : "none" }}
+        />
+      </button>
+
+      {open && (
+        <div className="px-4 pb-2">
+          {sorted.map((g) => (
+            <GradeRow key={g.id} g={g} onDelete={onDelete} />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -608,6 +668,7 @@ function GradeRow({
   const [score, setScore] = useState(String(g.score));
   const [max, setMax] = useState(String(g.max));
   const [weight, setWeight] = useState(String(g.weight));
+  const [kind, setKind] = useState<GradeKind | undefined>(g.kind);
 
   const pct = g.max > 0 ? (g.score / g.max) * 100 : 0;
   const scoreN = Number(score);
@@ -629,6 +690,7 @@ function GradeRow({
     setScore(String(g.score));
     setMax(String(g.max));
     setWeight(String(g.weight));
+    setKind(g.kind);
     setOpen(true);
   };
 
@@ -642,6 +704,11 @@ function GradeRow({
           className="min-w-0 flex-1 text-left"
         >
           <div className="truncate text-[14px] font-medium text-ink">
+            {g.kind && (
+              <span className="mr-1.5">
+                <GradeKindTag kind={g.kind} />
+              </span>
+            )}
             {g.title}
           </div>
           <div className="mt-[2px] text-[12px] text-muted">
@@ -669,6 +736,12 @@ function GradeRow({
           className="mb-3 rounded-[14px] px-3 py-3"
           style={{ background: "var(--bg-input)" }}
         >
+          <div className="mb-2.5">
+            <div className="mb-1.5 text-[10px] font-semibold tracking-wide text-faint">
+              TYPE
+            </div>
+            <GradeKindPicker value={kind} onChange={setKind} compact />
+          </div>
           <div className="flex gap-2">
             <QuickNumber label="EARNED" value={score} onChange={setScore} />
             <QuickNumber label="OUT OF" value={max} onChange={setMax} />
@@ -701,6 +774,7 @@ function GradeRow({
                   score: scoreN,
                   max: maxN,
                   weight: weightN,
+                  kind,
                 });
                 setOpen(false);
               }}

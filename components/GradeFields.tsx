@@ -1,13 +1,95 @@
 "use client";
 
+import type { GradeKind } from "@/lib/store";
+
 /**
- * The weight-budget meter shared by the two grade forms.
+ * Fields shared by the grade editors — the add form, the full edit screen and
+ * the quick editor on the Grades screen.
  *
- * The copy that goes with it lives in lib/gpa.ts (`usedWeight`,
- * `extraCreditHint`) so the rules are unit-tested rather than trapped in a
- * component — the forms used to answer the same questions differently, and
- * that's what let them drift apart.
+ * The rules behind them live in lib/gpa.ts (`usedWeight`, `extraCreditHint`,
+ * `GRADE_KINDS`) so they're unit-tested rather than trapped in a component:
+ * the three editors used to answer the same questions differently, and that's
+ * what let them drift apart.
  */
+
+export const GRADE_KINDS: Array<{ id: GradeKind; label: string }> = [
+  { id: "assignment", label: "Assignment" },
+  { id: "quiz", label: "Quiz" },
+  { id: "exam", label: "Exam" },
+  { id: "project", label: "Project" },
+];
+
+/**
+ * What kind of thing was graded.
+ *
+ * Before this, the add form's "Exam"/"Quiz" buttons just typed that word into
+ * the title, so the type wasn't data and nothing could be changed afterwards —
+ * renaming "Exam" to "Midterm" lost it entirely.
+ */
+export function GradeKindPicker({
+  value,
+  onChange,
+  accent = "var(--color-brand)",
+  compact,
+}: {
+  value: GradeKind | undefined;
+  /** Passing undefined clears the type — tapping the active chip again. */
+  onChange: (kind: GradeKind | undefined) => void;
+  accent?: string;
+  /** Tighter chips, for the inline editor on the Grades screen. */
+  compact?: boolean;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {GRADE_KINDS.map((k) => {
+        const on = value === k.id;
+        return (
+          <button
+            key={k.id}
+            type="button"
+            onClick={() => onChange(on ? undefined : k.id)}
+            aria-pressed={on}
+            className={`rounded-full font-semibold transition ${
+              compact ? "px-2.5 py-1 text-[12px]" : "px-3.5 py-2 text-[13px]"
+            }`}
+            style={
+              on
+                ? { background: accent, color: "#fff" }
+                : {
+                    background: "#fff",
+                    color: "var(--color-muted)",
+                    boxShadow: "0 1px 3px rgba(30,20,80,.05)",
+                  }
+            }
+          >
+            {k.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** The little colour-coded tag shown on a grade row. */
+export function GradeKindTag({ kind }: { kind: GradeKind }) {
+  const tone = KIND_TONES[kind];
+  return (
+    <span
+      className="rounded-full px-1.5 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide"
+      style={{ background: tone.bg, color: tone.text }}
+    >
+      {kind}
+    </span>
+  );
+}
+
+/** Exams read as higher-stakes than a quiz, and the colours should say so. */
+const KIND_TONES: Record<GradeKind, { bg: string; text: string }> = {
+  exam: { bg: "#FFF0D6", text: "#A96A00" },
+  quiz: { bg: "#E4F1FD", text: "#1B69AC" },
+  assignment: { bg: "#ECEBFB", text: "#4038B8" },
+  project: { bg: "#E2F7E6", text: "#1F7A38" },
+};
 
 /**
  * How much of the class's 100% this grade would take, and what's left.

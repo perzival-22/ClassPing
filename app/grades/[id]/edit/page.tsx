@@ -4,12 +4,10 @@ import { use, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { PALETTE } from "@/lib/palette";
-import { useStore, type GradeItem } from "@/lib/store";
+import { useStore, type GradeItem, type GradeKind } from "@/lib/store";
 import { extraCreditHint, usedWeight } from "@/lib/gpa";
-import { WeightBudget } from "@/components/GradeFields";
+import { GradeKindPicker, WeightBudget } from "@/components/GradeFields";
 import { useIsPro } from "@/lib/useIsPro";
-
-const KIND_PRESETS = ["Exam", "Assignment", "Quiz", "Project"];
 
 export default function EditGradeScreen({
   params,
@@ -62,6 +60,7 @@ function EditForm({ grade }: { grade: GradeItem }) {
 
   const [classId, setClassId] = useState<string | null>(grade.classId);
   const [title, setTitle] = useState(grade.title);
+  const [kind, setKind] = useState<GradeKind | undefined>(grade.kind);
   const [score, setScore] = useState(String(grade.score));
   const [max, setMax] = useState(String(grade.max));
   const [weight, setWeight] = useState(String(grade.weight));
@@ -103,6 +102,7 @@ function EditForm({ grade }: { grade: GradeItem }) {
       max: maxN,
       weight: weightN,
       date,
+      kind,
     });
     router.push("/grades");
   };
@@ -158,6 +158,11 @@ function EditForm({ grade }: { grade: GradeItem }) {
             </div>
           </Field>
 
+          {/* type */}
+          <Field label="TYPE">
+            <GradeKindPicker value={kind} onChange={setKind} />
+          </Field>
+
           {/* title */}
           <Field label="WHAT WAS GRADED?">
             <input
@@ -167,18 +172,6 @@ function EditForm({ grade }: { grade: GradeItem }) {
               style={{ boxShadow: "0 1px 4px rgba(30,20,80,.05)" }}
               placeholder="e.g. Midterm exam"
             />
-            <div className="mt-2 flex gap-2">
-              {KIND_PRESETS.map((k) => (
-                <button
-                  key={k}
-                  onClick={() => setTitle(k)}
-                  className="rounded-full px-3 py-1.5 text-[12px] font-semibold text-brand"
-                  style={{ background: "var(--brand-soft)" }}
-                >
-                  {k}
-                </button>
-              ))}
-            </div>
           </Field>
 
           {/* score */}

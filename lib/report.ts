@@ -65,6 +65,7 @@ export function buildGradeReport(
       "Class",
       "Credits",
       "Item",
+      "Type",
       "Date",
       "Score",
       "Out of",
@@ -86,6 +87,7 @@ export function buildGradeReport(
           c.name,
           creditsFor(c),
           g.title,
+          g.kind ?? "",
           g.date,
           g.score,
           g.max,
@@ -458,7 +460,11 @@ export function buildGradeReportPdf(
       for (const g of mine) {
         const pct = g.max > 0 ? (g.score / g.max) * 100 : 0;
         pdfRow(doc, [
-          { text: g.title, x: GRADE_COLS.item, maxWidth: 195 },
+          {
+            text: g.kind ? `${g.title}  (${g.kind})` : g.title,
+            x: GRADE_COLS.item,
+            maxWidth: 195,
+          },
           { text: fmtDate(g.date), x: GRADE_COLS.date, color: MUTED },
           { text: `${g.score} / ${g.max}`, x: GRADE_COLS.score, color: MUTED },
           { text: `${pct.toFixed(1)}%`, x: GRADE_COLS.pct, alignRight: true, bold: true },
@@ -496,6 +502,17 @@ export function buildGradeReportPdf(
             color: t.done ? MUTED : INK,
           },
         ]);
+        // The note is half the reason the task exists — printing the title
+        // alone would leave the brief off the page you revise from.
+        if (t.notes?.trim()) {
+          doc.paragraph(t.notes.trim(), {
+            x: TASK_COLS.title + 10,
+            maxWidth: CONTENT_W - 20,
+            size: 8.5,
+            color: MUTED,
+          });
+          doc.space(2);
+        }
       }
       doc.space(2);
     }

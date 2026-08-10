@@ -77,8 +77,21 @@ describe("buildGradeReport", () => {
         grade({ id: "b", title: "Quiz 2", score: 9, max: 10, weight: 20 }),
       ],
     );
-    expect(csv).toContain("Chemistry,1,Quiz 1,2026-08-01,8,10,80.0,20");
-    expect(csv).toContain("Chemistry,1,Quiz 2,2026-08-01,9,10,90.0,20");
+    expect(csv).toContain("Chemistry,1,Quiz 1,,2026-08-01,8,10,80.0,20");
+    expect(csv).toContain("Chemistry,1,Quiz 2,,2026-08-01,9,10,90.0,20");
+  });
+
+  it("carries the item's type, and leaves it blank when unset", () => {
+    const csv = build(
+      [klass()],
+      [
+        grade({ id: "a", title: "Midterm", kind: "exam" }),
+        grade({ id: "b", title: "Homework", date: "2026-08-02" }),
+      ],
+    );
+    expect(csv).toContain("Type");
+    expect(csv).toContain("Chemistry,1,Midterm,exam,2026-08-01");
+    expect(csv).toContain("Chemistry,1,Homework,,2026-08-02");
   });
 
   it("orders items by date", () => {
@@ -212,6 +225,20 @@ describe("buildGradeReportPdf", () => {
     expect(out).toContain("(Final exam  \\(exam\\)) Tj");
     expect(out).toContain("(Open) Tj");
     expect(out).toContain("(Done) Tj");
+  });
+
+  it("prints a grade's type next to its title", () => {
+    const out = pdf([klass()], [grade({ title: "Midterm", kind: "exam" })]);
+    expect(out).toContain("(Midterm  \\(exam\\)) Tj");
+  });
+
+  it("prints an assignment's notes under it", () => {
+    // The brief is half the reason the task exists — a title alone would
+    // leave it off the page you revise from.
+    const out = pdf([klass()], [grade()], {
+      tasks: [task({ notes: "Read chapters 4-6 and write 500 words." })],
+    });
+    expect(out).toContain("Read chapters 4-6 and write 500 words.");
   });
 
   it("prints the private note attached to a class", () => {

@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { TabBar } from "@/components/TabBar";
 import { TasksSkeleton } from "@/components/Skeleton";
-import { CheckIcon } from "@/components/icons";
+import { CheckIcon, ChevronRightIcon, PencilIcon } from "@/components/icons";
 import { PALETTE } from "@/lib/palette";
-import { useStore, dueLabel, type TaskItem } from "@/lib/store";
+import { useStore, dueLabel, longDate, type TaskItem } from "@/lib/store";
 
 export default function TasksScreen() {
   const router = useRouter();
@@ -91,6 +91,15 @@ export default function TasksScreen() {
   );
 }
 
+/**
+ * One assignment, expandable to its full detail.
+ *
+ * Tapping used to jump straight to the edit form, which meant there was
+ * nowhere to simply *read* a task — and no reason to write a note on one,
+ * since a note you can only see inside a form isn't worth keeping. So the row
+ * opens in place: due date and time, type, class, and the note. Editing is one
+ * more tap from there.
+ */
 function TaskRow({
   task,
   className,
@@ -104,82 +113,162 @@ function TaskRow({
   onToggle: () => void;
   onEdit: () => void;
 }) {
+  const [open, setOpen] = useState(false);
   const due = dueLabel(task.due);
+  const dueAt = new Date(task.due);
+  // 23:59 is the "no specific time" sentinel the task forms write.
+  const hasTime = !(dueAt.getHours() === 23 && dueAt.getMinutes() === 59);
+
   return (
     <div
-      className="flex items-start gap-3 rounded-[17px] bg-white px-4 py-[15px]"
+      className="rounded-[17px] bg-white"
       style={{
         boxShadow: "0 1px 5px rgba(30,20,80,.05)",
         opacity: task.done ? 0.7 : 1,
       }}
     >
-      <button
-        onClick={onToggle}
-        aria-label={task.done ? "Mark as open" : "Mark as done"}
-        className="mt-0.5 flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full transition"
-        style={
-          task.done
-            ? { background: "#34C759", color: "#fff" }
-            : { border: "2px solid #DDD9EC" }
-        }
-      >
-        {task.done && <CheckIcon className="h-[15px] w-[15px]" />}
-      </button>
-
-      {/* Row body opens the edit screen; the circle stays its own tap target. */}
-      <button
-        onClick={onEdit}
-        aria-label={`Edit ${task.title}`}
-        className="min-w-0 flex-1 text-left"
-      >
-        <div
-          className="text-[16px] font-semibold"
+      <div className="flex items-start gap-3 px-4 py-[15px]">
+        <button
+          onClick={onToggle}
+          aria-label={task.done ? "Mark as open" : "Mark as done"}
+          className="mt-0.5 flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full transition"
           style={
             task.done
-              ? { color: "var(--color-muted-2)", textDecoration: "line-through" }
-              : { color: "var(--color-ink)" }
+              ? { background: "#34C759", color: "#fff" }
+              : { border: "2px solid #DDD9EC" }
           }
         >
-          {task.kind === "exam" && !task.done && (
-            <span
-              className="mr-1.5 rounded-full px-1.5 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide"
-              style={{ background: "#FFF0D6", color: "#A96A00" }}
-            >
-              Exam
-            </span>
-          )}
-          {task.title}
-        </div>
-        <div className="mt-1.5 flex items-center gap-1.5">
-          <span
-            className="h-2 w-2 rounded-full"
-            style={{ background: task.done ? "#C9C4D6" : dot }}
-          />
-          <span
-            className="text-[13px]"
+          {task.done && <CheckIcon className="h-[15px] w-[15px]" />}
+        </button>
+
+        {/* Row body expands; the circle stays its own tap target. */}
+        <button
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          aria-label={`Details for ${task.title}`}
+          className="min-w-0 flex-1 text-left"
+        >
+          <div
+            className="text-[16px] font-semibold"
             style={
               task.done
-                ? { color: "#B4B0C6", textDecoration: "line-through" }
-                : { color: "#8D89AD" }
+                ? { color: "var(--color-muted-2)", textDecoration: "line-through" }
+                : { color: "var(--color-ink)" }
             }
           >
-            {className}
-          </span>
-        </div>
-      </button>
+            {task.kind === "exam" && !task.done && (
+              <span
+                className="mr-1.5 rounded-full px-1.5 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide"
+                style={{ background: "#FFF0D6", color: "#A96A00" }}
+              >
+                Exam
+              </span>
+            )}
+            {task.title}
+          </div>
+          <div className="mt-1.5 flex items-center gap-1.5">
+            <span
+              className="h-2 w-2 rounded-full"
+              style={{ background: task.done ? "#C9C4D6" : dot }}
+            />
+            <span
+              className="text-[13px]"
+              style={
+                task.done
+                  ? { color: "#B4B0C6", textDecoration: "line-through" }
+                  : { color: "#8D89AD" }
+              }
+            >
+              {className}
+            </span>
+            {task.notes?.trim() && (
+              <span className="text-[13px] text-hint">· 📝</span>
+            )}
+          </div>
+        </button>
 
-      {!task.done && (
-        <span
-          className="whitespace-nowrap rounded-full px-2.5 py-[5px] text-[12px] font-bold"
-          style={
-            due.urgent
-              ? { background: "#FFE8E3", color: "#D33B22" }
-              : { background: "#F0EFF6", color: "#7A759C" }
-          }
+        {!task.done && (
+          <span
+            className="whitespace-nowrap rounded-full px-2.5 py-[5px] text-[12px] font-bold"
+            style={
+              due.urgent
+                ? { background: "#FFE8E3", color: "#D33B22" }
+                : { background: "#F0EFF6", color: "#7A759C" }
+            }
+          >
+            {due.text}
+          </span>
+        )}
+
+        <ChevronRightIcon
+          className="mt-1 h-4 w-4 shrink-0 text-hint transition-transform"
+          style={{ transform: open ? "rotate(90deg)" : "none" }}
+        />
+      </div>
+
+      {open && (
+        <div
+          className="px-4 pb-4 pl-[54px]"
+          style={{ borderTop: "1px solid rgba(30,20,80,.06)" }}
         >
-          {due.text}
-        </span>
+          <div className="pt-2.5">
+            <Detail
+              label="Due"
+              value={
+                longDate(task.due) +
+                (hasTime
+                  ? ` · ${dueAt.toLocaleTimeString("en-US", {
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })}`
+                  : "")
+              }
+            />
+            <Detail label="Type" value={task.kind === "exam" ? "Exam" : "Assignment"} />
+            <Detail label="Class" value={className} />
+            <Detail
+              label="Reminder"
+              value={task.reminder ? "Nudging until done" : "Off"}
+            />
+          </div>
+
+          {task.notes?.trim() ? (
+            <div className="mt-2.5">
+              <div className="text-[11px] font-semibold uppercase tracking-widest text-faint">
+                Notes
+              </div>
+              <p className="mt-1 whitespace-pre-wrap text-[13.5px] leading-snug text-ink">
+                {task.notes}
+              </p>
+            </div>
+          ) : (
+            <p className="mt-2.5 text-[13px] text-hint">
+              No notes yet — add one to remember what this actually asks for.
+            </p>
+          )}
+
+          <button
+            onClick={onEdit}
+            className="mt-3 flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-semibold text-brand transition active:scale-95"
+            style={{ background: "var(--brand-soft)" }}
+          >
+            <PencilIcon className="h-[13px] w-[13px]" />
+            Edit assignment
+          </button>
+        </div>
       )}
+    </div>
+  );
+}
+
+/** One label/value line inside an expanded task. */
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex gap-3 py-[3px]">
+      <span className="w-[64px] shrink-0 text-[12px] font-medium text-muted-2">
+        {label}
+      </span>
+      <span className="flex-1 text-[13px] text-ink">{value}</span>
     </div>
   );
 }
