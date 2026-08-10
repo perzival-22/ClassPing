@@ -10,6 +10,7 @@ import {
   ArrowRightIcon,
   ArrowLeftIcon,
   BellIcon,
+  ChevronRightIcon,
   PencilIcon,
   TrashIcon,
   PlusIcon,
@@ -666,60 +667,108 @@ function ClassCard({ c, nowMin }: { c: ClassItem; nowMin: number }) {
   const t = PALETTE[c.color];
   const isPast = nowMin > 0 && nowMin > c.end;
   const isNow = nowMin > 0 && nowMin >= c.start && nowMin <= c.end;
+  const [open, setOpen] = useState(false);
+
+  const daysStr = c.days
+    .slice()
+    .sort((a, b) => a - b)
+    .map((d) => DAY_SHORT[d])
+    .join(" · ");
 
   return (
     <div
-      className="flex items-stretch gap-0 overflow-hidden rounded-[18px] bg-white transition"
+      className="overflow-hidden rounded-[18px] bg-white transition"
       style={{
         boxShadow: "0 2px 10px rgba(30,20,80,.06)",
         opacity: isPast ? 0.55 : 1,
       }}
     >
-      {/* color bar */}
-      <div className="w-[5px] shrink-0" style={{ background: t.bar }} />
+      <div className="flex items-stretch">
+        {/* color bar */}
+        <div className="w-[5px] shrink-0" style={{ background: t.bar }} />
 
-      <div className="flex min-w-0 flex-1 items-center gap-3 py-4 pl-4 pr-4">
-        {/* colored icon blob */}
-        <div
-          className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-[13px] text-[15px] font-bold"
-          style={{ background: t.bg, color: t.text }}
+        {/* Tapping the row reveals the rest — days, full time, room, teacher,
+            and any private note. */}
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          className="flex min-w-0 flex-1 items-center gap-3 py-4 pl-4 pr-3 text-left"
         >
-          {c.short}
-        </div>
+          {/* colored icon blob */}
+          <div
+            className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-[13px] text-[15px] font-bold"
+            style={{ background: t.bg, color: t.text }}
+          >
+            {c.short}
+          </div>
 
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[15px] font-semibold text-ink">
-            {c.name}
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[15px] font-semibold text-ink">
+              {c.name}
+            </div>
+            <div className="mt-[3px] truncate text-[13px] text-muted">
+              {fmtRange(c.start, c.end)}
+              {c.room ? ` · ${c.room}` : ""}
+            </div>
           </div>
-          <div className="mt-[3px] truncate text-[13px] text-muted">
-            {fmtRange(c.start, c.end)}
-            {c.room ? ` · ${c.room}` : ""}
-          </div>
+
+          {isNow && (
+            <span className="shrink-0 rounded-full bg-[#34C759] px-2.5 py-[4px] text-[11px] font-bold text-white">
+              Now
+            </span>
+          )}
+          {isPast && (
+            <span className="shrink-0 text-[12px] font-medium text-hint">
+              Done
+            </span>
+          )}
+          {!isNow && !isPast && nowMin > 0 && (
+            <div className="flex shrink-0 items-center gap-1 text-[12px] text-muted">
+              <BellIcon className="h-[14px] w-[14px]" />
+              <span>{fmtHM(c.start)}</span>
+            </div>
+          )}
+
+          <ChevronRightIcon
+            className="h-4 w-4 shrink-0 text-hint transition-transform"
+            style={{ transform: open ? "rotate(90deg)" : "none" }}
+          />
+        </button>
+      </div>
+
+      {/* details drawer */}
+      {open && (
+        <div
+          className="px-4 pb-3.5 pl-[52px] pt-1"
+          style={{ borderTop: "1px solid rgba(30,20,80,.06)" }}
+        >
+          <ClassDetail label="Days" value={daysStr} />
+          <ClassDetail label="Time" value={fmtRange(c.start, c.end)} />
+          {c.room && <ClassDetail label="Room" value={c.room} />}
+          {c.instructor && <ClassDetail label="Teacher" value={c.instructor} />}
           {c.notes && (
-            <div className="mt-[3px] flex items-start gap-1 text-[12px] leading-snug text-muted-2">
-              <span className="shrink-0">📝</span>
-              <span className="line-clamp-2">{c.notes}</span>
+            <div className="mt-2">
+              <div className="text-[12px] font-medium text-muted-2">Notes</div>
+              <p className="mt-0.5 whitespace-pre-wrap text-[13px] leading-snug text-ink">
+                {c.notes}
+              </p>
             </div>
           )}
         </div>
+      )}
+    </div>
+  );
+}
 
-        {isNow && (
-          <span className="shrink-0 rounded-full bg-[#34C759] px-2.5 py-[4px] text-[11px] font-bold text-white">
-            Now
-          </span>
-        )}
-        {isPast && (
-          <span className="shrink-0 text-[12px] font-medium text-hint">
-            Done
-          </span>
-        )}
-        {!isNow && !isPast && nowMin > 0 && (
-          <div className="flex shrink-0 items-center gap-1 text-[12px] text-muted">
-            <BellIcon className="h-[14px] w-[14px]" />
-            <span>{fmtHM(c.start)}</span>
-          </div>
-        )}
-      </div>
+/** One label/value line inside an expanded class card. */
+function ClassDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex gap-3 py-[3px]">
+      <span className="w-[60px] shrink-0 text-[12px] font-medium text-muted-2">
+        {label}
+      </span>
+      <span className="flex-1 text-[13px] text-ink">{value}</span>
     </div>
   );
 }
