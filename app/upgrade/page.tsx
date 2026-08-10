@@ -19,6 +19,7 @@ const PERKS = [
   "Email before class, so you actually leave on time",
   "An end-of-day email of what's still open",
   "A nudge after class to log what was assigned",
+  "Import your timetable from Canvas, Moodle & more",
   "Unlimited classes + cloud sync across devices",
   "Grades & GPA, calendar export, premium themes",
 ];

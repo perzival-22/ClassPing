@@ -118,6 +118,15 @@ interface Store {
   /** false until persisted state has been loaded from localStorage */
   hydrated: boolean;
   addClass: (c: Omit<ClassItem, "id">) => void;
+  /**
+   * Add many classes and tasks at once (calendar import). Each gets a fresh
+   * id; imported tasks with no class are attached to the first imported class
+   * so they still show a colour and appear in the list.
+   */
+  importItems: (
+    classes: Array<Omit<ClassItem, "id">>,
+    tasks: Array<Omit<TaskItem, "id">>,
+  ) => void;
   /** Label every current class with `term` and archive them in one action. */
   archiveTerm: (term: string) => void;
   /** Bring a single archived class back into the current term. */
@@ -336,6 +345,30 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  const importItems = useCallback(
+    (
+      newClasses: Array<Omit<ClassItem, "id">>,
+      newTasks: Array<Omit<TaskItem, "id">>,
+    ) => {
+      const withIds = newClasses.map((c) => ({ ...c, id: uid() }));
+      // An imported assignment usually names no class (LMS feeds keep them in
+      // separate calendars). Fall back to the first imported class so the task
+      // still has a colour and a home rather than a dangling classId.
+      const fallbackClassId = withIds[0]?.id ?? "";
+      setClasses((prev) => [...prev, ...withIds]);
+      setTasks((prev) => [
+        ...prev,
+        ...newTasks.map((t) => ({
+          ...t,
+          id: uid(),
+          classId: t.classId || fallbackClassId,
+        })),
+      ]);
+      touch();
+    },
+    [],
+  );
+
   const archiveTerm = useCallback((term: string) => {
     const label = term.trim();
     setClasses((prev) =>
@@ -542,12 +575,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<Store>(
     () => ({
       classes, activeClasses, tasks, grades, profile, hydrated,
-      addClass, updateClass, deleteClass, archiveTerm, unarchiveClass,
+      addClass, importItems, updateClass, deleteClass, archiveTerm, unarchiveClass,
       addTask, updateTask, deleteTask, toggleTask,
       addGrade, updateGrade, deleteGrade,
       classById, taskById, gradeById, setProfile,
     }),
-    [classes, activeClasses, tasks, grades, profile, hydrated, addClass, updateClass, deleteClass, archiveTerm, unarchiveClass, addTask, updateTask, deleteTask, toggleTask, addGrade, updateGrade, deleteGrade, classById, taskById, gradeById, setProfile],
+    [classes, activeClasses, tasks, grades, profile, hydrated, addClass, importItems, updateClass, deleteClass, archiveTerm, unarchiveClass, addTask, updateTask, deleteTask, toggleTask, addGrade, updateGrade, deleteGrade, classById, taskById, gradeById, setProfile],
   );
 
   return (

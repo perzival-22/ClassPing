@@ -6,6 +6,7 @@ import { useClerk } from "@clerk/nextjs";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { TabBar } from "@/components/TabBar";
 import { Toggle } from "@/components/Toggle";
+import { ImportCalendar } from "@/components/ImportCalendar";
 import { SettingsSkeleton } from "@/components/Skeleton";
 import {
   BellIcon,
@@ -610,6 +611,31 @@ function SettingsForm() {
                       : `Exports ${classes.length} ${classes.length === 1 ? "class" : "classes"} and ${openTasks.length} open ${openTasks.length === 1 ? "task" : "tasks"}. Re-add after you change your schedule.`}
             </p>
           </div>
+
+          {/* ── Import from an LMS ── */}
+          {isPro ? (
+            <ImportCalendar />
+          ) : (
+            <button
+              onClick={() => router.push("/upgrade")}
+              className="mt-4 w-full rounded-[24px] bg-white px-5 py-5 text-left"
+              style={{ boxShadow: "0 2px 12px rgba(30,20,80,.07)" }}
+            >
+              <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-widest text-faint">
+                Import from your school
+                <span
+                  className="rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white"
+                  style={{ background: "var(--color-brand)" }}
+                >
+                  PRO
+                </span>
+              </div>
+              <p className="text-[13px] leading-snug text-muted">
+                Pull your whole timetable and every deadline straight from
+                Canvas, Blackboard, Moodle or Google Classroom — no typing.
+              </p>
+            </button>
+          )}
 
           {/* ── Grading card ──
               The A/A-/B+ bands are a US convention, not a universal one. */}
