@@ -347,6 +347,28 @@ export function TimerIcon(props: P) {
   );
 }
 
+/** Classes, and the notes taken in them. An open book — the one glyph that
+ *  reads as "somewhere you write" without being a pencil, which the edit
+ *  controls already own. */
+export function BookIcon(props: P) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" {...props}>
+      <path
+        d="M12 6.6C10.6 5.3 8.6 4.7 6 4.7c-.8 0-1.5.05-2.1.15v13c.6-.1 1.3-.15 2.1-.15 2.6 0 4.6.6 6 1.9 1.4-1.3 3.4-1.9 6-1.9.8 0 1.5.05 2.1.15v-13c-.6-.1-1.3-.15-2.1-.15-2.6 0-4.6.6-6 1.9z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12 6.6v13"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 /** Grades. A mortarboard rather than a chart: the app calls the screen
  *  "Grades & GPA" and already labels it 🎓 on Home. */
 export function GradeIcon(props: P) {

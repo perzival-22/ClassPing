@@ -6,6 +6,7 @@ import { tierFor } from "@/lib/pet";
 import { useStore } from "@/lib/store";
 import { levelFromXp } from "@/lib/xp";
 import {
+  BookIcon,
   CalendarIcon,
   GradeIcon,
   HomeIcon,
@@ -28,6 +29,7 @@ import {
 
 const NAV = [
   { href: "/home", label: "Today", icon: HomeIcon },
+  { href: "/classes", label: "Classes", icon: BookIcon },
   { href: "/week", label: "Week", icon: CalendarIcon },
   { href: "/tasks", label: "Tasks", icon: TasksIcon },
   { href: "/grades", label: "Grades", icon: GradeIcon },

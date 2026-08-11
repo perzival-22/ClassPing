@@ -458,6 +458,174 @@ body {
   }
 }
 
+/* ── Lecture notes ─────────────────────────────────────────
+   The editor's contentEditable. Tailwind's reset flattens headings and lists,
+   which is right for the app and wrong for a document — a note is the one
+   place in ClassPing where h1/h2/h3 have to *look* like a hierarchy, because
+   that hierarchy is the reason the student typed them. Everything here is
+   scoped to .note-body so nothing leaks back into the app's own chrome.
+
+   Sizes are a little larger than the app's: this is prose read at a desk, not
+   a list scanned on a phone. */
+.note-body {
+  font-size: 15.5px;
+  line-height: 1.65;
+  color: var(--color-ink);
+  /* A serif would be the wrong signal here — the app is one typeface, and a
+     note that looks like a different product reads as a different product. */
+  font-family: inherit;
+}
+
+.note-body > *:first-child {
+  margin-top: 0;
+}
+
+.note-body h1,
+.note-body h2,
+.note-body h3 {
+  font-family: var(--font-fredoka), inherit;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-ink);
+}
+
+.note-body h1 {
+  font-size: 26px;
+  margin: 1.1em 0 0.4em;
+}
+.note-body h2 {
+  font-size: 21px;
+  margin: 1em 0 0.35em;
+}
+.note-body h3 {
+  font-size: 17.5px;
+  margin: 0.9em 0 0.3em;
+}
+
+.note-body p {
+  margin: 0 0 0.55em;
+}
+
+.note-body ul,
+.note-body ol {
+  margin: 0 0 0.6em;
+  padding-left: 1.4em;
+}
+.note-body ul {
+  list-style: disc;
+}
+.note-body ol {
+  list-style: decimal;
+}
+.note-body li {
+  margin: 0.15em 0;
+}
+
+/* Checklists. The box is drawn in the item's own left padding rather than
+   inserted as an element: a real <input> inside a contentEditable is a node
+   the caret can land in, get selected with, and delete by accident. The hit
+   test for a click lives in components/NoteEditor.tsx and matches this
+   geometry — change one and change the other. */
+.note-body ul[data-checklist] {
+  list-style: none;
+  padding-left: 0;
+}
+.note-body ul[data-checklist] > li {
+  position: relative;
+  padding-left: 28px;
+}
+.note-body ul[data-checklist] > li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0.42em;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  border: 1.8px solid var(--line-strong);
+  background: var(--bg-card);
+  cursor: pointer;
+}
+.note-body ul[data-checklist] > li[data-checked="true"]::before {
+  background: var(--color-brand);
+  border-color: var(--color-brand);
+}
+.note-body ul[data-checklist] > li[data-checked="true"]::after {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 0.72em;
+  width: 5px;
+  height: 9px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+/* Ticked work is still work — greyed, not struck through into illegibility. */
+.note-body ul[data-checklist] > li[data-checked="true"] {
+  color: var(--color-muted-2);
+}
+
+.note-body blockquote {
+  margin: 0.5em 0 0.6em;
+  padding: 0.1em 0 0.1em 0.9em;
+  border-left: 3px solid var(--color-brand);
+  color: var(--color-muted);
+}
+
+.note-body pre {
+  margin: 0.6em 0;
+  padding: 0.75em 0.9em;
+  border-radius: 12px;
+  background: var(--surface-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+
+.note-body code {
+  padding: 0.1em 0.35em;
+  border-radius: 5px;
+  background: var(--surface-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88em;
+}
+.note-body pre code {
+  padding: 0;
+  background: none;
+}
+
+.note-body a {
+  color: var(--color-brand);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Highlighter. The four pens are light enough for black text, so the ink is
+   pinned dark in both themes — a yellow highlight with white text on it is
+   not a highlight. */
+.note-body mark,
+.note-body [style*="background-color"] {
+  color: #241d00;
+  border-radius: 3px;
+  padding: 0 1px;
+}
+.note-body mark {
+  background: #fff3a3;
+}
+
+/* The empty note. `:empty` won't do — the editor always holds one paragraph,
+   so the placeholder hangs off that instead. */
+.note-body > p:only-child:empty::before,
+.note-body > p:only-child > br:only-child::before {
+  content: "Start typing — # for a heading, - for a bullet, [] for a checkbox";
+  color: var(--color-hint);
+  pointer-events: none;
+}
+
 /* ── Tier aura ─────────────────────────────────────────────
    The one-shot sweep a pet tier gets when it is *won*.
 

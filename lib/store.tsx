@@ -42,6 +42,12 @@ import {
   startFight,
   type BossState,
 } from "./boss";
+import {
+  fitsBudget,
+  mergeNotes,
+  normalizeNotes,
+  type NoteItem,
+} from "./notes";
 import { useIsPro } from "./useIsPro";
 
 /** Days of the week the app plots (Mon–Fri). 0 = Mon … 4 = Fri */
@@ -179,6 +185,8 @@ interface Store {
   activeClasses: ClassItem[];
   tasks: TaskItem[];
   grades: GradeItem[];
+  /** Lecture notes, newest day first. See lib/notes.ts for the dialect. */
+  notes: NoteItem[];
   profile: Profile;
   /** Assignment streak and every trophy earned this semester. */
   trophies: TrophyState;
@@ -248,6 +256,24 @@ interface Store {
   addGrade: (g: Omit<GradeItem, "id">) => void;
   updateGrade: (id: string, updates: Partial<Omit<GradeItem, "id">>) => void;
   deleteGrade: (id: string) => void;
+  /** This class's notes, newest first. */
+  notesForClass: (classId: string) => NoteItem[];
+  /** Start a note. Returns its id so the caller can open it immediately. */
+  addNote: (classId: string, date: string) => string;
+  /**
+   * Save an edit.
+   *
+   * Returns false when the write would push notes past their share of the
+   * synced document (lib/notes.ts) — the caller must tell the user rather than
+   * drop the keystroke silently, because the alternative is a 413 from
+   * `PUT /api/sync` that stops the account syncing with no visible cause.
+   */
+  updateNote: (
+    id: string,
+    updates: Partial<Pick<NoteItem, "title" | "body" | "date">>,
+  ) => boolean;
+  deleteNote: (id: string) => void;
+  noteById: (id: string) => NoteItem | undefined;
   /**
    * Empty the whole document — every class, task, grade and trophy, plus the
    * semester it was all attached to — while leaving the account and the user's
@@ -314,6 +340,8 @@ interface PersistedState {
   classes: ClassItem[];
   tasks: TaskItem[];
   grades?: GradeItem[];
+  /** Lecture notes. Absent on documents written before the editor existed. */
+  notes?: NoteItem[];
   profile?: Profile;
   /** Streak + trophy record. Absent on documents written before gamification. */
   trophies?: TrophyState;
@@ -337,6 +365,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [classes, setClasses] = useState<ClassItem[]>([]);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [grades, setGrades] = useState<GradeItem[]>([]);
+  const [notes, setNotes] = useState<NoteItem[]>([]);
   const [profile, setProfileState] = useState<Profile>(DEFAULT_PROFILE);
   const [trophies, setTrophies] = useState<TrophyState>(emptyTrophyState);
   const [recentTrophy, setRecentTrophy] = useState<Trophy | null>(null);
@@ -363,6 +392,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         if (parsed.classes) setClasses(parsed.classes);
         if (parsed.tasks) setTasks(parsed.tasks);
         if (parsed.grades) setGrades(parsed.grades);
+        if (parsed.notes) setNotes(normalizeNotes(parsed.notes));
         if (parsed.trophies) setTrophies(normalizeTrophyState(parsed.trophies));
         if (parsed.xp) setXp(normalizeXpState(parsed.xp));
         if (parsed.pet) setPetState(normalizePetState(parsed.pet));
@@ -393,6 +423,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           classes,
           tasks,
           grades,
+          notes,
           profile,
           trophies,
           xp,
@@ -404,7 +435,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     } catch {
       /* storage full / unavailable */
     }
-  }, [classes, tasks, grades, profile, trophies, xp, pet, boss, updatedAt, hydrated]);
+  }, [classes, tasks, grades, notes, profile, trophies, xp, pet, boss, updatedAt, hydrated]);
 
   /* ── cloud sync (Pro) ───────────────────────────────────
      Whole-document, last-write-wins: pull once after hydration, apply the
@@ -429,6 +460,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           setClasses(server.data.classes ?? []);
           setTasks(server.data.tasks ?? []);
           setGrades(server.data.grades ?? []);
+          // Notes merge instead of being replaced. Everything else in this
+          // document is small and edited in one place at a time, so taking the
+          // newer side wholesale is fine; a lecture is neither. The laptop is
+          // where notes get typed and the phone is what gets carried, so
+          // "newest document wins" would let a phone that has never seen
+          // today's lecture delete it. See mergeNotes in lib/notes.ts.
+          const incoming = normalizeNotes(server.data.notes);
+          setNotes((local) => mergeNotes(local, incoming));
           setTrophies(normalizeTrophyState(server.data.trophies));
           setXp(normalizeXpState(server.data.xp));
           setPetState(normalizePetState(server.data.pet));
@@ -464,6 +503,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             classes,
             tasks,
             grades,
+            notes,
             profile,
             trophies,
             xp,
@@ -478,7 +518,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       });
     }, 1500);
     return () => clearTimeout(t);
-  }, [classes, tasks, grades, profile, trophies, xp, pet, boss, updatedAt, hydrated, isPro]);
+  }, [classes, tasks, grades, notes, profile, trophies, xp, pet, boss, updatedAt, hydrated, isPro]);
 
   const touch = () => setUpdatedAt(Date.now());
 
@@ -542,6 +582,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setClasses((prev) => prev.filter((c) => c.id !== id));
     setTasks((prev) => prev.filter((t) => t.classId !== id));
     setGrades((prev) => prev.filter((g) => g.classId !== id));
+    // Notes go with the class. They have nowhere else to live — a note is
+    // filed under a class and a day, and an orphan would be unreachable from
+    // every screen while still spending the document's size budget.
+    setNotes((prev) => prev.filter((n) => n.classId !== id));
     touch();
   }, []);
 
@@ -564,6 +608,74 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setTasks((prev) => prev.filter((t) => t.id !== id));
     touch();
   }, []);
+
+  /* ── notes ───────────────────────────────────────────────
+     Each note carries its own `updatedAt` so a sync pull can merge them one at
+     a time; the document-level `touch()` still runs, because the push is what
+     actually sends them. */
+
+  const notesForClass = useCallback(
+    (classId: string) =>
+      notes
+        .filter((n) => n.classId === classId)
+        .sort(
+          (a, b) => b.date.localeCompare(a.date) || b.updatedAt - a.updatedAt,
+        ),
+    [notes],
+  );
+
+  const addNote = useCallback((classId: string, date: string) => {
+    const id = uid();
+    setNotes((prev) => [
+      { id, classId, date, title: "", body: "", updatedAt: Date.now() },
+      ...prev,
+    ]);
+    touch();
+    return id;
+  }, []);
+
+  const updateNote = useCallback(
+    (
+      id: string,
+      updates: Partial<Pick<NoteItem, "title" | "body" | "date">>,
+    ) => {
+      const current = notes.find((n) => n.id === id);
+      if (!current) return false;
+      if (
+        updates.body !== undefined &&
+        !fitsBudget(notes, id, updates.body.length)
+      ) {
+        return false;
+      }
+      // A save that changes nothing writes nothing. The editor flushes on
+      // blur, on tab-hide and on unmount as well as on a debounce, so the same
+      // body arrives here repeatedly; without this, each one would hand back a
+      // fresh array and re-arm every effect downstream of `notes`.
+      const unchanged = (
+        Object.keys(updates) as Array<keyof typeof updates>
+      ).every((k) => updates[k] === current[k]);
+      if (unchanged) return true;
+
+      setNotes((prev) =>
+        prev.map((n) =>
+          n.id === id ? { ...n, ...updates, updatedAt: Date.now() } : n,
+        ),
+      );
+      touch();
+      return true;
+    },
+    [notes],
+  );
+
+  const deleteNote = useCallback((id: string) => {
+    setNotes((prev) => prev.filter((n) => n.id !== id));
+    touch();
+  }, []);
+
+  const noteById = useCallback(
+    (id: string) => notes.find((n) => n.id === id),
+    [notes],
+  );
 
   /**
    * Tick an assignment off — and move the streak with it.
@@ -674,6 +786,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setClasses([]);
     setTasks([]);
     setGrades([]);
+    setNotes([]);
     setTrophies(emptyTrophyState());
     setRecentTrophy(null);
     // XP goes with the trophies, for the same reason: both are a record of
@@ -981,16 +1094,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<Store>(
     () => ({
-      classes, activeClasses, tasks, grades, profile, hydrated,
+      classes, activeClasses, tasks, grades, notes, profile, hydrated,
       trophies, recentTrophy, clearRecentTrophy,
       xp, pendingLevel, ackLevelUp, addXp, pet, setPet,
       boss, startBoss, abandonBoss, ackBossResult,
       addClass, importItems, updateClass, deleteClass, archiveTerm, unarchiveClass,
       addTask, updateTask, deleteTask, toggleTask,
       addGrade, updateGrade, deleteGrade,
+      notesForClass, addNote, updateNote, deleteNote, noteById,
       clearData, classById, taskById, gradeById, setProfile,
     }),
-    [classes, activeClasses, tasks, grades, profile, hydrated, trophies, recentTrophy, clearRecentTrophy, xp, pendingLevel, ackLevelUp, addXp, pet, setPet, boss, startBoss, abandonBoss, ackBossResult, addClass, importItems, updateClass, deleteClass, archiveTerm, unarchiveClass, addTask, updateTask, deleteTask, toggleTask, addGrade, updateGrade, deleteGrade, clearData, classById, taskById, gradeById, setProfile],
+    [classes, activeClasses, tasks, grades, notes, profile, hydrated, trophies, recentTrophy, clearRecentTrophy, xp, pendingLevel, ackLevelUp, addXp, pet, setPet, boss, startBoss, abandonBoss, ackBossResult, addClass, importItems, updateClass, deleteClass, archiveTerm, unarchiveClass, addTask, updateTask, deleteTask, toggleTask, addGrade, updateGrade, deleteGrade, notesForClass, addNote, updateNote, deleteNote, noteById, clearData, classById, taskById, gradeById, setProfile],
   );
 
   return (

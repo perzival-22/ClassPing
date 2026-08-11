@@ -60,7 +60,13 @@ const PRECACHE_ART = [
  * rejects a redirected response — so this quietly does nothing until there's a
  * session, which is exactly right.
  */
-const PRECACHE_PAGES = ["/home", "/week", "/tasks", "/settings"];
+const PRECACHE_PAGES = [
+  "/home",
+  "/classes",
+  "/week",
+  "/tasks",
+  "/settings",
+];
 
 /** Fetch and store one URL, tolerating failure. Returns nothing either way. */
 async function warm(cacheName, url) {

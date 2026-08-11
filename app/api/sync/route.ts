@@ -77,7 +77,12 @@ const MAX_ITEMS = 2000;
 const MAX_AVATAR_CHARS = 240_000;
 
 function validDoc(data: Record<string, unknown>): boolean {
-  for (const key of ["classes", "tasks", "grades"]) {
+  // `notes` is item-capped alongside the rest. Its real constraint is length
+  // rather than count — one note can be 20KB where a task is 200 bytes — and
+  // that is enforced by MAX_DOC_CHARS above and by the client-side budget in
+  // lib/notes.ts, which refuses the keystroke instead of discovering the
+  // ceiling as a 413 that silently stops the account syncing.
+  for (const key of ["classes", "tasks", "grades", "notes"]) {
     const v = data[key];
     if (v !== undefined && (!Array.isArray(v) || v.length > MAX_ITEMS)) {
       return false;
