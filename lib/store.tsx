@@ -186,6 +186,12 @@ interface Store {
   addGrade: (g: Omit<GradeItem, "id">) => void;
   updateGrade: (id: string, updates: Partial<Omit<GradeItem, "id">>) => void;
   deleteGrade: (id: string) => void;
+  /**
+   * Empty the whole document — every class, task, grade and trophy, plus the
+   * semester it was all attached to — while leaving the account and the user's
+   * preferences alone. Irreversible; the caller is responsible for confirming.
+   */
+  clearData: () => Promise<void>;
   classById: (id: string) => ClassItem | undefined;
   taskById: (id: string) => TaskItem | undefined;
   gradeById: (id: string) => GradeItem | undefined;
@@ -507,6 +513,73 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const clearRecentTrophy = useCallback(() => setRecentTrophy(null), []);
 
+  /**
+   * Start over without losing the account.
+   *
+   * Everything the user *made* goes; everything about who they are stays —
+   * username, avatar, theme, accent and grading scale all survive, because
+   * "clear my data" means an empty planner, not a factory reset of the app's
+   * appearance. The semester dates go with it: they describe the term being
+   * cleared, and leaving them behind would bound an empty timetable to a
+   * window that no longer means anything.
+   *
+   * The cloud copy is pushed here and now rather than left to the debounced
+   * sync effect. That effect waits 1.5s for further edits, and a user who
+   * clears their data and immediately closes the tab would leave the old
+   * document sitting on the server to be pulled straight back down on their
+   * next visit — everything restored, which is the one outcome this action
+   * must never produce. The debounced push still fires afterwards; it carries
+   * the same `updatedAt`, the server treats it as idempotent, and it covers
+   * the case where the immediate attempt failed.
+   */
+  const clearData = useCallback(async () => {
+    const clearedProfile: Profile = {
+      ...profile,
+      termStart: null,
+      termEnd: null,
+      termName: undefined,
+      finalsDate: null,
+    };
+    const now = Date.now();
+
+    setClasses([]);
+    setTasks([]);
+    setGrades([]);
+    setTrophies(emptyTrophyState());
+    setRecentTrophy(null);
+    setProfileState(clearedProfile);
+    setUpdatedAt(now);
+
+    // The reminder-dedupe map is keyed by class and task id, so every entry in
+    // it now points at something that no longer exists.
+    try {
+      localStorage.removeItem(NOTIFIED_KEY);
+    } catch {
+      /* private mode — the map prunes itself on the next tick anyway */
+    }
+
+    if (!isPro) return;
+    try {
+      await fetch("/api/sync", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          data: {
+            classes: [],
+            tasks: [],
+            grades: [],
+            trophies: emptyTrophyState(),
+            profile: clearedProfile,
+            tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          },
+          updatedAt: now,
+        }),
+      });
+    } catch {
+      /* offline — the debounced push retries, and localStorage is already empty */
+    }
+  }, [isPro, profile]);
+
   const addGrade = useCallback((g: Omit<GradeItem, "id">) => {
     setGrades((prev) => [...prev, { ...g, id: uid() }]);
     touch();
@@ -699,9 +772,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       addClass, importItems, updateClass, deleteClass, archiveTerm, unarchiveClass,
       addTask, updateTask, deleteTask, toggleTask,
       addGrade, updateGrade, deleteGrade,
-      classById, taskById, gradeById, setProfile,
+      clearData, classById, taskById, gradeById, setProfile,
     }),
-    [classes, activeClasses, tasks, grades, profile, hydrated, trophies, recentTrophy, clearRecentTrophy, addClass, importItems, updateClass, deleteClass, archiveTerm, unarchiveClass, addTask, updateTask, deleteTask, toggleTask, addGrade, updateGrade, deleteGrade, classById, taskById, gradeById, setProfile],
+    [classes, activeClasses, tasks, grades, profile, hydrated, trophies, recentTrophy, clearRecentTrophy, addClass, importItems, updateClass, deleteClass, archiveTerm, unarchiveClass, addTask, updateTask, deleteTask, toggleTask, addGrade, updateGrade, deleteGrade, clearData, classById, taskById, gradeById, setProfile],
   );
 
   return (

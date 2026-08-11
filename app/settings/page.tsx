@@ -66,9 +66,14 @@ function SettingsForm() {
     grades,
     archiveTerm,
     tasks,
+    trophies,
+    clearData,
   } = useStore();
   const { isPro } = useIsPro();
   const [termName, setTermName] = useState("");
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [cleared, setCleared] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [archived, setArchived] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -227,6 +232,31 @@ function SettingsForm() {
 
   const openTasks = tasks.filter((t) => !t.done);
   const hasSchedule = classes.length > 0 || openTasks.length > 0;
+
+  /**
+   * What "clear my data" would actually destroy, spelled out: "6 classes, 23
+   * assignments and 14 grades". A confirmation that names the damage is worth
+   * far more than one that warns in the abstract, and it's the only way the
+   * user can tell at a glance whether they're about to lose a whole semester
+   * or the two things they added this morning. Archived classes are counted
+   * too — they're invisible on the timetable but they're still data.
+   */
+  const clearable = [
+    { n: allClasses.length, one: "class", many: "classes" },
+    { n: tasks.length, one: "assignment", many: "assignments" },
+    { n: grades.length, one: "grade", many: "grades" },
+    { n: trophies.trophies.length, one: "trophy", many: "trophies" },
+  ].filter((p) => p.n > 0);
+
+  const hasAnyData = clearable.length > 0;
+  const clearSummary =
+    clearable.length === 0
+      ? "everything"
+      : clearable
+          .map((p) => `${p.n} ${p.n === 1 ? p.one : p.many}`)
+          .reduce((acc, part, i, all) =>
+            i === all.length - 1 ? `${acc} and ${part}` : `${acc}, ${part}`,
+          );
 
   async function handlePushToggle(next: boolean) {
     if (!isPro) {
@@ -787,7 +817,13 @@ function SettingsForm() {
               Semester
             </div>
 
-            <CurrentTerm />
+            {/* Keyed on the stored name so an external reset — clearing your
+                data, or archiving the term — remounts this and reseeds its
+                draft. Without it the input keeps displaying the old term after
+                the profile has dropped it, and the next blur writes the stale
+                value back. Typing doesn't churn the key: the draft is local
+                until blur, which is the only thing that changes termName. */}
+            <CurrentTerm key={profile.termName ?? ""} />
 
             {classes.length > 0 && (
               <>
@@ -897,6 +933,79 @@ function SettingsForm() {
                 Download my data
               </span>
             </button>
+
+            {/* Clear data — a fresh planner on the same account. Two-tap, and
+                the confirmation names exactly what's about to go rather than
+                warning in the abstract. */}
+            <div style={{ borderBottom: "1px solid var(--bg-input)" }}>
+              {confirmClear ? (
+                <div className="px-5 py-4">
+                  <p className="text-[13px] leading-snug text-muted">
+                    This permanently deletes {clearSummary} — on this device and
+                    in the cloud. Your account, sign-in and preferences stay.
+                    It can&apos;t be undone.
+                  </p>
+                  <button
+                    onClick={handleExportData}
+                    className="mt-2 text-[13px] font-semibold text-brand"
+                  >
+                    Download a copy first
+                  </button>
+                  <div className="mt-3 flex gap-2.5">
+                    <button
+                      onClick={() => setConfirmClear(false)}
+                      disabled={clearing}
+                      className="flex-1 rounded-[15px] py-[13px] text-center text-[15px] font-semibold text-muted disabled:opacity-50"
+                      style={{ background: "var(--bg-input)" }}
+                    >
+                      Keep it
+                    </button>
+                    <button
+                      onClick={async () => {
+                        setClearing(true);
+                        // Awaited so the button stays busy until the cloud copy
+                        // is gone too, not just the one on this device.
+                        await clearData();
+                        setClearing(false);
+                        setConfirmClear(false);
+                        setCleared(true);
+                        setTimeout(() => setCleared(false), 5000);
+                      }}
+                      disabled={clearing}
+                      className="flex-1 rounded-[15px] py-[13px] text-center text-[15px] font-semibold text-white transition active:scale-[0.98] disabled:opacity-60"
+                      style={{ background: "var(--danger)" }}
+                    >
+                      {clearing ? "Clearing…" : "Clear everything"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmClear(true)}
+                  disabled={!hasAnyData}
+                  className="flex w-full items-center gap-3 px-5 py-4 transition active:bg-canvas disabled:opacity-50"
+                >
+                  <div
+                    className="flex h-[36px] w-[36px] items-center justify-center rounded-[10px] text-[17px]"
+                    style={{ background: "var(--warn-soft)" }}
+                  >
+                    🧹
+                  </div>
+                  <span className="flex-1 text-left">
+                    <span className="block text-[15px] font-medium text-ink">
+                      Clear all data
+                    </span>
+                    <span className="mt-[1px] block text-[12px] text-muted">
+                      {cleared
+                        ? "Cleared — your planner is empty."
+                        : hasAnyData
+                          ? `Erase ${clearSummary}. Keeps your account.`
+                          : "Nothing to clear yet."}
+                    </span>
+                  </span>
+                </button>
+              )}
+            </div>
 
             <button
               onClick={() =>
