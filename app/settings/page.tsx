@@ -40,7 +40,8 @@ import {
 } from "@/lib/avatar";
 import { useIsPro } from "@/lib/useIsPro";
 import { AvatarFrame } from "@/components/Level";
-import { levelFromXp, unlockedCosmetics } from "@/lib/xp";
+import { levelFromXp } from "@/lib/xp";
+import { tierFor } from "@/lib/pet";
 
 export default function SettingsScreen() {
   const { hydrated } = useStore();
@@ -432,13 +433,7 @@ function SettingsForm() {
                     rather than on the stored id alone — a document edited to
                     name a ring the user hasn't earned simply doesn't get one. */}
                 <AvatarFrame
-                  cosmeticId={
-                    unlockedCosmetics(levelFromXp(xp.xp), "frame").some(
-                      (c) => c.id === profile.frame,
-                    )
-                      ? profile.frame
-                      : undefined
-                  }
+                  tier={tierFor(levelFromXp(xp.xp))}
                   size={90}
                 >
                   {avatarUrl ? (

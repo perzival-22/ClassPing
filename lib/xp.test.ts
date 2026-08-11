@@ -1,18 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
-  COSMETICS,
   MAX_LEVEL,
   XP_AWARDS,
   ackLevel,
   awardXp,
-  cosmeticById,
   emptyXpState,
   levelFromXp,
   levelProgress,
   levelTitle,
-  nextCosmetic,
   normalizeXpState,
-  unlockedCosmetics,
   xpForLevel,
 } from "./xp";
 
@@ -54,7 +50,7 @@ describe("the level curve", () => {
   /**
    * Junk floors to level 1 rather than rising to the ceiling. Corrupt input
    * should never *grant* anything — a document that arrives with xp: Infinity
-   * would otherwise unlock every cosmetic at once.
+   * would otherwise jump straight to the top tier.
    */
   it("treats junk input as level 1 rather than NaN or a windfall", () => {
     expect(levelFromXp(NaN)).toBe(1);
@@ -105,8 +101,8 @@ describe("awardXp", () => {
   });
 
   /**
-   * The counter is monotonic by design: an unlocked cosmetic can never be
-   * taken back, so a negative award is dropped rather than applied.
+   * The counter is monotonic by design: a tier can never be taken back, so a
+   * negative award is dropped rather than applied.
    */
   it("refuses to subtract", () => {
     const state = { xp: 500, seenLevel: 3 };
@@ -179,55 +175,5 @@ describe("normalizeXpState", () => {
     expect(normalizeXpState({ xp: "500", seenLevel: "3" })).toEqual(
       emptyXpState(),
     );
-  });
-});
-
-describe("cosmetics", () => {
-  /**
-   * The constraint this whole feature is built around: XP rewards and the Pro
-   * accent shelf must never be the same objects. Frames and hats only.
-   */
-  it("only ever pays out in frames and hats, never app accents", () => {
-    for (const c of COSMETICS) {
-      expect(["frame", "hat"]).toContain(c.kind);
-    }
-  });
-
-  it("has unique ids and unlocks in ascending order", () => {
-    expect(new Set(COSMETICS.map((c) => c.id)).size).toBe(COSMETICS.length);
-    const levels = COSMETICS.map((c) => c.at);
-    expect([...levels].sort((a, b) => a - b)).toEqual(levels);
-  });
-
-  it("unlocks nothing at level 1 and everything by the ceiling", () => {
-    expect(unlockedCosmetics(1)).toEqual([]);
-    expect(unlockedCosmetics(MAX_LEVEL)).toHaveLength(COSMETICS.length);
-  });
-
-  it("filters by kind", () => {
-    expect(unlockedCosmetics(MAX_LEVEL, "hat").every((c) => c.kind === "hat")).toBe(
-      true,
-    );
-    expect(unlockedCosmetics(3, "frame").map((c) => c.id)).toEqual(["frame-mint"]);
-  });
-
-  it("points at the next unlock, and at nothing once they're all earned", () => {
-    expect(nextCosmetic(1)?.at).toBe(2);
-    expect(nextCosmetic(2)?.at).toBe(3);
-    expect(nextCosmetic(MAX_LEVEL)).toBeNull();
-  });
-
-  it("looks up by id, tolerating a missing one", () => {
-    expect(cosmeticById("hat-crown")?.label).toBe("Crown");
-    expect(cosmeticById("nope")).toBeUndefined();
-    expect(cosmeticById(undefined)).toBeUndefined();
-  });
-
-  /** Every unlock must be reachable — a cosmetic gated past the ceiling is dead. */
-  it("keeps every unlock inside the reachable range", () => {
-    for (const c of COSMETICS) {
-      expect(c.at).toBeGreaterThan(1);
-      expect(c.at).toBeLessThanOrEqual(MAX_LEVEL);
-    }
   });
 });

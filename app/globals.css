@@ -458,11 +458,38 @@ body {
   }
 }
 
+/* ── Tier aura ─────────────────────────────────────────────
+   The one-shot sweep a pet tier gets when it is *won*.
+
+   Deliberately not a loop. The rings are conic gradients, so a rotation reads
+   as the light travelling round the bezel — which is exactly the wrong thing to
+   leave running on a home screen the rest of the app keeps quiet. It plays once,
+   on arrival, and is applied only where a promotion is being announced; the
+   avatar's default is a static ring (see `arriving` in components/ClassPet.tsx). */
+.tier-arrive {
+  animation: tier-arrive 0.9s cubic-bezier(0.22, 0.9, 0.3, 1) both;
+}
+
+@keyframes tier-arrive {
+  from {
+    transform: rotate(-150deg);
+    opacity: 0.35;
+  }
+  to {
+    transform: rotate(0deg);
+    opacity: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .skeleton {
     animation-duration: 0s;
   }
   .skeleton::after {
+    animation: none;
+  }
+  /* The ring still has to appear — only the travel is dropped. */
+  .tier-arrive {
     animation: none;
   }
 }

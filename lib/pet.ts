@@ -1,49 +1,193 @@
 /**
- * The ClassPet — a companion that reflects how the term is going.
+ * The ClassPet — a rank you wear, earned across a term.
  *
- * ── What it is allowed to know ──────────────────────────────────────────────
+ * ── What this is, and what it deliberately isn't ────────────────────────────
  *
- * Everything here is derived from data the app already keeps: the task counts
- * and days-clear streak from lib/streak.ts, the assignment streak from
- * lib/trophies.ts, and the level from lib/xp.ts. Notably *not* attendance —
- * ClassPing has never recorded whether a class was attended, and inventing that
- * signal would mean a new persisted field, a new thing to tap, and a guess
- * about what an unanswered prompt means. A phone left in a bag is not a skipped
- * lecture, and a pet that sulks at a student who actually showed up is worse
- * than no pet at all.
+ * The pet used to have moods: it read the week off your overdue count and
+ * changed colour and expression to match. That's gone, on purpose. Colour can
+ * either carry *state* or carry *reward*, and it cannot do both — the moment a
+ * tier has its own painted identity, tinting it to say "you're behind" either
+ * ruins the art or says nothing. So state now lives entirely where it already
+ * lived and was already good: the trophy streak (lib/trophies.ts) and the
+ * gentle days-clear read (lib/streak.ts). The pet is the long-arc reward, and
+ * it only ever moves in one direction.
  *
- * ── Why mood is computed and not stored ─────────────────────────────────────
+ * That makes it a status object rather than a companion — closer to a Crew skin
+ * than a Tamagotchi. The trade is deliberate: you lose "check the pet is okay"
+ * and gain "watch the skin get better", which is the stronger hook for the
+ * audience and the one that doesn't require guilt to work.
  *
- * The persisted state is two optional strings: a name and a hat. Mood is a pure
- * function of the term, recomputed on every render. Storing it would let it
- * drift out of step with the tasks that are supposed to cause it — a pet still
- * sulking about an assignment that was finished on another device is a bug
- * report, and a stored mood is how you get one.
+ * ── Storage ─────────────────────────────────────────────────────────────────
  *
- * ── Tone ────────────────────────────────────────────────────────────────────
- *
- * The gentleness in lib/streak.ts is deliberate and this file inherits it. A
- * student who is behind already knows. The pet's worst state is subdued and its
- * line offers a way back in; nothing here scolds, and nothing is ever framed as
- * the pet being hurt by the user. Guilt is an effective motivator right up
- * until it makes someone close the app for good.
+ * A name, and the best tier ever reached. Tier itself is *derived* from the XP
+ * level and never stored — a stored tier is one more thing that can disagree
+ * with the number that produced it.
  */
 
-import type { TermStats } from "./streak";
+/** Five tiers. Level thresholds match the art's own captions. */
+export type TierId = "base" | "bronze" | "silver" | "gold" | "galaxy";
+
+export interface Tier {
+  id: TierId;
+  label: string;
+  /** XP level at which this tier is reached. */
+  at: number;
+  /** Served from public/pet — see the art cache bucket in public/sw.js. */
+  art: string;
+  /**
+   * The aura ring, as a CSS background.
+   *
+   * Slate up to galaxy purple, on the *same* rungs as the skin — one ladder,
+   * two expressions of it. A second progression with its own thresholds (the
+   * old cosmetic frames at levels 2/5/9/14/20) put two competing ladders on one
+   * screen, which reads as noise rather than as progress.
+   *
+   * Every rung is a conic gradient, and always has been on purpose: a conic
+   * sweep is what makes a 3px band read as a *bezel* — something machined —
+   * instead of a coloured hairline. It also means the whole ladder is one kind
+   * of object, so the top tier is the same instrument turned up rather than a
+   * different one. No files: this is the only ladder in the app that costs
+   * nothing to load.
+   */
+  ring: string;
+  /**
+   * The hairline where the ring meets the portrait.
+   *
+   * Load-bearing at the bottom of the ladder. A flat grey band on a grey UI
+   * reads to a brand-new user as "the image failed to load"; a lit inner edge
+   * reads as a thing you have. So base gets the brightest sheen of the six, not
+   * the dimmest — the ladder has to be legible from its first rung or the
+   * climb never registers as one.
+   */
+  sheen: string;
+  /** Soft bloom behind the character. rgba so it works on either theme. */
+  glow: string;
+}
+
+/**
+ * Every ring sweeps `from 210deg` so the bright quarter lands in the same place
+ * on every rung — that shared light source is what makes five different
+ * gradients read as one set. What climbs is the *amplitude*: base swings across
+ * a narrow band of slate, and only the top tier leaves a single hue at all.
+ */
+export const TIERS: Tier[] = [
+  {
+    id: "base",
+    label: "Base",
+    at: 1,
+    art: "/pet/pet_base.jpg",
+    // Quiet, but not flat. The stops stay inside one slate family so it never
+    // competes with the accent, while the sweep still catches an edge.
+    ring:
+      "conic-gradient(from 210deg,#8A93A6,#B7BFCE,#798196,#A6AEBE,#8A93A6)",
+    sheen: "rgba(255,255,255,.55)",
+    glow: "rgba(154,163,181,.22)",
+  },
+  {
+    id: "bronze",
+    label: "Bronze",
+    at: 4,
+    art: "/pet/pet_bronze.jpg",
+    ring:
+      "conic-gradient(from 210deg,#8C5524,#E0A063,#A8672F,#D69255,#8C5524)",
+    sheen: "rgba(255,232,203,.42)",
+    glow: "rgba(208,139,79,.26)",
+  },
+  {
+    id: "silver",
+    label: "Silver",
+    at: 7,
+    art: "/pet/pet_silver.jpg",
+    ring:
+      "conic-gradient(from 210deg,#94A2B6,#EDF2F8,#A9B6C8,#DCE4EE,#94A2B6)",
+    sheen: "rgba(255,255,255,.6)",
+    glow: "rgba(220,227,236,.28)",
+  },
+  {
+    id: "gold",
+    label: "Gold",
+    at: 11,
+    art: "/pet/pet_gold.jpg",
+    ring:
+      "conic-gradient(from 210deg,#C9932B,#FFDE86,#D9A93E,#F7CF70,#C9932B)",
+    sheen: "rgba(255,247,215,.5)",
+    glow: "rgba(255,215,106,.30)",
+  },
+  {
+    id: "galaxy",
+    label: "Galaxy",
+    at: 16,
+    // The only rung that changes hue as it sweeps. The top tier should not look
+    // like the same object in a different colour — it should look like a
+    // different kind of object.
+    art: "/pet/pet_galaxy.jpg",
+    ring:
+      "conic-gradient(from 210deg,#7B2FF7,#C026D3,#4F46E5,#22D3EE,#A855F7,#7B2FF7)",
+    sheen: "rgba(233,213,255,.55)",
+    glow: "rgba(147,51,234,.34)",
+  },
+];
+
+export const FIRST_TIER = TIERS[0];
+export const TOP_TIER = TIERS[TIERS.length - 1];
+
+/** The tier a level has earned. */
+export function tierFor(level: number): Tier {
+  let tier = TIERS[0];
+  for (const t of TIERS) if (level >= t.at) tier = t;
+  return tier;
+}
+
+/** The next tier up, or null at the top. */
+export function nextTier(level: number): Tier | null {
+  return TIERS.find((t) => t.at > level) ?? null;
+}
+
+export const tierById = (id: string | undefined): Tier | undefined =>
+  id ? TIERS.find((t) => t.id === id) : undefined;
+
+/** Rank of a tier in the ladder, for comparing two of them. */
+export const tierRank = (id: TierId): number =>
+  TIERS.findIndex((t) => t.id === id);
+
+/** Whichever of the two sits higher. Used to keep `bestTier` monotonic. */
+export function higherTier(a: TierId, b: TierId): TierId {
+  return tierRank(a) >= tierRank(b) ? a : b;
+}
+
+/* ── state ──────────────────────────────────────────────── */
 
 export interface PetState {
-  /** What the student calls it. Empty means "not named yet". */
+  /** What the student calls it. */
   name: string;
-  /** Equipped hat — a cosmetic id from lib/xp.ts, earned by levelling. */
-  hat?: string;
+  /**
+   * The highest tier ever reached, kept forever.
+   *
+   * `clearData` empties the planner and resets XP with it, which would
+   * otherwise demote someone from Galaxy to Base for the crime of tidying up
+   * after a semester. A tier took a year to earn; clearing a timetable should
+   * not take it away. So the live tier follows the level, and this is the badge
+   * that doesn't.
+   */
+  bestTier: TierId;
 }
 
 export const DEFAULT_PET_NAME = "Pip";
 export const MAX_PET_NAME = 24;
 
-export const emptyPetState = (): PetState => ({ name: DEFAULT_PET_NAME });
+export const emptyPetState = (): PetState => ({
+  name: DEFAULT_PET_NAME,
+  bestTier: "base",
+});
 
-/** Defensive read — this crosses localStorage and the sync endpoint. */
+/**
+ * Defensive read — this crosses localStorage and the sync endpoint.
+ *
+ * Documents written before tiers carry a `hat` field. It is deliberately not
+ * removed here and not an error: per the persisted-shape contract we stop
+ * writing a field rather than dropping it, so an older client's document keeps
+ * round-tripping without a migration.
+ */
 export function normalizePetState(raw: unknown): PetState {
   if (!raw || typeof raw !== "object") return emptyPetState();
   const v = raw as Partial<PetState>;
@@ -51,179 +195,48 @@ export function normalizePetState(raw: unknown): PetState {
     typeof v.name === "string" && v.name.trim()
       ? v.name.trim().slice(0, MAX_PET_NAME)
       : DEFAULT_PET_NAME;
-  // The hat is validated against the real cosmetic list by the component that
-  // draws it; here we only guarantee it's a short string and not, say, an
-  // object that would blow up when spread into a style.
-  const hat =
-    typeof v.hat === "string" && v.hat.length > 0 && v.hat.length <= 40
-      ? v.hat
-      : undefined;
-  return hat ? { name, hat } : { name };
+  const bestTier =
+    typeof v.bestTier === "string" && TIERS.some((t) => t.id === v.bestTier)
+      ? (v.bestTier as TierId)
+      : "base";
+  return { name, bestTier };
 }
 
-/* ── growth ─────────────────────────────────────────────── */
-
-export type PetStage = "egg" | "sprout" | "grown" | "radiant";
-
-export interface Stage {
-  id: PetStage;
-  /** Level at which the pet reaches this stage. */
-  at: number;
-  label: string;
-}
-
-/**
- * Growth tracks the XP level rather than a counter of its own.
- *
- * One long-arc number is enough for the app to have, and hanging the pet off it
- * means the two features can never disagree about how the term has gone — a
- * pet that looked thriving beside a level that said otherwise would make both
- * numbers untrustworthy.
- */
-export const STAGES: Stage[] = [
-  { id: "egg", at: 1, label: "Egg" },
-  { id: "sprout", at: 2, label: "Sprout" },
-  { id: "grown", at: 6, label: "Grown" },
-  { id: "radiant", at: 12, label: "Radiant" },
-];
-
-export function petStage(level: number): Stage {
-  let stage = STAGES[0];
-  for (const s of STAGES) if (level >= s.at) stage = s;
-  return stage;
-}
-
-/** The next stage and the level it needs, or null once fully grown. */
-export function nextStage(level: number): Stage | null {
-  return STAGES.find((s) => s.at > level) ?? null;
-}
-
-/* ── mood ───────────────────────────────────────────────── */
-
-/**
- * Ordered worst to best. `resting` is not on that scale — it's the state before
- * there is anything to have an opinion about.
- */
-export type PetMood = "resting" | "droopy" | "concerned" | "content" | "bright" | "beaming";
+/* ── progress ───────────────────────────────────────────── */
 
 export interface PetStatus {
-  mood: PetMood;
-  stage: Stage;
-  /** One line, in the pet's voice, shown beside it. */
+  /** What the current level has earned. */
+  tier: Tier;
+  /** The next rung, or null at the top. */
+  next: Tier | null;
+  /** Levels still to climb before `next`. Zero at the top. */
+  levelsToNext: number;
+  /** True when the badge outranks the tier the current level supports. */
+  demoted: boolean;
+  /** The badge — highest ever reached. Equals `tier` unless data was cleared. */
+  best: Tier;
+  /** One line for the card. */
   line: string;
 }
 
-export interface PetSignals {
-  stats: TermStats;
-  /** The assignment streak from lib/trophies.ts — consecutive on-time finishes. */
-  trophyStreak: number;
-  level: number;
-  /** Whether the planner has anything in it at all. */
-  hasTasks: boolean;
-}
+export function petStatus(level: number, bestTier: TierId = "base"): PetStatus {
+  const tier = tierFor(level);
+  const next = nextTier(level);
+  const best = tierById(higherTier(bestTier, tier.id)) ?? FIRST_TIER;
+  const demoted = tierRank(best.id) > tierRank(tier.id);
 
-/**
- * Thresholds.
- *
- * Three overdue rather than one for the lowest mood: a single slipped deadline
- * is an ordinary week, and a pet that droops at the first one would spend most
- * of the term drooping, which makes the signal worthless as well as unkind.
- */
-const DROOPY_OVERDUE = 3;
-const BEAMING_STREAK = 5;
-const BRIGHT_DAYS_CLEAR = 3;
-
-export function petStatus({
-  stats,
-  trophyStreak,
-  level,
-  hasTasks,
-}: PetSignals): PetStatus {
-  const stage = petStage(level);
-
-  if (!hasTasks) {
-    return {
-      mood: "resting",
-      stage,
-      line:
-        stage.id === "egg"
-          ? "Add an assignment and I’ll wake up."
-          : "Nothing on the list. Enjoy it.",
-    };
-  }
-
-  if (stats.overdue >= DROOPY_OVERDUE) {
-    return {
-      mood: "droopy",
-      stage,
-      // Names the smallest possible next step. The point of this state is to
-      // be a way back in, not a verdict on the term.
-      line: `${stats.overdue} things are past due. Pick the quickest one?`,
-    };
-  }
-
-  if (stats.overdue > 0) {
-    return {
-      mood: "concerned",
-      stage,
-      line:
-        stats.overdue === 1
-          ? "One overdue. Not a crisis — shall we?"
-          : `${stats.overdue} overdue. One at a time.`,
-    };
-  }
-
-  if (trophyStreak >= BEAMING_STREAK) {
-    return {
-      mood: "beaming",
-      stage,
-      line: `${trophyStreak} in a row, all on time. You’re flying.`,
-    };
-  }
-
-  if (stats.streak >= BRIGHT_DAYS_CLEAR) {
-    return {
-      mood: "bright",
-      stage,
-      line: `${stats.streak} days with nothing overdue.`,
-    };
-  }
+  const line = next
+    ? `Level ${level} · ${next.at - level} ${
+        next.at - level === 1 ? "level" : "levels"
+      } to ${next.label}`
+    : `Level ${level} · top tier`;
 
   return {
-    mood: "content",
-    stage,
-    line:
-      stats.dueThisWeek > 0
-        ? `${stats.dueThisWeek} due this week. We’ve got time.`
-        : "All clear right now.",
+    tier,
+    next,
+    levelsToNext: next ? next.at - level : 0,
+    demoted,
+    best,
+    line,
   };
-}
-
-/**
- * How wide the eyes open and how far the mouth curves, 0–1. Kept here rather
- * than in the component so the drawing has no opinions of its own — the SVG is
- * one shape driven by numbers, not six hand-drawn faces to keep in sync.
- */
-export function moodExpression(mood: PetMood): {
-  /** 1 = wide awake, 0 = closed. */
-  eyes: number;
-  /** 1 = big smile, −1 = frown. */
-  mouth: number;
-  /** Body tint, as a CSS variable name from globals.css. */
-  tint: string;
-} {
-  switch (mood) {
-    case "beaming":
-      return { eyes: 1, mouth: 1, tint: "var(--good)" };
-    case "bright":
-      return { eyes: 0.95, mouth: 0.7, tint: "var(--color-brand)" };
-    case "content":
-      return { eyes: 0.85, mouth: 0.4, tint: "var(--color-brand)" };
-    case "concerned":
-      return { eyes: 0.75, mouth: -0.15, tint: "var(--warn-ink)" };
-    case "droopy":
-      return { eyes: 0.45, mouth: -0.5, tint: "var(--color-muted-2)" };
-    case "resting":
-      return { eyes: 0.12, mouth: 0.2, tint: "var(--color-muted-2)" };
-  }
 }

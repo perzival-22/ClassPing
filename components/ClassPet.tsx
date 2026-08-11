@@ -4,180 +4,90 @@ import { useEffect, useState } from "react";
 import {
   DEFAULT_PET_NAME,
   MAX_PET_NAME,
-  moodExpression,
-  nextStage,
   petStatus,
-  type PetSignals,
+  TIERS,
   type PetState,
   type PetStatus,
 } from "@/lib/pet";
-import { cosmeticById, unlockedCosmetics, type Cosmetic } from "@/lib/xp";
 
 /**
- * The ClassPet, drawn.
+ * The ClassPet — a rank portrait.
  *
- * One shape driven by numbers rather than a set of hand-drawn faces: the mood
- * comes out of lib/pet.ts as an eye opening, a mouth curve and a tint, and
- * everything below just plots them. Adding a mood is then a line in the pure
- * module and nothing here, which is the only way six expressions stay
- * consistent with each other over time.
- *
- * Every hat is a few paths for the same reason the frames in lib/xp.ts are CSS
- * gradients — the reward ladder shouldn't depend on commissioning art.
+ * There is no expression left to draw (see the header of lib/pet.ts): the pet
+ * is the long-arc reward and the only thing it reports is which tier the term
+ * has earned. So nothing here plots anything — it frames the tier's artwork.
  */
-
-/* ── hats ───────────────────────────────────────────────── */
-
-function Hat({ id, color }: { id: string; color: string }) {
-  switch (id) {
-    case "hat-cap":
-      return (
-        <g>
-          <path d="M30 30 Q50 10 70 30 Z" fill={color} />
-          <path d="M66 30 Q80 30 80 35 L66 35 Z" fill={color} opacity={0.75} />
-        </g>
-      );
-    case "hat-beanie":
-      return (
-        <g>
-          <path d="M31 31 Q50 8 69 31 Z" fill={color} />
-          <rect x="29" y="29" width="42" height="7" rx="3.5" fill={color} opacity={0.75} />
-          <circle cx="50" cy="10" r="4" fill={color} />
-        </g>
-      );
-    case "hat-scarf":
-      // Worn, not hatted — it reads as a different slot at a glance.
-      return (
-        <g>
-          <rect x="30" y="66" width="40" height="8" rx="4" fill={color} />
-          <path d="M60 72 L66 86 L58 84 Z" fill={color} opacity={0.85} />
-        </g>
-      );
-    case "hat-crown":
-      return (
-        <path
-          d="M32 30 L36 16 L43 25 L50 13 L57 25 L64 16 L68 30 Z"
-          fill={color}
-        />
-      );
-    case "hat-halo":
-      return (
-        <ellipse
-          cx="50"
-          cy="16"
-          rx="17"
-          ry="5"
-          fill="none"
-          stroke={color}
-          strokeWidth="3.5"
-        />
-      );
-    default:
-      return null;
-  }
-}
-
-/* ── the pet ────────────────────────────────────────────── */
 
 export function PetAvatar({
   status,
-  hat,
   size = 96,
+  arriving = false,
 }: {
   status: PetStatus;
-  /** Cosmetic id; ignored unless it resolves to a real, unlocked hat. */
-  hat?: Cosmetic;
   size?: number;
+  /**
+   * Play the one-shot sweep. Off everywhere by default, and deliberately so: a
+   * ring that turns forever on the home screen fights the calm the rest of the
+   * app is built around. The motion belongs to the moment the tier is *won*,
+   * where it says "this just changed" — after that it says nothing.
+   */
+  arriving?: boolean;
 }) {
-  const { eyes, mouth, tint } = moodExpression(status.mood);
-  const stage = status.stage.id;
-  const isEgg = stage === "egg";
-
-  // Eye aperture and mouth curvature, both straight from the mood.
-  const eyeR = 1.2 + eyes * 4.2;
-  const mouthY = 62 + (mouth < 0 ? 2 : 0);
-  const mouthCtrl = mouthY + mouth * 11;
+  /**
+   * The ring is its own layer behind a smaller circular image, rather than a
+   * `border` or padding on the image's own box. Three reasons: every tier's
+   * ring is a conic gradient, which a border renders as four flat edges instead
+   * of a sweep; the art is opaque, so it has to be clipped to the disc anyway;
+   * and a separate layer is the only version that can be rotated on arrival
+   * without spinning the portrait with it.
+   *
+   * That clipping is the load-bearing part. The artwork is JPEG — which cannot
+   * carry an alpha channel — so it arrives as a filled rectangle. Laid over the
+   * ring it would read as a photo pasted on a coloured circle; masked into the
+   * disc it reads as a portrait, and the differing source aspect ratios stop
+   * mattering because `object-cover` fills the circle either way.
+   */
+  const ring = Math.max(2, Math.round(size * 0.055));
+  const inner = size - ring * 2;
 
   return (
-    <svg
-      viewBox="0 0 100 100"
-      width={size}
-      height={size}
-      role="img"
-      aria-label={`${status.stage.label}, looking ${status.mood}`}
+    <div
+      className="relative shrink-0 rounded-full"
+      style={{
+        width: size,
+        height: size,
+        boxShadow: `0 0 ${Math.round(size * 0.3)}px ${status.tier.glow}`,
+      }}
     >
-      {stage === "radiant" && (
-        <g opacity={0.9}>
-          {[
-            [16, 26],
-            [84, 34],
-            [22, 74],
-            [80, 70],
-          ].map(([x, y], i) => (
-            <path
-              key={i}
-              d={`M${x} ${y - 5} L${x + 1.6} ${y - 1.6} L${x + 5} ${y} L${x + 1.6} ${y + 1.6} L${x} ${y + 5} L${x - 1.6} ${y + 1.6} L${x - 5} ${y} L${x - 1.6} ${y - 1.6} Z`}
-              fill={tint}
-              opacity={0.55}
-            />
-          ))}
-        </g>
-      )}
-
-      {/* body — an egg is narrower and taller; everything after it is a blob */}
-      <ellipse
-        cx="50"
-        cy={isEgg ? 56 : 58}
-        rx={isEgg ? 26 : 30}
-        ry={isEgg ? 33 : 28}
-        fill={tint}
-        fillOpacity={0.2}
-        stroke={tint}
-        strokeWidth="2.5"
+      <span
+        aria-hidden
+        // Keyed on the tier so a promotion remounts the layer and replays the
+        // sweep exactly once. Without the key it would animate on every mount —
+        // which is every navigation back to Home, i.e. ambient motion by
+        // accident.
+        key={arriving ? status.tier.id : undefined}
+        className={`absolute inset-0 rounded-full${arriving ? " tier-arrive" : ""}`}
+        style={{ background: status.tier.ring }}
       />
-
-      {stage !== "egg" && stage !== "sprout" && (
-        // Ears arrive with the second growth step, so the change is visible.
-        <>
-          <ellipse cx="28" cy="38" rx="7" ry="10" fill={tint} fillOpacity={0.2} stroke={tint} strokeWidth="2.5" />
-          <ellipse cx="72" cy="38" rx="7" ry="10" fill={tint} fillOpacity={0.2} stroke={tint} strokeWidth="2.5" />
-        </>
-      )}
-
-      {stage === "sprout" && (
-        <path
-          d="M50 30 Q56 18 64 21 Q60 31 50 30 Z"
-          fill={tint}
-          fillOpacity={0.55}
-        />
-      )}
-
-      {isEgg ? (
-        // No face yet — a crack, so the egg reads as "not hatched" rather than
-        // "broken", and the first level-up visibly changes something.
-        <path
-          d="M36 52 L44 46 L40 58 L50 50"
-          fill="none"
-          stroke={tint}
-          strokeWidth="2.5"
-          strokeLinecap="round"
-        />
-      ) : (
-        <>
-          <ellipse cx="40" cy="54" rx="3.4" ry={eyeR} fill={tint} />
-          <ellipse cx="60" cy="54" rx="3.4" ry={eyeR} fill={tint} />
-          <path
-            d={`M41 ${mouthY} Q50 ${mouthCtrl} 59 ${mouthY}`}
-            fill="none"
-            stroke={tint}
-            strokeWidth="2.6"
-            strokeLinecap="round"
-          />
-        </>
-      )}
-
-      {hat && <Hat id={hat.id} color={hat.css} />}
-    </svg>
+      <img
+        src={status.tier.art}
+        alt={`${status.tier.label} tier`}
+        width={inner}
+        height={inner}
+        decoding="async"
+        className="absolute rounded-full object-cover"
+        style={{
+          top: ring,
+          left: ring,
+          width: inner,
+          height: inner,
+          // The hairline where ring meets portrait. Drawn outward from the
+          // image so it sits *inside* the band, which is what turns a flat
+          // arc into a lit inner edge — see `sheen` in lib/pet.ts.
+          boxShadow: `0 0 0 1px ${status.tier.sheen}`,
+        }}
+      />
+    </div>
   );
 }
 
@@ -185,19 +95,14 @@ export function PetAvatar({
 
 export function ClassPetCard({
   pet,
-  signals,
+  level,
   onOpen,
 }: {
   pet: PetState;
-  signals: PetSignals;
+  level: number;
   onOpen: () => void;
 }) {
-  const status = petStatus(signals);
-  // Resolved here rather than trusted from storage: the id crosses the sync
-  // endpoint, and an unlocked-looking hat from an edited document shouldn't
-  // draw. Falls back to bare-headed, which is always valid.
-  const hat = cosmeticById(pet.hat);
-  const earned = hat && hat.kind === "hat" && hat.at <= signals.level ? hat : undefined;
+  const status = petStatus(level, pet.bestTier);
 
   return (
     <button
@@ -205,15 +110,23 @@ export function ClassPetCard({
       className="glass flex w-full items-center gap-3 rounded-[20px] px-3.5 py-3 text-left transition active:scale-[0.99]"
       aria-label={`${pet.name || DEFAULT_PET_NAME}: ${status.line}. Open pet.`}
     >
-      <PetAvatar status={status} hat={earned} size={58} />
+      <PetAvatar status={status} size={58} />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
           <span className="truncate font-[family-name:var(--font-fredoka)] text-[16px] font-semibold text-ink">
             {pet.name || DEFAULT_PET_NAME}
           </span>
           <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-faint">
-            {status.stage.label}
+            {status.tier.label}
           </span>
+          {status.demoted && (
+            <span
+              className="shrink-0 rounded-full px-[5px] py-[2px] text-[9px] font-bold uppercase tracking-wide text-white"
+              style={{ background: status.best.ring }}
+            >
+              {status.best.label} earned
+            </span>
+          )}
         </div>
         <p className="mt-0.5 text-[13px] leading-snug text-muted">{status.line}</p>
       </div>
@@ -221,27 +134,21 @@ export function ClassPetCard({
   );
 }
 
-/* ── name + wardrobe ────────────────────────────────────── */
+/* ── naming ─────────────────────────────────────────────── */
 
 export function PetSheet({
   pet,
-  signals,
+  level,
   onSave,
   onClose,
 }: {
   pet: PetState;
-  signals: PetSignals;
+  level: number;
   onSave: (next: Partial<PetState>) => void;
   onClose: () => void;
 }) {
   const [name, setName] = useState(pet.name || DEFAULT_PET_NAME);
-  const status = petStatus(signals);
-  const hats = unlockedCosmetics(signals.level, "hat");
-  const locked = nextStage(signals.level);
-  const current = cosmeticById(pet.hat);
-  const worn = current && current.kind === "hat" && current.at <= signals.level
-    ? current
-    : undefined;
+  const status = petStatus(level, pet.bestTier);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -276,14 +183,14 @@ export function PetSheet({
         />
 
         <div className="flex flex-col items-center">
-          <PetAvatar status={status} hat={worn} size={104} />
+          <PetAvatar status={status} size={104} />
           <p className="mt-1 text-center text-[13.5px] leading-snug text-muted">
             {status.line}
           </p>
           <p className="mt-1 text-center text-[11.5px] text-faint">
-            {locked
-              ? `${status.stage.label} — grows at level ${locked.at}`
-              : `${status.stage.label} — fully grown`}
+            {status.next
+              ? `${status.tier.label} — ${status.next.label} at level ${status.next.at}`
+              : `${status.tier.label} — the top of the ladder`}
           </p>
         </div>
 
@@ -306,46 +213,60 @@ export function PetSheet({
           />
         </label>
 
-        <div className="mt-4 text-[11px] font-semibold uppercase tracking-widest text-faint">
-          Wardrobe
-        </div>
-        {hats.length === 0 ? (
-          <p className="mt-2 text-[13px] leading-snug text-muted-2">
-            Nothing yet — the first hat is earned at level 3.
-          </p>
-        ) : (
-          <div className="mt-2 flex flex-wrap gap-2.5">
-            <button
-              onClick={() => onSave({ hat: undefined })}
-              className="rounded-[13px] px-3 py-2 text-[12.5px] font-semibold transition active:scale-95"
-              style={
-                worn
-                  ? { background: "var(--bg-input)", color: "var(--color-muted)" }
-                  : { background: "var(--surface-3)", color: "var(--color-ink)" }
-              }
-            >
-              None
-            </button>
-            {hats.map((h) => (
-              <button
-                key={h.id}
-                onClick={() => onSave({ hat: h.id })}
-                className="rounded-[13px] px-3 py-2 text-[12.5px] font-semibold transition active:scale-95"
-                style={
-                  worn?.id === h.id
-                    ? { background: h.css, color: "#fff" }
-                    : { background: "var(--bg-input)", color: "var(--color-muted)" }
-                }
-              >
-                {h.label}
-              </button>
-            ))}
+        <div className="mt-6">
+          <div className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-faint">
+            Tiers
           </div>
-        )}
+          <div className="flex justify-between gap-1">
+            {TIERS.map((t) => {
+              const unlocked = level >= t.at;
+              const isCurrent = t.id === status.tier.id;
+              return (
+                <div key={t.id} className="flex flex-col items-center gap-1.5 flex-1">
+                  <div
+                    className="relative flex shrink-0 items-center justify-center rounded-full transition"
+                    style={{
+                      width: 46,
+                      height: 46,
+                      background: unlocked ? t.ring : "var(--surface-3)",
+                      ...(isCurrent
+                        ? { boxShadow: "0 0 0 2.5px var(--bg-card), 0 0 0 5px var(--color-brand)" }
+                        : {}),
+                    }}
+                  >
+                    {unlocked ? (
+                      // Clipped into the disc for the same reason as the main
+                      // portrait: the art is opaque, so left unmasked it covers
+                      // the ring it is supposed to be sitting inside.
+                      <img
+                        src={t.art}
+                        alt={t.label}
+                        width={40}
+                        height={40}
+                        loading="lazy"
+                        decoding="async"
+                        className="h-10 w-10 rounded-full object-cover"
+                        style={{ boxShadow: `0 0 0 1px ${t.sheen}` }}
+                      />
+                    ) : (
+                      <span className="text-[12px] font-bold text-faint">{t.at}</span>
+                    )}
+                  </div>
+                  <span
+                    className="text-center text-[10.5px] font-medium"
+                    style={{ color: unlocked ? "var(--color-muted)" : "var(--color-faint)" }}
+                  >
+                    {unlocked ? t.label : `Lv ${t.at}`}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
         <button
           onClick={commit}
-          className="btn-brand mt-5 w-full rounded-[15px] py-[15px] text-center text-[16px] font-semibold text-white transition active:scale-[0.98]"
+          className="btn-brand mt-6 w-full rounded-[15px] py-[15px] text-center text-[16px] font-semibold text-white transition active:scale-[0.98]"
         >
           Done
         </button>

@@ -32,7 +32,7 @@ import {
   normalizeXpState,
   type XpState,
 } from "./xp";
-import { emptyPetState, normalizePetState, type PetState } from "./pet";
+import { emptyPetState, higherTier, normalizePetState, tierFor, type PetState } from "./pet";
 import {
   abandonFight,
   ackResult,
@@ -160,9 +160,11 @@ export interface Profile {
   /** What the current term is called, e.g. "Fall 2025". Titles the report. */
   termName?: string;
   /**
-   * Equipped avatar frame — a cosmetic id from lib/xp.ts, earned by levelling.
-   * Deliberately not an accent: accents are the Pro shelf, frames are the XP
-   * one, and the two never overlap. Undefined means no ring.
+   * Retired. Held an equipped avatar-frame id back when levelling unlocked a
+   * shelf of cosmetics; the avatar ring is now derived from the pet's tier and
+   * nothing writes this. Kept on the type rather than deleted because it is
+   * already in synced documents on real devices, and the persisted-shape
+   * contract is to stop writing a field, never to drop one.
    */
   frame?: string;
 }
@@ -203,9 +205,10 @@ interface Store {
    */
   addXp: (amount: number) => void;
   /**
-   * The companion. Only the two things the user chose — its name and what it's
-   * wearing. Its mood is a pure function of the term (lib/pet.ts) and is never
-   * stored, so it can't drift out of step with the tasks that cause it.
+   * The companion. The name the user chose, and the highest tier ever reached —
+   * a badge that survives `clearData`, so tidying up after a semester can't
+   * demote a rank that took a year to earn. The *live* tier is derived from the
+   * XP level and never stored (lib/pet.ts).
    */
   pet: PetState;
   setPet: (updates: Partial<PetState>) => void;
@@ -705,6 +708,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             trophies: emptyTrophyState(),
             xp: emptyXpState(),
             boss: emptyBossState(),
+            // Carried through deliberately. Local state keeps the pet, but this
+            // body replaces the server document wholesale — omitting it wrote a
+            // pet-less document and destroyed `bestTier`, which is the one
+            // thing clearing a semester must never take away. The debounced
+            // push would restore it a second later, but this immediate PUT
+            // exists precisely for the user who clears and closes the tab.
+            pet,
             profile: clearedProfile,
             tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
           },
@@ -714,7 +724,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     } catch {
       /* offline — the debounced push retries, and localStorage is already empty */
     }
-  }, [isPro, profile]);
+    // `pet` is a real dependency, not a formality: the body above carries it
+    // through so the earned-tier badge survives, and a stale closure here would
+    // push a document holding whatever tier was current when this callback was
+    // last built — silently demoting anyone promoted since.
+  }, [isPro, profile, pet]);
 
   const addGrade = useCallback((g: Omit<GradeItem, "id">) => {
     setGrades((prev) => [...prev, { ...g, id: uid() }]);
@@ -763,11 +777,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     touch();
   }, []);
 
-  /**
-   * Normalised on the way in as well as on the way out. `hat: undefined` has to
-   * survive the spread as an actual removal — a merge that kept the old value
-   * would make "None" in the wardrobe do nothing.
-   */
+  /** Normalised on the way in as well as on the way out. */
   const setPet = useCallback((updates: Partial<PetState>) => {
     setPetState((prev) => normalizePetState({ ...prev, ...updates }));
     touch();
@@ -787,6 +797,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setBoss((prev) => ackResult(prev));
     touch();
   }, []);
+
+  // Ratchet bestTier when level increases
+  useEffect(() => {
+    if (!hydrated) return;
+    const currentTier = tierFor(levelFromXp(xp.xp)).id;
+    const best = higherTier(pet.bestTier, currentTier);
+    if (best !== pet.bestTier) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPetState((prev) => ({ ...prev, bestTier: best }));
+      touch();
+    }
+  }, [xp.xp, pet.bestTier, hydrated]);
 
   useEffect(() => {
     registerServiceWorker();

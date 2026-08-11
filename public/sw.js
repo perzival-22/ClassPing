@@ -27,6 +27,7 @@
 const CACHE_VERSION = new URL(self.location.href).searchParams.get("v") || "v1";
 const STATIC_CACHE = `classping-static-${CACHE_VERSION}`;
 const PAGES_CACHE = `classping-pages-${CACHE_VERSION}`;
+const ART_CACHE = "classping-art-v1";
 
 /** Cap the page cache so a long semester of browsing can't grow it unbounded. */
 const MAX_PAGES = 30;
@@ -39,6 +40,13 @@ const MAX_STATIC = 160;
 
 /** Available offline even on the very first launch. */
 const PRECACHE = ["/icons/icon-192.png", "/icons/icon-512.png"];
+const PRECACHE_ART = [
+  "/pet/pet_base.jpg",
+  "/pet/pet_bronze.jpg",
+  "/pet/pet_silver.jpg",
+  "/pet/pet_gold.jpg",
+  "/pet/pet_galaxy.jpg",
+];
 
 /**
  * Screens worth having ready before they're asked for.
@@ -74,6 +82,7 @@ self.addEventListener("install", (event) => {
       // so every one of these is individually best-effort.
       await Promise.all([
         ...PRECACHE.map((u) => warm(STATIC_CACHE, u)),
+        ...PRECACHE_ART.map((u) => warm(ART_CACHE, u)),
         ...PRECACHE_PAGES.map((u) => warm(PAGES_CACHE, u)),
       ]);
       await self.skipWaiting();
@@ -88,7 +97,7 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((k) => k !== STATIC_CACHE && k !== PAGES_CACHE)
+            .filter((k) => k !== STATIC_CACHE && k !== PAGES_CACHE && k !== ART_CACHE)
             .map((k) => caches.delete(k)),
         ),
       )
@@ -134,8 +143,12 @@ self.addEventListener("fetch", (event) => {
   // Hashed build output and icons are immutable, so cache-first is safe.
   if (
     url.pathname.startsWith("/_next/static/") ||
-    url.pathname.startsWith("/icons/")
+    url.pathname.startsWith("/icons/") ||
+    url.pathname.startsWith("/pet/")
   ) {
+    const isArt = url.pathname.startsWith("/pet/");
+    const targetCache = isArt ? ART_CACHE : STATIC_CACHE;
+    
     event.respondWith(
       caches.match(request).then(
         (hit) =>
@@ -144,9 +157,11 @@ self.addEventListener("fetch", (event) => {
             if (isCacheable(res)) {
               const copy = res.clone();
               event.waitUntil(
-                caches.open(STATIC_CACHE).then(async (c) => {
+                caches.open(targetCache).then(async (c) => {
                   await c.put(request, copy);
-                  await trim(STATIC_CACHE, MAX_STATIC);
+                  if (!isArt) {
+                    await trim(STATIC_CACHE, MAX_STATIC);
+                  }
                 }),
               );
             }

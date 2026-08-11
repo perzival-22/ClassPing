@@ -43,8 +43,6 @@ export default function TasksScreen() {
     pendingLevel,
     ackLevelUp,
     addXp,
-    profile,
-    setProfile,
     boss,
     startBoss,
     abandonBoss,
@@ -192,8 +190,6 @@ export default function TasksScreen() {
         {showLevel && (
           <LevelSheet
             xp={xp}
-            frame={profile.frame}
-            onEquipFrame={(frame) => setProfile({ frame })}
             onClose={() => setShowLevel(false)}
           />
         )}

@@ -73,7 +73,6 @@ export default function HomeScreen() {
     profile,
     classById,
     deleteClass,
-    trophies,
     xp,
     pet,
     setPet,
@@ -139,14 +138,7 @@ export default function HomeScreen() {
   const justEnded = isToday && inTerm ? justEndedClass(classes, now) : null;
   const showPrompt = justEnded !== null && promptDismissed !== justEnded.id;
 
-  // Everything the pet knows, assembled from what the app already tracks —
-  // no attendance, because the app has never recorded it (see lib/pet.ts).
-  const petSignals = {
-    stats: termStats(tasks, now),
-    trophyStreak: trophies.streak,
-    level: levelFromXp(xp.xp),
-    hasTasks: tasks.length > 0,
-  };
+
 
   return (
     <PhoneFrame>
@@ -190,7 +182,7 @@ export default function HomeScreen() {
           <div className="mb-3">
             <ClassPetCard
               pet={pet}
-              signals={petSignals}
+              level={levelFromXp(xp.xp)}
               onOpen={() => setShowPet(true)}
             />
           </div>
@@ -646,7 +638,7 @@ export default function HomeScreen() {
         {showPet && (
           <PetSheet
             pet={pet}
-            signals={petSignals}
+            level={levelFromXp(xp.xp)}
             onSave={setPet}
             onClose={() => setShowPet(false)}
           />

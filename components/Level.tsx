@@ -2,14 +2,10 @@
 
 import { useEffect } from "react";
 import {
-  COSMETICS,
-  cosmeticById,
   levelProgress,
-  nextCosmetic,
-  unlockedCosmetics,
-  type Cosmetic,
   type XpState,
 } from "@/lib/xp";
+import { TIERS, type Tier } from "@/lib/pet";
 
 /**
  * The level readout, its unlock shelf, and the moment a level lands.
@@ -77,124 +73,60 @@ export function LevelBar({
   );
 }
 
-/* ── cosmetics ──────────────────────────────────────────── */
+/* ── the tier ring ──────────────────────────────────────── */
 
 /**
  * An avatar frame. A ring drawn behind the avatar rather than a border on it,
  * so a gradient works and the image itself is never resized by the decoration.
+ *
+ * The same aura the pet wears, on the same rungs — the profile picture and the
+ * pet portrait are two places the one tier shows up, not two ladders.
  */
 export function AvatarFrame({
-  cosmeticId,
+  tier,
   size,
   children,
 }: {
-  cosmeticId?: string;
+  tier: Tier;
   size: number;
   children: React.ReactNode;
 }) {
-  const frame = cosmeticById(cosmeticId);
-  if (!frame || frame.kind !== "frame") return <>{children}</>;
+  const pad = Math.max(2, Math.round(size * 0.055));
+
   return (
     <span
-      className="inline-flex items-center justify-center rounded-full"
-      style={{
-        background: frame.css,
-        padding: Math.max(2, Math.round(size * 0.055)),
-      }}
+      className="relative inline-flex items-center justify-center rounded-full"
+      style={{ background: tier.ring, padding: pad }}
     >
+      {/* The lit inner edge. Its own layer because the frame wraps arbitrary
+          children and cannot reach into them to draw it — outset so the
+          hairline lands inside the band, matching PetAvatar exactly. */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute rounded-full"
+        style={{ inset: pad, boxShadow: `0 0 0 1px ${tier.sheen}` }}
+      />
       {children}
     </span>
   );
 }
 
 /**
- * One tile on the shelf — earned in colour, locked as a flat plate showing the
- * level that opens it.
- *
- * Frames are equipped from here; hats are equipped on the pet itself, where
- * you can see them being worn. Tapping a locked tile does nothing on purpose:
- * a tile that offered an upsell would turn the reward ladder into a storefront,
- * which is exactly the thing this shelf is separated from Pro to avoid.
- */
-function CosmeticTile({
-  cosmetic,
-  earned,
-  equipped,
-  onEquip,
-}: {
-  cosmetic: Cosmetic;
-  earned: boolean;
-  equipped: boolean;
-  onEquip?: () => void;
-}) {
-  const interactive = earned && !!onEquip;
-  const Tag = interactive ? "button" : "div";
-
-  return (
-    <Tag
-      {...(interactive
-        ? {
-            onClick: onEquip,
-            "aria-pressed": equipped,
-            "aria-label": `${cosmetic.label}${equipped ? ", equipped" : ""}`,
-          }
-        : {})}
-      className="flex flex-col items-center gap-1.5"
-    >
-      <div
-        className="flex h-[46px] w-[46px] items-center justify-center rounded-full transition"
-        style={{
-          background: earned ? cosmetic.css : "var(--surface-3)",
-          ...(equipped
-            ? { boxShadow: "0 0 0 2.5px var(--bg-card), 0 0 0 5px var(--color-brand)" }
-            : {}),
-        }}
-      >
-        {earned ? (
-          <span
-            className="h-[26px] w-[26px] rounded-full"
-            style={{ background: "var(--bg-card)" }}
-          />
-        ) : (
-          <span className="text-[12px] font-bold text-faint">{cosmetic.at}</span>
-        )}
-      </div>
-      <span
-        className="max-w-[62px] truncate text-center text-[10.5px] font-medium"
-        style={{ color: earned ? "var(--color-muted)" : "var(--color-faint)" }}
-      >
-        {earned ? cosmetic.label : `Lv ${cosmetic.at}`}
-      </span>
-    </Tag>
-  );
-}
-
-/**
- * The unlock shelf.
+ * The tier ladder.
  *
  * States plainly that these are earned, not bought. The app sells Pro, and a
  * reward ladder that quietly ended at a paywall would poison both — so the
- * shelf says where the line is instead of leaving the user to discover it.
+ * sheet says where the line is instead of leaving the user to discover it.
  */
 export function LevelSheet({
   xp,
-  frame,
-  onEquipFrame,
   onClose,
 }: {
   xp: XpState;
-  /** Currently equipped avatar frame, if any. */
-  frame?: string;
-  /** Passing the same id again takes it off. */
-  onEquipFrame: (id: string | undefined) => void;
   onClose: () => void;
 }) {
   const p = levelProgress(xp.xp);
-  const earned = new Set(unlockedCosmetics(p.level).map((c) => c.id));
-  const next = nextCosmetic(p.level);
-  // Re-checked against the level rather than trusted: the id crosses the sync
-  // endpoint, so an edited document must not equip something unearned.
-  const equippedFrame = earned.has(frame ?? "") ? frame : undefined;
+  const next = TIERS.find((t) => t.at > p.level);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -234,32 +166,51 @@ export function LevelSheet({
             {p.atMax
               ? `${xp.xp} XP. Everything below is yours.`
               : next
-                ? `${p.need - p.into} XP to level ${p.level + 1} — “${next.label}” lands at level ${next.at}.`
+                ? `${p.need - p.into} XP to level ${p.level + 1} — “${next.label}” tier lands at level ${next.at}.`
                 : `${p.need - p.into} XP to level ${p.level + 1}.`}
           </p>
         </div>
 
-        <div className="mt-5 grid grid-cols-5 gap-x-2 gap-y-4">
-          {COSMETICS.map((c) => (
-            <CosmeticTile
-              key={c.id}
-              cosmetic={c}
-              earned={earned.has(c.id)}
-              equipped={c.kind === "frame" && equippedFrame === c.id}
-              onEquip={
-                c.kind === "frame"
-                  ? () => onEquipFrame(equippedFrame === c.id ? undefined : c.id)
-                  : undefined
-              }
-            />
-          ))}
+        <div className="mt-5 flex justify-between gap-1">
+          {TIERS.map((t) => {
+            const unlocked = p.level >= t.at;
+            return (
+              <div key={t.id} className="flex flex-col items-center gap-1.5 flex-1">
+                <div
+                  className="relative flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-full transition"
+                  style={{ background: unlocked ? t.ring : "var(--surface-3)" }}
+                >
+                  {unlocked ? (
+                    <img
+                      src={t.art}
+                      alt={t.label}
+                      width={46}
+                      height={46}
+                      className="absolute left-0 bottom-0"
+                      style={{
+                        width: "100%",
+                        height: "115%",
+                        objectFit: "contain",
+                        objectPosition: "bottom",
+                      }}
+                    />
+                  ) : (
+                    <span className="text-[12px] font-bold text-faint">{t.at}</span>
+                  )}
+                </div>
+                <span
+                  className="text-center text-[10.5px] font-medium"
+                  style={{ color: unlocked ? "var(--color-muted)" : "var(--color-faint)" }}
+                >
+                  {unlocked ? t.label : `Lv ${t.at}`}
+                </span>
+              </div>
+            );
+          })}
         </div>
 
-        <p className="mt-4 text-center text-[11.5px] leading-snug text-muted-2">
-          Tap a ring to wear it on your avatar. Hats are worn on your pet.
-        </p>
-        <p className="mt-2 text-center text-[11.5px] leading-snug text-faint">
-          Frames and pet accessories are earned by levelling up — they aren’t
+        <p className="mt-6 text-center text-[11.5px] leading-snug text-faint">
+          Pet tiers are earned by levelling up — they aren’t
           part of Pro, and Pro doesn’t unlock them.
         </p>
 
@@ -289,7 +240,7 @@ export function LevelUpCelebration({
   level: number;
   onClose: () => void;
 }) {
-  const unlocked = COSMETICS.filter((c) => c.at === level);
+  const unlocked = TIERS.find((t) => t.at === level);
 
   useEffect(() => {
     const t = setTimeout(onClose, 5000);
@@ -311,21 +262,39 @@ export function LevelUpCelebration({
           boxShadow: "0 18px 48px rgba(10,8,24,.4)",
         }}
       >
-        <div
-          className="mx-auto flex h-[76px] w-[76px] items-center justify-center rounded-full font-[family-name:var(--font-fredoka)] text-[30px] font-semibold text-white"
-          style={{
-            background: "var(--brand-grad-v)",
-            boxShadow: "0 8px 22px rgba(var(--brand-rgb),.4)",
-          }}
-        >
-          {level}
+        {/* The only place the aura moves. When this level is also a tier, the
+            new ring sweeps in around the number once and then holds — the
+            promotion moment is what the motion is *for*, so it lives here and
+            nowhere the user sits and looks. */}
+        <div className="relative mx-auto h-[88px] w-[88px]">
+          {unlocked && (
+            <span
+              aria-hidden
+              className="tier-arrive absolute inset-0 rounded-full"
+              style={{
+                background: unlocked.ring,
+                boxShadow: `0 0 26px ${unlocked.glow}`,
+              }}
+            />
+          )}
+          <div
+            className="absolute left-1/2 top-1/2 flex h-[76px] w-[76px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full font-[family-name:var(--font-fredoka)] text-[30px] font-semibold text-white"
+            style={{
+              background: "var(--brand-grad-v)",
+              boxShadow: unlocked
+                ? `0 0 0 1px ${unlocked.sheen}, 0 8px 22px rgba(var(--brand-rgb),.4)`
+                : "0 8px 22px rgba(var(--brand-rgb),.4)",
+            }}
+          >
+            {level}
+          </div>
         </div>
         <div className="mt-4 font-[family-name:var(--font-fredoka)] text-[24px] font-semibold leading-tight text-brand">
           Level {level}
         </div>
         <p className="mt-1.5 text-[14px] leading-snug text-muted">
-          {unlocked.length > 0
-            ? `“${unlocked.map((c) => c.label).join("” and “")}” unlocked.`
+          {unlocked
+            ? `“${unlocked.label}” tier unlocked.`
             : "The term is adding up."}
         </p>
         <span className="mt-4 block text-[12px] font-medium text-faint">

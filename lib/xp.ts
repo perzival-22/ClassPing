@@ -17,11 +17,11 @@
  *    long after the change that caused it. So: two integers, and everything
  *    else derived.
  *
- * 2. XP cosmetics are not app accents. Accents are the Pro shelf
- *    (lib/accents.ts): one free, nine paid. If levelling unlocked those too,
- *    either Pro is devalued or a Level 9 reward turns out to need a credit
- *    card. So XP pays out in a different currency entirely — avatar frames and
- *    things the pet can wear — and the two shelves never touch.
+ * 2. What levelling grants is never something Pro sells. Accents are the Pro
+ *    shelf (lib/accents.ts): one free, nine paid. Levels grant the pet's tier
+ *    (lib/pet.ts) — a different kind of object entirely, granted automatically,
+ *    and never shown in the same picker. So no reward ladder here can ever
+ *    terminate at a paywall.
  */
 
 export interface XpState {
@@ -142,9 +142,8 @@ export interface AwardResult {
 
 /**
  * Add XP. Never subtracts: a negative or non-finite award is dropped rather
- * than applied, because the only way an unlocked cosmetic can be taken back is
- * a bug, and a user watching their level fall would reasonably assume the app
- * had lost their work.
+ * than applied. A level going backwards would demote the pet's tier, and a user
+ * watching their rank fall would reasonably assume the app had lost their work.
  */
 export function awardXp(state: XpState, amount: number): AwardResult {
   const safe = Number.isFinite(amount) ? Math.floor(amount) : 0;
@@ -187,50 +186,17 @@ export function normalizeXpState(raw: unknown): XpState {
   return { xp, seenLevel: seen };
 }
 
-/* ── cosmetics ──────────────────────────────────────────── */
+/* ── what levelling buys ────────────────────────────────
 
-/**
- * What levelling actually buys.
- *
- * `frame` rings the avatar; `hat` is worn by the ClassPet. Neither is an app
- * accent, and that separation is the point (see the header). It also means
- * these cost nothing to draw — a frame is a CSS gradient and a hat is a few
- * SVG paths — so the reward ladder doesn't depend on commissioning art.
- */
-export type CosmeticKind = "frame" | "hat";
+   Nothing here any more, and that is the point.
 
-export interface Cosmetic {
-  id: string;
-  kind: CosmeticKind;
-  label: string;
-  /** Level at which it unlocks. */
-  at: number;
-  /** CSS background for the frame ring, or the accent colour of a hat. */
-  css: string;
-}
+   Levels used to unlock a shelf of frames and hats you equipped by hand. Both
+   are gone: the reward is now the pet's tier (lib/pet.ts), which the level
+   grants automatically — one ladder, no picker, nothing to forget to put on.
 
-export const COSMETICS: Cosmetic[] = [
-  { id: "frame-mint", kind: "frame", label: "Mint ring", at: 2, css: "linear-gradient(135deg,#5ED9B4,#2FA98A)" },
-  { id: "hat-cap", kind: "hat", label: "Cap", at: 3, css: "#5B54E8" },
-  { id: "frame-dusk", kind: "frame", label: "Dusk ring", at: 5, css: "linear-gradient(135deg,#F7A072,#E0566E)" },
-  { id: "hat-beanie", kind: "hat", label: "Beanie", at: 7, css: "#E0566E" },
-  { id: "frame-tide", kind: "frame", label: "Tide ring", at: 9, css: "linear-gradient(135deg,#5AA9FF,#3D5BF0)" },
-  { id: "hat-scarf", kind: "hat", label: "Scarf", at: 11, css: "#0E9F8E" },
-  { id: "frame-ember", kind: "frame", label: "Ember ring", at: 14, css: "linear-gradient(135deg,#FFC94D,#F0713A)" },
-  { id: "hat-crown", kind: "hat", label: "Crown", at: 16, css: "#F0B429" },
-  { id: "frame-aurora", kind: "frame", label: "Aurora ring", at: 20, css: "linear-gradient(135deg,#C026D3,#5B54E8,#2FC9A8)" },
-  { id: "hat-halo", kind: "hat", label: "Halo", at: 22, css: "#B9C5D6" },
-];
-
-export const cosmeticById = (id: string | undefined): Cosmetic | undefined =>
-  id ? COSMETICS.find((c) => c.id === id) : undefined;
-
-/** Everything this level has earned, in unlock order. */
-export function unlockedCosmetics(level: number, kind?: CosmeticKind): Cosmetic[] {
-  return COSMETICS.filter((c) => c.at <= level && (!kind || c.kind === kind));
-}
-
-/** The next thing to look forward to, for the "Level 5 unlocks…" line. */
-export function nextCosmetic(level: number): Cosmetic | null {
-  return COSMETICS.find((c) => c.at > level) ?? null;
-}
+   The rule the old shelf existed to enforce still stands, and is now enforced
+   by construction. App accents are the Pro ladder (lib/accents.ts): one free,
+   nine paid. Tiers are the XP ladder. They are different kinds of object, they
+   never appear in the same picker, and no amount of levelling ever lands a user
+   at a paywall — because levelling no longer hands out anything that can be
+   bought. */
