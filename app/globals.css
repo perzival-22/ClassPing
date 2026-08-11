@@ -86,8 +86,67 @@ html[data-accent="rose"] {
   --brand-grad-v: linear-gradient(180deg, #e44e9d, #b92676);
 }
 
+/* ── Vibrant themes (Pro) ──────────────────────────────────
+   Louder than the five above and chosen to stay legible: every --color-brand
+   here also has to work as small text on white, which rules out the neons
+   these are named after. */
+html[data-accent="aurora"] {
+  --color-brand: #c026d3;
+  --color-brand-dark: #94119f;
+  --color-brand-deep: #a616b8;
+  --color-brand-bright: #d63ae6;
+  --brand-rgb: 192, 38, 211;
+  --brand-soft: #fae4fd;
+  --brand-grad: linear-gradient(145deg, #f45ff5, #8b1bc4);
+  --brand-grad-v: linear-gradient(180deg, #d63ae6, #a616b8);
+}
+
+html[data-accent="electric"] {
+  --color-brand: #0891b2;
+  --color-brand-dark: #056a83;
+  --color-brand-deep: #067a95;
+  --color-brand-bright: #12abcf;
+  --brand-rgb: 8, 145, 178;
+  --brand-soft: #ddf4fa;
+  --brand-grad: linear-gradient(145deg, #22d3ee, #067a95);
+  --brand-grad-v: linear-gradient(180deg, #12abcf, #067a95);
+}
+
+html[data-accent="lime"] {
+  --color-brand: #57920c;
+  --color-brand-dark: #3f6b07;
+  --color-brand-deep: #4a7c09;
+  --color-brand-bright: #6cae1a;
+  --brand-rgb: 87, 146, 12;
+  --brand-soft: #e9f6d8;
+  --brand-grad: linear-gradient(145deg, #9ede3f, #4a7c09);
+  --brand-grad-v: linear-gradient(180deg, #6cae1a, #4a7c09);
+}
+
+html[data-accent="crimson"] {
+  --color-brand: #e11d48;
+  --color-brand-dark: #ac0f33;
+  --color-brand-deep: #c1143b;
+  --color-brand-bright: #f23763;
+  --brand-rgb: 225, 29, 72;
+  --brand-soft: #fde3e9;
+  --brand-grad: linear-gradient(145deg, #ff5c85, #c1143b);
+  --brand-grad-v: linear-gradient(180deg, #f23763, #c1143b);
+}
+
+html[data-accent="mango"] {
+  --color-brand: #d97706;
+  --color-brand-dark: #a85a02;
+  --color-brand-deep: #bd6704;
+  --color-brand-bright: #f08c15;
+  --brand-rgb: 217, 119, 6;
+  --brand-soft: #fdeed7;
+  --brand-grad: linear-gradient(145deg, #ffb02e, #bd6704);
+  --brand-grad-v: linear-gradient(180deg, #f08c15, #bd6704);
+}
+
 html.dark {
-  --brand-soft: rgba(var(--brand-rgb), 0.16);
+  --brand-soft: rgba(var(--brand-rgb), 0.18);
 }
 
 /* ── Dark mode ─────────────────────────────────────────── */
@@ -100,6 +159,38 @@ html.dark {
   --bg-frame: #f2f2f7;
   --bg-card: #ffffff;
   --bg-input: #f5f4fa;
+
+  /* Neutral surfaces and rules.
+     These exist so dark mode can actually be dark: the app styles most chips
+     and hairlines through inline `style`, which no CSS override can reach, so
+     the value itself has to be the thing that changes with the theme. */
+  --surface-2: #f0eff6; /* inset chips, icon buttons, pills */
+  --surface-3: #e5e2f1; /* segmented-control track — a shade deeper */
+  --pill-active: #ffffff; /* the selected pill riding on that track */
+  --chip: #ffffff; /* an *un*selected chip sitting on a card */
+  --line: #e7e4f1; /* hairlines, grid rules, dividers */
+  --line-strong: #ddd9ec; /* unchecked checkbox rings */
+  /* The desk the phone sits on, visible on wide screens only. */
+  --bg-outer: radial-gradient(
+    1200px 700px at 20% -10%,
+    #f1effb 0%,
+    #e7e5f3 55%,
+    #e2e0ee 100%
+  );
+
+  /* Status pairs. Each is a soft fill plus the ink that sits on it. */
+  --danger: #e84040;
+  --danger-ink: #d33b22;
+  --danger-soft: #ffe8e3;
+  --danger-bg: #fff5f5;
+  --danger-line: #ffe0e0;
+  --warn-soft: #fff0d6;
+  --warn-ink: #a96a00;
+  --good: #34c759;
+  --good-ink: #2e9e4f;
+  --good-soft: #e6f7ee;
+  --info-soft: #e4f1fd;
+  --info-ink: #1b69ac;
 
   /* Aurora backdrop: faint glows in the app's own class-palette colors
      (brand purple, coral, teal) so glass surfaces have depth to blur. */
@@ -120,41 +211,153 @@ html.dark {
   --skeleton-sheen: rgba(255, 255, 255, 0.65);
 }
 
+/* ── True dark ─────────────────────────────────────────────
+   Black, not navy. The canvas is #000 so an OLED phone actually switches its
+   pixels off, and every surface above it is a near-black step that exists only
+   to separate a card from the page. Text goes to pure white with a grey ramp
+   that stays well clear of the background, while the brand and status colors
+   keep their identity — the theme changes the room's lighting, not its paint. */
 html.dark {
-  --color-ink: #eeeaff;
-  --color-muted: #a49fc8;
-  --color-muted-2: #7876a0;
-  --color-faint: #504d74;
-  --color-hint: #383560;
-  --color-canvas: #13112b;
+  --color-ink: #ffffff;
+  --color-muted: #c6c3d8;
+  --color-muted-2: #a5a1bc;
+  --color-faint: #8b87a6;
+  --color-hint: #6c6889;
+  --color-canvas: #000000;
 
   --bg-signin:
-    radial-gradient(380px 300px at 14% -6%, rgba(108, 99, 255, 0.2), transparent 70%),
+    radial-gradient(380px 300px at 14% -6%, rgba(var(--brand-rgb), 0.22), transparent 70%),
     radial-gradient(320px 260px at 106% 16%, rgba(255, 107, 87, 0.1), transparent 70%),
-    radial-gradient(420px 340px at 50% 112%, rgba(14, 159, 142, 0.12), transparent 70%),
-    linear-gradient(180deg, #1a1733 0%, #13112b 100%);
-  --bg-frame: #0d0b22;
-  --bg-card: #1e1c3a;
-  --bg-input: #1a183a;
+    radial-gradient(420px 340px at 50% 112%, rgba(14, 159, 142, 0.1), transparent 70%),
+    linear-gradient(180deg, #0a0a0d 0%, #000000 100%);
+  --bg-frame: #000000;
+  --bg-card: #15151b;
+  --bg-input: #1c1c24;
+  --bg-outer: #000000;
+
+  --surface-2: #24242e;
+  --surface-3: #2e2e3a;
+  --pill-active: #3d3d4c;
+  --chip: #262630;
+  --line: rgba(255, 255, 255, 0.11);
+  --line-strong: rgba(255, 255, 255, 0.24);
+
+  /* Soft fills become low-alpha tints of the same hue — a pastel block on
+     black reads as a light-mode leftover, and its dark ink disappears. */
+  --danger: #ff5c4d;
+  --danger-ink: #ff8f7f;
+  --danger-soft: rgba(255, 92, 77, 0.18);
+  --danger-bg: rgba(255, 92, 77, 0.1);
+  --danger-line: rgba(255, 92, 77, 0.28);
+  --warn-soft: rgba(255, 190, 60, 0.18);
+  --warn-ink: #ffc94d;
+  --good: #34c759;
+  --good-ink: #4ade80;
+  --good-soft: rgba(52, 199, 89, 0.16);
+  --info-soft: rgba(90, 170, 255, 0.18);
+  --info-ink: #7cc0ff;
 
   --bg-aurora:
-    radial-gradient(400px 320px at 12% -4%, rgba(var(--brand-rgb), 0.22), transparent 70%),
-    radial-gradient(340px 280px at 108% 14%, rgba(255, 107, 87, 0.11), transparent 70%),
-    radial-gradient(460px 380px at 46% 114%, rgba(14, 159, 142, 0.13), transparent 70%),
+    radial-gradient(400px 320px at 12% -4%, rgba(var(--brand-rgb), 0.18), transparent 70%),
+    radial-gradient(340px 280px at 108% 14%, rgba(255, 107, 87, 0.08), transparent 70%),
+    radial-gradient(460px 380px at 46% 114%, rgba(14, 159, 142, 0.09), transparent 70%),
     var(--color-canvas);
 
-  --glass-bg: rgba(30, 28, 58, 0.55);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --glass-highlight: rgba(255, 255, 255, 0.14);
-  --glass-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  --glass-bg: rgba(20, 20, 26, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-highlight: rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
 
-  --skeleton-base: rgba(255, 255, 255, 0.06);
-  --skeleton-sheen: rgba(255, 255, 255, 0.1);
+  --skeleton-base: rgba(255, 255, 255, 0.07);
+  --skeleton-sheen: rgba(255, 255, 255, 0.11);
 }
 
-/* Automatically retheme Tailwind's bg-white in dark mode */
+/* ── Subject colors ────────────────────────────────────────
+   The soft block and its text for each class color. These are CSS variables
+   rather than constants in lib/palette.ts so one rule reskins every class
+   chip, block and dot at once — a pastel block with near-black text is a
+   light-mode object, and on a black page it reads as a hole punched in the
+   screen. In dark each becomes a low-alpha wash of its own accent with the
+   accent itself, lightened, as the text. The `bar` accent stays a literal
+   hex in lib/palette.ts: it works on either ground, and the server-rendered
+   grade report can't resolve a variable. */
+:root {
+  --subj-amber-bg: #fef1d8;
+  --subj-amber-text: #9a6800;
+  --subj-amber-sub: #b98a2e;
+  --subj-indigo-bg: #ecebfb;
+  --subj-indigo-text: #4038b8;
+  --subj-indigo-sub: #6e67c9;
+  --subj-coral-bg: #ffe8e3;
+  --subj-coral-text: #b93318;
+  --subj-coral-sub: #d75b44;
+  --subj-teal-bg: #def4ef;
+  --subj-teal-text: #0a7568;
+  --subj-teal-sub: #279c8c;
+  --subj-pink-bg: #fbe5f0;
+  --subj-pink-text: #a81e67;
+  --subj-pink-sub: #c74f92;
+  --subj-violet-bg: #f3e9fc;
+  --subj-violet-text: #6820ab;
+  --subj-violet-sub: #8f58bf;
+  --subj-mint-bg: #e2f7e6;
+  --subj-mint-text: #1f7a38;
+  --subj-mint-sub: #4a9c60;
+  --subj-ocean-bg: #dff0fc;
+  --subj-ocean-text: #1b69ac;
+  --subj-ocean-sub: #4a8dc2;
+  --subj-slate-bg: #e9ebf3;
+  --subj-slate-text: #3e4c68;
+  --subj-slate-sub: #6e7c99;
+
+  /* Trophy chip grounds. The medals themselves keep their metal in both
+     themes — a gold trophy that isn't gold isn't a trophy — but the pad they
+     sit on follows the room. */
+  --trophy-bronze-soft: #f8eadd;
+  --trophy-gold-soft: #fdf1d6;
+  --trophy-platinum-soft: #edf1f7;
+}
+
+html.dark {
+  --subj-amber-bg: rgba(227, 154, 14, 0.2);
+  --subj-amber-text: #f5be4a;
+  --subj-amber-sub: #d5a44a;
+  --subj-indigo-bg: rgba(91, 84, 232, 0.26);
+  --subj-indigo-text: #aeaaff;
+  --subj-indigo-sub: #948ee0;
+  --subj-coral-bg: rgba(238, 81, 55, 0.22);
+  --subj-coral-text: #ff9b85;
+  --subj-coral-sub: #e08874;
+  --subj-teal-bg: rgba(14, 159, 142, 0.24);
+  --subj-teal-text: #48dcc6;
+  --subj-teal-sub: #43b8a7;
+  --subj-pink-bg: rgba(214, 57, 139, 0.24);
+  --subj-pink-text: #ff8ac6;
+  --subj-pink-sub: #dd7cae;
+  --subj-violet-bg: rgba(139, 63, 217, 0.26);
+  --subj-violet-text: #c793f7;
+  --subj-violet-sub: #ab84cd;
+  --subj-mint-bg: rgba(47, 168, 79, 0.22);
+  --subj-mint-text: #74e08f;
+  --subj-mint-sub: #6bbb80;
+  --subj-ocean-bg: rgba(44, 143, 224, 0.24);
+  --subj-ocean-text: #83c4ff;
+  --subj-ocean-sub: #79a8d1;
+  --subj-slate-bg: rgba(122, 140, 175, 0.26);
+  --subj-slate-text: #b0bed9;
+  --subj-slate-sub: #97a4bd;
+
+  --trophy-bronze-soft: rgba(205, 127, 50, 0.2);
+  --trophy-gold-soft: rgba(240, 180, 41, 0.2);
+  --trophy-platinum-soft: rgba(185, 197, 214, 0.2);
+}
+
+/* Retheme Tailwind's bg-white in dark mode. Cards separate from the page by
+   being a step lighter than pure black rather than by a shadow — the shadows
+   the app sets inline are invisible against #000, so they're dropped. */
 html.dark .bg-white {
   background-color: var(--bg-card);
+  box-shadow: none !important;
 }
 
 * {

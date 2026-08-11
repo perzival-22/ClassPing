@@ -42,7 +42,12 @@ export async function POST(req: Request) {
     );
   }
 
-  let body: { classes?: unknown; tasks?: unknown; now?: unknown };
+  let body: {
+    classes?: unknown;
+    tasks?: unknown;
+    now?: unknown;
+    term?: unknown;
+  };
   try {
     body = await req.json();
   } catch {
@@ -62,8 +67,25 @@ export async function POST(req: Request) {
     if (!Number.isNaN(parsed.getTime())) now = parsed;
   }
 
+  // The semester window, so the exported timetable stops when the term does.
+  // Anything that isn't a plain ISO date is ignored by buildCalendarFile.
+  const rawTerm =
+    body.term && typeof body.term === "object" && !Array.isArray(body.term)
+      ? (body.term as { start?: unknown; end?: unknown })
+      : {};
+  const term = {
+    start: typeof rawTerm.start === "string" ? rawTerm.start : null,
+    end: typeof rawTerm.end === "string" ? rawTerm.end : null,
+  };
+
   const nameById = new Map(classes.map((c) => [c.id, c.name]));
-  const ics = buildCalendarFile(classes, tasks, (id) => nameById.get(id), now);
+  const ics = buildCalendarFile(
+    classes,
+    tasks,
+    (id) => nameById.get(id),
+    now,
+    term,
+  );
 
   return new Response(ics, {
     headers: {

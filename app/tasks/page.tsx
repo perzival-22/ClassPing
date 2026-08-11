@@ -5,14 +5,37 @@ import { useRouter } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { TabBar } from "@/components/TabBar";
 import { TasksSkeleton } from "@/components/Skeleton";
-import { CheckIcon, ChevronRightIcon, PencilIcon } from "@/components/icons";
+import { StudyTimer } from "@/components/StudyTimer";
+import {
+  TrophyBar,
+  TrophyCelebration,
+  TrophyGraphSheet,
+} from "@/components/Trophies";
+import {
+  CheckIcon,
+  ChevronRightIcon,
+  PencilIcon,
+  TimerIcon,
+  TrophyIcon,
+} from "@/components/icons";
 import { PALETTE } from "@/lib/palette";
 import { useStore, dueLabel, longDate, type TaskItem } from "@/lib/store";
 
 export default function TasksScreen() {
   const router = useRouter();
-  const { tasks, classById, toggleTask, hydrated } = useStore();
+  const {
+    tasks,
+    classById,
+    toggleTask,
+    trophies,
+    recentTrophy,
+    clearRecentTrophy,
+    hydrated,
+  } = useStore();
   const [tab, setTab] = useState<"open" | "done">("open");
+  const [showTrophies, setShowTrophies] = useState(false);
+  /** The assignment a study block is running for, if any. */
+  const [timerFor, setTimerFor] = useState<TaskItem | null>(null);
 
   const open = tasks.filter((t) => !t.done);
   const done = tasks.filter((t) => t.done);
@@ -25,8 +48,14 @@ export default function TasksScreen() {
   return (
     <PhoneFrame>
       <div className="flex h-full flex-col bg-aurora">
+        {/* trophies, above everything — the streak is the reason the rest of
+            this screen gets opened */}
+        <div className="px-5 pb-1 pt-12">
+          <TrophyBar trophies={trophies} onOpen={() => setShowTrophies(true)} />
+        </div>
+
         {/* header */}
-        <div className="flex items-end justify-between px-5 pb-2 pt-16">
+        <div className="flex items-end justify-between px-5 pb-2 pt-3">
           <div className="flex items-center gap-2.5">
             <h1 className="font-[family-name:var(--font-fredoka)] text-[32px] font-semibold leading-none text-ink">
               Tasks
@@ -37,11 +66,24 @@ export default function TasksScreen() {
               </span>
             )}
           </div>
+          <button
+            onClick={() => setShowTrophies(true)}
+            aria-label="Trophy timeline"
+            className="mb-0.5 flex items-center gap-1.5 rounded-full px-3 py-[7px] text-[13px] font-semibold text-brand transition active:scale-95"
+            style={{ background: "var(--brand-soft)" }}
+          >
+            <TrophyIcon
+              className="h-[15px] w-[15px]"
+              face="var(--color-brand)"
+              ring="var(--color-brand)"
+            />
+            Trophies
+          </button>
         </div>
 
         {/* segmented */}
         <div className="px-5 pb-1 pt-2">
-          <div className="flex w-full rounded-xl bg-[#E5E2F1] p-[3px]">
+          <div className="flex w-full rounded-xl bg-[var(--surface-3)] p-[3px]">
             {(["open", "done"] as const).map((t) => (
               <button
                 key={t}
@@ -50,12 +92,12 @@ export default function TasksScreen() {
                 style={
                   tab === t
                     ? {
-                        background: "#fff",
+                        background: "var(--pill-active)",
                         fontWeight: 600,
-                        color: "#211D46",
+                        color: "var(--color-ink)",
                         boxShadow: "0 1px 3px rgba(0,0,0,.08)",
                       }
-                    : { fontWeight: 500, color: "#7A759C" }
+                    : { fontWeight: 500, color: "var(--color-muted-2)" }
                 }
               >
                 {t === "open" ? "Open" : "Done"}
@@ -81,9 +123,36 @@ export default function TasksScreen() {
               dot={PALETTE[classById(t.classId)?.color ?? "indigo"].bar}
               onToggle={() => toggleTask(t.id)}
               onEdit={() => router.push(`/tasks/${t.id}/edit`)}
+              onStart={() => setTimerFor(t)}
             />
           ))}
         </div>
+
+        {showTrophies && (
+          <TrophyGraphSheet
+            trophies={trophies}
+            onClose={() => setShowTrophies(false)}
+          />
+        )}
+
+        {timerFor && (
+          <StudyTimer
+            title={timerFor.title}
+            onClose={() => setTimerFor(null)}
+            onFinishTask={
+              // Only offered while it's still open — the finished state
+              // shouldn't hand you a button that un-ticks the task.
+              timerFor.done ? undefined : () => toggleTask(timerFor.id)
+            }
+          />
+        )}
+
+        {recentTrophy && (
+          <TrophyCelebration
+            trophy={recentTrophy}
+            onClose={clearRecentTrophy}
+          />
+        )}
 
         <TabBar />
       </div>
@@ -106,12 +175,15 @@ function TaskRow({
   dot,
   onToggle,
   onEdit,
+  onStart,
 }: {
   task: TaskItem;
   className: string;
   dot: string;
   onToggle: () => void;
   onEdit: () => void;
+  /** Open a study block for this assignment. */
+  onStart: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const due = dueLabel(task.due);
@@ -134,8 +206,8 @@ function TaskRow({
           className="mt-0.5 flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full transition"
           style={
             task.done
-              ? { background: "#34C759", color: "#fff" }
-              : { border: "2px solid #DDD9EC" }
+              ? { background: "var(--good)", color: "#fff" }
+              : { border: "2px solid var(--line-strong)" }
           }
         >
           {task.done && <CheckIcon className="h-[15px] w-[15px]" />}
@@ -159,7 +231,7 @@ function TaskRow({
             {task.kind === "exam" && !task.done && (
               <span
                 className="mr-1.5 rounded-full px-1.5 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide"
-                style={{ background: "#FFF0D6", color: "#A96A00" }}
+                style={{ background: "var(--warn-soft)", color: "var(--warn-ink)" }}
               >
                 Exam
               </span>
@@ -169,14 +241,14 @@ function TaskRow({
           <div className="mt-1.5 flex items-center gap-1.5">
             <span
               className="h-2 w-2 rounded-full"
-              style={{ background: task.done ? "#C9C4D6" : dot }}
+              style={{ background: task.done ? "var(--color-hint)" : dot }}
             />
             <span
               className="text-[13px]"
               style={
                 task.done
-                  ? { color: "#B4B0C6", textDecoration: "line-through" }
-                  : { color: "#8D89AD" }
+                  ? { color: "var(--color-hint)", textDecoration: "line-through" }
+                  : { color: "var(--color-muted-2)" }
               }
             >
               {className}
@@ -192,8 +264,8 @@ function TaskRow({
             className="whitespace-nowrap rounded-full px-2.5 py-[5px] text-[12px] font-bold"
             style={
               due.urgent
-                ? { background: "#FFE8E3", color: "#D33B22" }
-                : { background: "#F0EFF6", color: "#7A759C" }
+                ? { background: "var(--danger-soft)", color: "var(--danger-ink)" }
+                : { background: "var(--surface-2)", color: "var(--color-muted-2)" }
             }
           >
             {due.text}
@@ -245,6 +317,19 @@ function TaskRow({
             <p className="mt-2.5 text-[13px] text-hint">
               No notes yet — add one to remember what this actually asks for.
             </p>
+          )}
+
+          {/* The primary action on an open assignment is to *start* it, so it
+              gets the full-width filled button and Edit steps down to a quiet
+              pill beside it. */}
+          {!task.done && (
+            <button
+              onClick={onStart}
+              className="btn-brand mt-3.5 flex w-full items-center justify-center gap-2 rounded-[14px] py-[12px] text-[15px] font-semibold text-white transition active:scale-[0.98]"
+            >
+              <TimerIcon className="h-[17px] w-[17px]" />
+              Let&apos;s Do It
+            </button>
           )}
 
           <button

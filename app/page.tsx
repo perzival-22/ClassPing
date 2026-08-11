@@ -231,7 +231,7 @@ function SignInForm() {
           {view === "form" ? (
             <>
               {/* segmented control */}
-              <div className="mt-9 flex w-full rounded-[14px] bg-[#E3E0F2] p-1" style={{ background: "var(--bg-card)" }}>
+              <div className="mt-9 flex w-full rounded-[14px] bg-[var(--line)] p-1" style={{ background: "var(--bg-card)" }}>
                 {(["login", "signup"] as const).map((m) => (
                   <button
                     key={m}
@@ -310,7 +310,7 @@ function SignInForm() {
               <div id="clerk-captcha" className="mt-2 w-full" />
 
               {error && (
-                <p className="mt-3 w-full text-center text-[13px] font-medium text-[#E84040]">
+                <p className="mt-3 w-full text-center text-[13px] font-medium text-[var(--danger)]">
                   {error}
                 </p>
               )}
@@ -378,7 +378,7 @@ function SignInForm() {
               </label>
 
               {error && (
-                <p className="mt-3 text-center text-[13px] font-medium text-[#E84040]">
+                <p className="mt-3 text-center text-[13px] font-medium text-[var(--danger)]">
                   {error}
                 </p>
               )}

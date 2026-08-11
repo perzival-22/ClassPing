@@ -13,6 +13,16 @@ import type { SubjectColor } from "./palette";
 import type { AccentId } from "./accents";
 import { registerServiceWorker, showReminder } from "./notifications";
 import { fmtTime } from "./time";
+import {
+  completeTask,
+  emptyTrophyState,
+  missTask,
+  normalizeTrophyState,
+  pruneTrophyState,
+  uncompleteTask,
+  type Trophy,
+  type TrophyState,
+} from "./trophies";
 import { useIsPro } from "./useIsPro";
 
 /** Days of the week the app plots (Mon–Fri). 0 = Mon … 4 = Fri */
@@ -143,6 +153,14 @@ interface Store {
   tasks: TaskItem[];
   grades: GradeItem[];
   profile: Profile;
+  /** Assignment streak and every trophy earned this semester. */
+  trophies: TrophyState;
+  /**
+   * A trophy earned in the last moment or two, for the celebration overlay.
+   * The screen that shows it calls `clearTrophy` when the user dismisses it.
+   */
+  recentTrophy: Trophy | null;
+  clearRecentTrophy: () => void;
   /** false until persisted state has been loaded from localStorage */
   hydrated: boolean;
   addClass: (c: Omit<ClassItem, "id">) => void;
@@ -229,6 +247,8 @@ interface PersistedState {
   tasks: TaskItem[];
   grades?: GradeItem[];
   profile?: Profile;
+  /** Streak + trophy record. Absent on documents written before gamification. */
+  trophies?: TrophyState;
   /** ms timestamp of the last local mutation — drives last-write-wins sync */
   updatedAt?: number;
   /**
@@ -244,6 +264,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [grades, setGrades] = useState<GradeItem[]>([]);
   const [profile, setProfileState] = useState<Profile>(DEFAULT_PROFILE);
+  const [trophies, setTrophies] = useState<TrophyState>(emptyTrophyState);
+  const [recentTrophy, setRecentTrophy] = useState<Trophy | null>(null);
   const [updatedAt, setUpdatedAt] = useState(0);
   const [hydrated, setHydrated] = useState(false);
   const { isPro } = useIsPro();
@@ -264,6 +286,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         if (parsed.classes) setClasses(parsed.classes);
         if (parsed.tasks) setTasks(parsed.tasks);
         if (parsed.grades) setGrades(parsed.grades);
+        if (parsed.trophies) setTrophies(normalizeTrophyState(parsed.trophies));
         // Merge over defaults so profiles saved before new fields existed
         // (e.g. accent) still get sensible values.
         if (parsed.profile)
@@ -286,12 +309,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.setItem(
         KEY,
-        JSON.stringify({ classes, tasks, grades, profile, updatedAt }),
+        JSON.stringify({ classes, tasks, grades, profile, trophies, updatedAt }),
       );
     } catch {
       /* storage full / unavailable */
     }
-  }, [classes, tasks, grades, profile, updatedAt, hydrated]);
+  }, [classes, tasks, grades, profile, trophies, updatedAt, hydrated]);
 
   /* ── cloud sync (Pro) ───────────────────────────────────
      Whole-document, last-write-wins: pull once after hydration, apply the
@@ -316,6 +339,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           setClasses(server.data.classes ?? []);
           setTasks(server.data.tasks ?? []);
           setGrades(server.data.grades ?? []);
+          setTrophies(normalizeTrophyState(server.data.trophies));
           if (server.data.profile)
             setProfileState({
               ...DEFAULT_PROFILE,
@@ -348,6 +372,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             tasks,
             grades,
             profile,
+            trophies,
             tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
           },
           updatedAt,
@@ -357,7 +382,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       });
     }, 1500);
     return () => clearTimeout(t);
-  }, [classes, tasks, grades, profile, updatedAt, hydrated, isPro]);
+  }, [classes, tasks, grades, profile, trophies, updatedAt, hydrated, isPro]);
 
   const touch = () => setUpdatedAt(Date.now());
 
@@ -444,12 +469,43 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     touch();
   }, []);
 
-  const toggleTask = useCallback((id: string) => {
-    setTasks((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t)),
-    );
-    touch();
-  }, []);
+  /**
+   * Tick an assignment off — and move the streak with it.
+   *
+   * "On time" is measured against the due date at the moment of the tick, so
+   * finishing something a week late breaks the run exactly as ignoring it
+   * would. A task with an unreadable due date is given the benefit of the
+   * doubt rather than punished for bad data.
+   */
+  const toggleTask = useCallback(
+    (id: string) => {
+      const task = tasks.find((t) => t.id === id);
+      if (!task) return;
+      const now = new Date();
+      const nextDone = !task.done;
+
+      setTasks((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, done: nextDone } : t)),
+      );
+
+      if (nextDone) {
+        const due = new Date(task.due).getTime();
+        const onTime = !Number.isFinite(due) || now.getTime() <= due;
+        const { state, earned } = completeTask(trophies, id, onTime, now);
+        setTrophies(state);
+        // The highest tier crossed is the one worth celebrating — crossing two
+        // at once is impossible with these thresholds, but the last is still
+        // the right one to show.
+        if (earned.length > 0) setRecentTrophy(earned[earned.length - 1]);
+      } else {
+        setTrophies(uncompleteTask(trophies, id));
+      }
+      touch();
+    },
+    [tasks, trophies],
+  );
+
+  const clearRecentTrophy = useCallback(() => setRecentTrophy(null), []);
 
   const addGrade = useCallback((g: Omit<GradeItem, "id">) => {
     setGrades((prev) => [...prev, { ...g, id: uid() }]);
@@ -593,6 +649,39 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(iv);
   }, [classes, tasks, hydrated]);
 
+  /**
+   * Missed-assignment sweep.
+   *
+   * A streak can be broken by something the user *doesn't* do, so nothing but
+   * the passage of time will report it — hence a poll rather than an event.
+   * Every minute, any open task whose deadline has passed breaks the run once
+   * (`missTask` is idempotent), and bookkeeping for deleted tasks is dropped.
+   *
+   * It converges: once every overdue task is recorded the computed state is
+   * reference-equal to the current one and nothing is written.
+   */
+  useEffect(() => {
+    if (!hydrated) return;
+
+    const sweep = () => {
+      const now = Date.now();
+      let next = pruneTrophyState(trophies, new Set(tasks.map((t) => t.id)));
+      for (const t of tasks) {
+        if (t.done) continue;
+        const due = new Date(t.due).getTime();
+        if (!Number.isFinite(due) || due >= now) continue;
+        next = missTask(next, t.id);
+      }
+      if (next === trophies) return;
+      setTrophies(next);
+      touch();
+    };
+
+    sweep();
+    const iv = setInterval(sweep, 60_000);
+    return () => clearInterval(iv);
+  }, [tasks, trophies, hydrated]);
+
   // Sync dark/light class and accent theme to <html> whenever they change.
   useEffect(() => {
     if (profile.theme === "dark") {
@@ -606,12 +695,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<Store>(
     () => ({
       classes, activeClasses, tasks, grades, profile, hydrated,
+      trophies, recentTrophy, clearRecentTrophy,
       addClass, importItems, updateClass, deleteClass, archiveTerm, unarchiveClass,
       addTask, updateTask, deleteTask, toggleTask,
       addGrade, updateGrade, deleteGrade,
       classById, taskById, gradeById, setProfile,
     }),
-    [classes, activeClasses, tasks, grades, profile, hydrated, addClass, importItems, updateClass, deleteClass, archiveTerm, unarchiveClass, addTask, updateTask, deleteTask, toggleTask, addGrade, updateGrade, deleteGrade, classById, taskById, gradeById, setProfile],
+    [classes, activeClasses, tasks, grades, profile, hydrated, trophies, recentTrophy, clearRecentTrophy, addClass, importItems, updateClass, deleteClass, archiveTerm, unarchiveClass, addTask, updateTask, deleteTask, toggleTask, addGrade, updateGrade, deleteGrade, classById, taskById, gradeById, setProfile],
   );
 
   return (

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { PricingTable } from "@clerk/nextjs";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { ArrowLeftIcon, CheckIcon, SparkleIcon } from "@/components/icons";
+import { ACCENTS } from "@/lib/accents";
 import { useIsPro } from "@/lib/useIsPro";
 
 /**
@@ -21,7 +22,9 @@ const PERKS = [
   "A nudge after class to log what was assigned",
   "Import your timetable from Canvas, Moodle & more",
   "Unlimited classes + cloud sync across devices",
-  "Grades & GPA, calendar export, premium themes",
+  "Ten app themes, including the vibrant set",
+  "Extra class colors and true-black dark mode",
+  "Grades & GPA, plus calendar export for your term",
 ];
 
 export default function UpgradeScreen() {
@@ -78,6 +81,31 @@ export default function UpgradeScreen() {
                 </li>
               ))}
             </ul>
+          </div>
+
+          {/* The themes, shown rather than described. "Premium themes" as a
+              bullet is a claim; ten dots you can see is the feature. */}
+          <div
+            className="mt-4 rounded-[20px] bg-white px-4 py-4"
+            style={{ boxShadow: "0 2px 12px rgba(30,20,80,.07)" }}
+          >
+            <div className="text-[11px] font-semibold uppercase tracking-widest text-faint">
+              Make it yours
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2.5">
+              {ACCENTS.map((a) => (
+                <span
+                  key={a.id}
+                  title={a.label}
+                  className="block h-7 w-7 rounded-full"
+                  style={{ background: a.swatch }}
+                />
+              ))}
+            </div>
+            <p className="mt-3 text-[13px] leading-snug text-muted">
+              Ten accent themes — the five vibrant ones are Pro — plus extra
+              class colors and a true-black dark mode that keeps them all.
+            </p>
           </div>
 
           {/* How a reminder actually reaches you — the real free/Pro line.

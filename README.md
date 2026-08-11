@@ -20,14 +20,14 @@ ClassPing is **local-first**. Your classes, tasks, grades, and profile live in o
 | `/home` | Today's schedule, open assignments, class list | Free |
 | `/week` | Mon–Fri time grid with a live "now" line | Free |
 | `/class/new`, `/class/[id]/edit` | Add / edit a class — days, times, reminder lead time, alarm, color | Free (≤5 classes) |
-| `/tasks`, `/tasks/new` | Assignments — Open ↔ Done filter, due-in presets | Free |
+| `/tasks`, `/tasks/new` | Assignments — Open ↔ Done filter, due-in presets, study timer, trophy streak | Free |
 | `/prompt` | Post-class nudge: "did this class come with an assignment?" | Free |
-| `/settings` | Profile, theme, accent, calendar export, sign out | Free |
+| `/settings` | Profile, theme, accent, semester dates, calendar export, sign out | Free |
 | `/lock` | Lock-screen reminder mockup | Free |
 | `/grades`, `/grades/new` | Grades & GPA tracker, DaysToFinals countdown | **Pro** |
 | `/upgrade` | Clerk pricing table + checkout | — |
 
-**Pro** (via Clerk Billing) unlocks: unlimited classes, cloud sync across devices, the grades/GPA tracker, calendar export, extra reminder lead times, and premium themes.
+**Pro** (via Clerk Billing) unlocks: unlimited classes, cloud sync across devices, the grades/GPA tracker, calendar export, extra reminder lead times, and premium themes — including the five vibrant accents.
 
 ## Reminders — read this before filing a bug
 
@@ -111,4 +111,5 @@ public/sw.js            # service worker — notifications + offline app shell
 - **Ink** `#211D46`, **canvas** `#F5F4FA`, **coral accent** `#FF6B57`
 - **Display font** Fredoka; body uses the system font stack
 - Subject palette: amber, indigo, coral, teal, pink (+ violet, mint, ocean, slate on Pro)
-- App accents: classic (free) + ocean, sunset, forest, rose (Pro)
+- App accents: classic (free) + ocean, sunset, forest, rose, and the vibrant set — aurora, electric, lime, crimson, mango (Pro)
+- Dark mode is **true black** (`#000` canvas). Surfaces, hairlines, status pairs and the subject palette are all CSS variables in `globals.css` with a light and a dark value — the app sets most colors through inline `style`, which no CSS override can reach, so the *value* has to be what changes. Never hardcode a hex that has to survive a theme switch.

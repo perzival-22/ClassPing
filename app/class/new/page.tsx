@@ -155,7 +155,7 @@ export default function AddClassScreen() {
             onClick={save}
             disabled={!canSave}
             className="text-[16px] font-semibold"
-            style={{ color: canSave ? "var(--color-brand)" : "#C4C0DC" }}
+            style={{ color: canSave ? "var(--color-brand)" : "var(--color-hint)" }}
           >
             Save
           </button>
@@ -224,8 +224,8 @@ export default function AddClassScreen() {
                       on
                         ? { background: "var(--color-brand)", color: "#fff" }
                         : {
-                            background: "#fff",
-                            color: "#9A96B4",
+                            background: "var(--chip)",
+                            color: "var(--color-faint)",
                             boxShadow: "0 1px 3px rgba(30,20,80,.05)",
                           }
                     }
@@ -266,8 +266,8 @@ export default function AddClassScreen() {
                       on
                         ? { background: "var(--color-brand)", color: "#fff" }
                         : {
-                            background: "#fff",
-                            color: "#79749B",
+                            background: "var(--chip)",
+                            color: "var(--color-muted-2)",
                             boxShadow: "0 1px 3px rgba(30,20,80,.05)",
                           }
                     }
@@ -314,7 +314,7 @@ export default function AddClassScreen() {
             style={{ boxShadow: "0 1px 4px rgba(30,20,80,.05)" }}
           >
             <div className="flex items-center gap-[11px]">
-              <div className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-[#FFEDE8] text-coral">
+              <div className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-[var(--danger-soft)] text-coral">
                 <BellSolid className="h-[18px] w-[18px]" />
               </div>
               <div>

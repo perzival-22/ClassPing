@@ -104,7 +104,7 @@ function AddAssignment() {
             onClick={save}
             disabled={!canSave}
             className="text-[16px] font-semibold"
-            style={{ color: canSave ? "var(--color-brand)" : "#C4C0DC" }}
+            style={{ color: canSave ? "var(--color-brand)" : "var(--color-hint)" }}
           >
             Save
           </button>
@@ -151,7 +151,7 @@ function AddAssignment() {
                     }}
                     className="flex w-full items-center gap-[11px] px-4 py-3 text-left"
                     style={{
-                      borderTop: i ? "0.5px solid #EFEDF6" : undefined,
+                      borderTop: i ? "0.5px solid var(--line)" : undefined,
                     }}
                   >
                     <span
@@ -171,7 +171,7 @@ function AddAssignment() {
             <div className="mb-[7px] px-1 text-[12px] font-semibold tracking-wide text-muted-2">
               TYPE
             </div>
-            <div className="flex w-full rounded-xl bg-[#E5E2F1] p-[3px]">
+            <div className="flex w-full rounded-xl bg-[var(--surface-3)] p-[3px]">
               {(
                 [
                   { id: "assignment", label: "Assignment" },
@@ -185,12 +185,12 @@ function AddAssignment() {
                   style={
                     kind === k.id
                       ? {
-                          background: "#fff",
+                          background: "var(--chip)",
                           fontWeight: 600,
-                          color: "#211D46",
+                          color: "var(--color-ink)",
                           boxShadow: "0 1px 3px rgba(0,0,0,.08)",
                         }
-                      : { fontWeight: 500, color: "#7A759C" }
+                      : { fontWeight: 500, color: "var(--color-muted-2)" }
                   }
                 >
                   {k.label}
@@ -234,8 +234,8 @@ function AddAssignment() {
                       on
                         ? { background: "var(--color-brand)", color: "#fff" }
                         : {
-                            background: "#fff",
-                            color: "#79749B",
+                            background: "var(--chip)",
+                            color: "var(--color-muted-2)",
                             boxShadow: "0 1px 3px rgba(30,20,80,.05)",
                           }
                     }
@@ -285,7 +285,7 @@ function AddAssignment() {
             style={{ boxShadow: "0 1px 4px rgba(30,20,80,.05)" }}
           >
             <div className="flex items-center gap-[11px]">
-              <div className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-[#ECEBFB] text-brand">
+              <div className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-[var(--brand-soft)] text-brand">
                 <FlagIcon className="h-[17px] w-[17px]" />
               </div>
               <div>

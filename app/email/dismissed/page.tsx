@@ -13,7 +13,7 @@ export default function EmailDismissedScreen() {
   return (
     <PhoneFrame>
       <div className="flex h-full flex-col items-center justify-center bg-aurora px-8 text-center">
-        <div className="flex h-[72px] w-[72px] items-center justify-center rounded-[24px] bg-[#E6F7EE] text-[34px]">
+        <div className="flex h-[72px] w-[72px] items-center justify-center rounded-[24px] bg-[var(--good-soft)] text-[34px]">
           🎉
         </div>
         <h2 className="mt-5 font-[family-name:var(--font-fredoka)] text-[22px] font-semibold text-ink">

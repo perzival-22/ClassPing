@@ -77,7 +77,7 @@ function TabItem({
     <Link
       href={href}
       className="flex flex-col items-center gap-1"
-      style={{ color: active ? "var(--color-brand)" : "#9A96B4" }}
+      style={{ color: active ? "var(--color-brand)" : "var(--color-faint)" }}
     >
       <Icon className="h-6 w-6" />
       <span className="text-[10px] font-semibold">{label}</span>

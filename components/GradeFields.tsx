@@ -56,7 +56,7 @@ export function GradeKindPicker({
               on
                 ? { background: accent, color: "#fff" }
                 : {
-                    background: "#fff",
+                    background: "var(--chip)",
                     color: "var(--color-muted)",
                     boxShadow: "0 1px 3px rgba(30,20,80,.05)",
                   }
@@ -85,10 +85,10 @@ export function GradeKindTag({ kind }: { kind: GradeKind }) {
 
 /** Exams read as higher-stakes than a quiz, and the colours should say so. */
 const KIND_TONES: Record<GradeKind, { bg: string; text: string }> = {
-  exam: { bg: "#FFF0D6", text: "#A96A00" },
-  quiz: { bg: "#E4F1FD", text: "#1B69AC" },
-  assignment: { bg: "#ECEBFB", text: "#4038B8" },
-  project: { bg: "#E2F7E6", text: "#1F7A38" },
+  exam: { bg: "var(--warn-soft)", text: "var(--warn-ink)" },
+  quiz: { bg: "var(--info-soft)", text: "var(--info-ink)" },
+  assignment: { bg: "var(--brand-soft)", text: "var(--color-brand)" },
+  project: { bg: "var(--good-soft)", text: "var(--good-ink)" },
 };
 
 /**
@@ -124,7 +124,7 @@ export function WeightBudget({
     <div className="mt-2.5">
       <div
         className="h-1.5 w-full overflow-hidden rounded-full"
-        style={{ background: "#EDEBF6" }}
+        style={{ background: "var(--line)" }}
       >
         <div className="flex h-full">
           <div
@@ -136,7 +136,7 @@ export function WeightBudget({
           <div
             style={{
               width: `${Math.min(pending, Math.max(100 - used, 0))}%`,
-              background: over ? "#E84040" : "rgba(var(--brand-rgb),.45)",
+              background: over ? "var(--danger)" : "rgba(var(--brand-rgb),.45)",
             }}
           />
         </div>
@@ -144,7 +144,7 @@ export function WeightBudget({
 
       <p
         className="mt-1.5 px-1 text-[12px] leading-snug"
-        style={{ color: over ? "#C0392B" : "var(--color-muted-2)" }}
+        style={{ color: over ? "var(--danger-ink)" : "var(--color-muted-2)" }}
       >
         {over ? (
           <>

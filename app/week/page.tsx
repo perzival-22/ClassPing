@@ -8,6 +8,7 @@ import { WeekSkeleton } from "@/components/Skeleton";
 import { BellSolid, ArrowLeftIcon, ArrowRightIcon, PencilIcon } from "@/components/icons";
 import { PALETTE } from "@/lib/palette";
 import { useStore, useNow, weekInfo, fmtMD, type ClassItem, type DayIndex } from "@/lib/store";
+import { isWithinTerm, termRangeLabel } from "@/lib/time";
 
 const DAYS = ["MON", "TUE", "WED", "THU", "FRI"];
 const DAY_FULL = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
@@ -19,7 +20,7 @@ const DEFAULT_END_HOUR = 17;
 const PX_PER_HOUR = 62;
 
 export default function WeekScreen() {
-  const { activeClasses: classes, hydrated } = useStore();
+  const { activeClasses: classes, profile, hydrated } = useStore();
   const [dismissed, setDismissed] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
   // The block the user tapped, plus which column they tapped it in — the same
@@ -46,6 +47,14 @@ export default function WeekScreen() {
   // current week — clear them while browsing past/future weeks.
   const todayCol = weekOffset === 0 ? base.todayCol : null;
   const nowMin = now.getHours() * 60 + now.getMinutes();
+
+  // Per column, because a semester can start or end mid-week: the grid should
+  // fill in from the exact day term begins, not from the Monday of that week.
+  const inTermDay = dates.map((d) =>
+    isWithinTerm(profile.termStart, profile.termEnd, d),
+  );
+  const wholeWeekOutOfTerm = inTermDay.every((v) => !v);
+  const termLabel = termRangeLabel(profile.termStart, profile.termEnd);
 
   const weekLabel =
     weekOffset === 0
@@ -85,7 +94,7 @@ export default function WeekScreen() {
 
   // next class on today's column starting within the next hour
   const upcoming =
-    todayCol === null
+    todayCol === null || !inTermDay[todayCol]
       ? undefined
       : classes
           .filter((c) => c.days.includes(todayCol) && c.start > nowMin)
@@ -132,6 +141,22 @@ export default function WeekScreen() {
 
         {/* grid */}
         <div className="no-scrollbar flex-1 overflow-y-auto px-3 pb-28 pt-1.5">
+          {/* Whole week falls outside the semester — say so once, rather than
+              leave the user staring at an empty grid wondering what broke. */}
+          {wholeWeekOutOfTerm && classes.length > 0 && (
+            <div
+              className="mx-1 mb-2.5 rounded-[16px] px-3.5 py-2.5 text-[12.5px] leading-snug"
+              style={{
+                background: "rgba(var(--brand-rgb),.07)",
+                border: "1px solid rgba(var(--brand-rgb),.14)",
+                color: "var(--color-muted)",
+              }}
+            >
+              This week is outside your semester
+              {termLabel ? ` (${termLabel})` : ""} — nothing is timetabled.
+            </div>
+          )}
+
           {/* day header */}
           <div className="mb-1.5 flex">
             <div className="w-[30px]" />
@@ -142,7 +167,7 @@ export default function WeekScreen() {
                   <div key={d} className="flex-1 text-center">
                     <div
                       className="text-[11px] font-semibold"
-                      style={{ color: isToday ? "var(--color-brand)" : "#9A96B4" }}
+                      style={{ color: isToday ? "var(--color-brand)" : "var(--color-faint)" }}
                     >
                       {d}
                     </div>
@@ -151,7 +176,7 @@ export default function WeekScreen() {
                         {dates[i].getDate()}
                       </div>
                     ) : (
-                      <div className="mt-1.5 text-[13px] font-semibold text-[#54506F]">
+                      <div className="mt-1.5 text-[13px] font-semibold text-[var(--color-muted)]">
                         {dates[i].getDate()}
                       </div>
                     )}
@@ -170,7 +195,7 @@ export default function WeekScreen() {
                 return (
                   <div
                     key={h}
-                    className="absolute right-1.5 -translate-y-1/2 text-[10px] text-[#ADA9C6]"
+                    className="absolute right-1.5 -translate-y-1/2 text-[10px] text-[var(--color-faint)]"
                     style={{ top: y(h * 60) }}
                   >
                     {label}
@@ -185,7 +210,7 @@ export default function WeekScreen() {
               {hours.map((h) => (
                 <div
                   key={h}
-                  className="absolute left-0 right-0 h-px bg-[#E7E4F1]"
+                  className="absolute left-0 right-0 h-px bg-[var(--line)]"
                   style={{ top: y(h * 60) }}
                 />
               ))}
@@ -214,11 +239,11 @@ export default function WeekScreen() {
                     className="relative flex-1"
                     style={
                       dayIdx > 0
-                        ? { borderLeft: "1px solid #EFEDF6" }
+                        ? { borderLeft: "1px solid var(--line)" }
                         : undefined
                     }
                   >
-                    {classes
+                    {(inTermDay[dayIdx] ? classes : [])
                       .filter((c) => c.days.includes(dayIdx as DayIndex))
                       .map((c) => (
                         <ClassBlock
@@ -257,7 +282,7 @@ export default function WeekScreen() {
                 {fmtHM(upcoming.start)} · that&apos;s in {minsAway} minutes
               </div>
             </div>
-            <div className="text-[11px] font-medium text-[#ADA9C6]">now</div>
+            <div className="text-[11px] font-medium text-[var(--color-faint)]">now</div>
           </button>
         )}
 
@@ -361,7 +386,7 @@ function ClassSheet({
         className="relative max-h-[80%] overflow-y-auto rounded-t-[28px] bg-white px-5 pb-8 pt-3"
         style={{ boxShadow: "0 -8px 30px rgba(30,20,80,.18)" }}
       >
-        <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[#E0DDEE]" />
+        <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[var(--line-strong)]" />
 
         <div className="flex items-start gap-3">
           <div
@@ -382,7 +407,7 @@ function ClassSheet({
             onClick={() => router.push(`/class/${c.id}/edit`)}
             aria-label="Edit class"
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition active:scale-95"
-            style={{ background: "#F0EFF6" }}
+            style={{ background: "var(--surface-2)" }}
           >
             <PencilIcon className="h-[15px] w-[15px] text-muted" />
           </button>

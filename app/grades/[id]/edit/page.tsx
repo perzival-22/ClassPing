@@ -123,7 +123,7 @@ function EditForm({ grade }: { grade: GradeItem }) {
             onClick={save}
             disabled={!canSave}
             className="text-[16px] font-semibold"
-            style={{ color: canSave ? "var(--color-brand)" : "#C4C0DC" }}
+            style={{ color: canSave ? "var(--color-brand)" : "var(--color-hint)" }}
           >
             Save
           </button>
@@ -145,7 +145,7 @@ function EditForm({ grade }: { grade: GradeItem }) {
                       on
                         ? { background: t.bar, color: "#fff" }
                         : {
-                            background: "#fff",
+                            background: "var(--chip)",
                             color: t.text,
                             boxShadow: "0 1px 3px rgba(30,20,80,.05)",
                           }
@@ -182,7 +182,7 @@ function EditForm({ grade }: { grade: GradeItem }) {
               <NumberBox label="WEIGHT %" value={weight} onChange={setWeight} />
             </div>
             {extraCredit && (
-              <p className="mt-2 px-1 text-[12px] leading-snug text-[#A96A00]">
+              <p className="mt-2 px-1 text-[12px] leading-snug text-[var(--warn-ink)]">
                 {extraCredit}
               </p>
             )}

@@ -98,7 +98,7 @@ function PostClassPrompt() {
           className="no-scrollbar absolute left-6 right-6 top-1/2 max-h-[82%] -translate-y-1/2 overflow-y-auto rounded-[28px] bg-white px-6 pb-[22px] pt-7 text-center"
           style={{ boxShadow: "0 30px 60px rgba(20,12,50,.35)" }}
         >
-          <div className="mx-auto flex h-[66px] w-[66px] items-center justify-center rounded-[20px] bg-[#FFE8E3] text-poli">
+          <div className="mx-auto flex h-[66px] w-[66px] items-center justify-center rounded-[20px] bg-[var(--danger-soft)] text-poli">
             <ChatIcon className="h-[34px] w-[34px]" />
           </div>
           <div className="mt-4 text-[13px] font-semibold tracking-wide text-poli">
@@ -107,7 +107,7 @@ function PostClassPrompt() {
           <div className="mt-2 font-[family-name:var(--font-fredoka)] text-[24px] font-semibold leading-tight text-ink">
             Did this class come with an assignment?
           </div>
-          <div className="mt-2 text-[14px] leading-snug text-[#7A759C]">
+          <div className="mt-2 text-[14px] leading-snug text-[var(--color-muted-2)]">
             Log it now while it&apos;s fresh — we&apos;ll keep you on track.
           </div>
           <div className="mt-[22px] flex flex-col gap-2.5">
@@ -121,7 +121,7 @@ function PostClassPrompt() {
             </button>
             <button
               onClick={() => setDismissed(true)}
-              className="w-full rounded-[15px] bg-[#F0EFF6] py-4 text-[16px] font-semibold text-[#5A5578] transition active:scale-[0.98]"
+              className="w-full rounded-[15px] bg-[var(--surface-2)] py-4 text-[16px] font-semibold text-muted transition active:scale-[0.98]"
             >
               No, I&apos;m good
             </button>
@@ -147,7 +147,7 @@ function SignedOff({
   return (
     <PhoneFrame>
       <div className="flex h-full flex-col items-center justify-center bg-aurora px-8 text-center">
-        <div className="flex h-[72px] w-[72px] items-center justify-center rounded-[24px] bg-[#E6F7EE] text-[34px]">
+        <div className="flex h-[72px] w-[72px] items-center justify-center rounded-[24px] bg-[var(--good-soft)] text-[34px]">
           🎉
         </div>
         <h2 className="mt-5 font-[family-name:var(--font-fredoka)] text-[22px] font-semibold text-ink">
@@ -177,7 +177,7 @@ function NothingJustEnded({ onDismiss }: { onDismiss: () => void }) {
   return (
     <PhoneFrame>
       <div className="flex h-full flex-col items-center justify-center bg-aurora px-8 text-center">
-        <div className="flex h-[72px] w-[72px] items-center justify-center rounded-[24px] bg-[#FFE8E3] text-poli">
+        <div className="flex h-[72px] w-[72px] items-center justify-center rounded-[24px] bg-[var(--danger-soft)] text-poli">
           <ChatIcon className="h-9 w-9" />
         </div>
         <h2 className="mt-5 font-[family-name:var(--font-fredoka)] text-[22px] font-semibold text-ink">

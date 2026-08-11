@@ -11,6 +11,43 @@ import type { ClassItem, DayIndex, TaskItem } from "./store";
 
 const BYDAY = ["MO", "TU", "WE", "TH", "FR"] as const;
 
+/**
+ * The semester the timetable belongs to, as ISO "YYYY-MM-DD" dates. Either
+ * end may be missing — a half-set term still bounds the half it knows.
+ */
+export interface TermWindow {
+  start?: string | null;
+  end?: string | null;
+}
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Local midnight on an ISO date, or null if it isn't one. */
+function parseTermDate(iso: string | null | undefined): Date | null {
+  if (!iso || !ISO_DATE.test(iso)) return null;
+  const [y, m, d] = iso.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/**
+ * The window to write events inside, or null when it's unset or inverted.
+ * `from` is the earliest date an event may start; `until` the last day of the
+ * term at 23:59 local.
+ */
+function resolveWindow(term: TermWindow | undefined): {
+  from: Date | null;
+  until: Date | null;
+} | null {
+  const from = parseTermDate(term?.start);
+  const untilDay = parseTermDate(term?.end);
+  if (from && untilDay && untilDay < from) return null; // typo, not a term
+  if (!from && !untilDay) return null;
+  const until = untilDay ? new Date(untilDay) : null;
+  until?.setHours(23, 59, 0, 0);
+  return { from, until };
+}
+
 const pad = (n: number) => n.toString().padStart(2, "0");
 
 /** Human lead time for an alarm description: "1 day", "3 hours", "15 minutes". */
@@ -78,6 +115,12 @@ export function buildCalendarFile(
   /** The user's "today", used to anchor weekly recurrences. When this runs on
    *  the server, the caller passes the client's local wall-clock time. */
   now: Date = new Date(),
+  /**
+   * The semester these classes run in. When set, class events start no earlier
+   * than the first day of term and stop repeating after the last — otherwise a
+   * timetable exported in September is still ringing alarms the next June.
+   */
+  term?: TermWindow,
 ): string {
   const stamp = fmtUtcNow();
   const lines: string[] = [
@@ -89,9 +132,17 @@ export function buildCalendarFile(
     "X-WR-CALNAME:ClassPing",
   ];
 
+  const window = resolveWindow(term);
+
   for (const c of classes) {
     if (c.days.length === 0) continue;
-    const start = nextOccurrence(c.days, c.start, now);
+    // Anchor to the first meeting inside the term. Before the semester begins
+    // that's its opening week rather than this week; during it, today.
+    const anchor =
+      window?.from && window.from > now ? window.from : now;
+    const start = nextOccurrence(c.days, c.start, anchor);
+    // The whole term is behind us — there is nothing left to put in a calendar.
+    if (window?.until && start > window.until) continue;
     const end = new Date(start);
     end.setHours(Math.floor(c.end / 60), c.end % 60, 0, 0);
     const byday = c.days
@@ -99,6 +150,12 @@ export function buildCalendarFile(
       .sort((a, b) => a - b)
       .map((d) => BYDAY[d])
       .join(",");
+    // UNTIL is written as a floating local time, matching DTSTART. RFC 5545
+    // §3.3.10 requires the two to agree, and a Z-suffixed UNTIL against a
+    // floating start silently drops or adds a final week either side of UTC.
+    const rrule =
+      `RRULE:FREQ=WEEKLY;BYDAY=${byday}` +
+      (window?.until ? `;UNTIL=${fmtLocal(window.until)}` : "");
     lines.push(
       "BEGIN:VEVENT",
       // Stable UID: re-importing after edits updates the event on most
@@ -107,7 +164,7 @@ export function buildCalendarFile(
       `DTSTAMP:${stamp}`,
       `DTSTART:${fmtLocal(start)}`,
       `DTEND:${fmtLocal(end)}`,
-      `RRULE:FREQ=WEEKLY;BYDAY=${byday}`,
+      rrule,
       `SUMMARY:${esc(c.name)}`,
     );
     // LOCATION is what makes a calendar entry actually useful on a phone —

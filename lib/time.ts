@@ -84,6 +84,51 @@ export function termProgress(
   };
 }
 
+/**
+ * Does `date` fall inside the configured semester?
+ *
+ * True when the term isn't set up, and true for whichever half is set — a
+ * half-configured term must not blank out the timetable, because the whole
+ * point of the dates is to *bound* a schedule, never to hide one by accident.
+ * An inverted range (end before start) is a typo, so it's ignored too.
+ */
+export function isWithinTerm(
+  start: string | null | undefined,
+  end: string | null | undefined,
+  date: Date,
+): boolean {
+  const s = start ? dayNumber(start) : null;
+  const e = end ? dayNumber(end) : null;
+  if (s !== null && e !== null && e < s) return true;
+  const day = todayNumber(date);
+  if (s !== null && day < s) return false;
+  if (e !== null && day > e) return false;
+  return true;
+}
+
+/** "Sep 1 – Dec 15", for telling the user what window they're outside of. */
+export function termRangeLabel(
+  start: string | null | undefined,
+  end: string | null | undefined,
+): string | null {
+  const fmt = (iso: string) => {
+    const ms = Date.parse(`${iso}T00:00:00Z`);
+    return Number.isNaN(ms)
+      ? null
+      : new Date(ms).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          timeZone: "UTC",
+        });
+  };
+  const s = start ? fmt(start) : null;
+  const e = end ? fmt(end) : null;
+  if (s && e) return `${s} – ${e}`;
+  if (s) return `from ${s}`;
+  if (e) return `until ${e}`;
+  return null;
+}
+
 /** The user's own wall clock, derived from an IANA timezone. */
 export interface LocalClock {
   /** 0 = Mon … 6 = Sun, matching the app's DayIndex convention. */

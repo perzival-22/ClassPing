@@ -292,6 +292,61 @@ export function LockIcon(props: P) {
   );
 }
 
+/**
+ * A medal on a ribbon. Two-tone rather than `currentColor` so a Bronze, Gold
+ * and Platinum can sit side by side and be told apart at 16px — which is the
+ * entire job of the row in the Tasks header.
+ */
+export function TrophyIcon({
+  face = "currentColor",
+  ring = "currentColor",
+  ...props
+}: P & { face?: string; ring?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" {...props}>
+      {/* handles */}
+      <path
+        d="M6 5H3.5v2A3.5 3.5 0 007 10.5M18 5h2.5v2a3.5 3.5 0 01-3.5 3.5"
+        stroke={ring}
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+      {/* cup */}
+      <path
+        d="M6 3h12v6a6 6 0 01-12 0V3z"
+        fill={face}
+        stroke={ring}
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      {/* stem and base */}
+      <path
+        d="M12 15v3.5M8 21h8"
+        stroke={ring}
+        strokeWidth="1.9"
+        strokeLinecap="round"
+      />
+      <path d="M8.5 21h7l-.7-2.2h-5.6L8.5 21z" fill={face} stroke={ring} strokeWidth="1.2" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** A stopwatch, for the study-timer entry point. */
+export function TimerIcon(props: P) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" {...props}>
+      <circle cx="12" cy="13.5" r="7.5" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M12 9.5v4l2.5 1.5M9.5 2h5M12 2v2.5M18.5 6.5l1.5-1.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function SparkleIcon(props: P) {
   return (
     <svg viewBox="0 0 24 24" fill="none" {...props}>

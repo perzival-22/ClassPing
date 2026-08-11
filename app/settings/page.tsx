@@ -17,7 +17,12 @@ import {
   LogOutIcon,
   SparkleIcon,
 } from "@/components/icons";
-import { ACCENTS, isProAccent, type AccentId } from "@/lib/accents";
+import {
+  accentsIn,
+  isProAccent,
+  type Accent,
+  type AccentId,
+} from "@/lib/accents";
 import { useStore } from "@/lib/store";
 import { termProgress } from "@/lib/time";
 import { downloadCalendarFile } from "@/lib/calendar";
@@ -273,7 +278,14 @@ function SettingsForm() {
       const res = await fetch("/api/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ classes, tasks, now }),
+        // The semester bounds go with it, so the export covers this term
+        // and stops — not every Tuesday from now until the heat death.
+        body: JSON.stringify({
+          classes,
+          tasks,
+          now,
+          term: { start: profile.termStart, end: profile.termEnd },
+        }),
       });
       if (res.status === 403) {
         router.push("/upgrade");
@@ -416,7 +428,7 @@ function SettingsForm() {
                 onChange={handleAvatarChange}
               />
               {avatarError ? (
-                <p className="text-[13px] font-medium text-[#E84040]">
+                <p className="text-[13px] font-medium text-[var(--danger)]">
                   {avatarError}
                 </p>
               ) : (
@@ -495,58 +507,43 @@ function SettingsForm() {
               })}
             </div>
 
+            <p className="mt-2.5 text-[12px] leading-snug text-faint">
+              {profile.theme === "dark"
+                ? "Pure black — easy on the eyes at 1am, and easy on an OLED battery."
+                : "Dark mode goes fully black, keeping your app color."}
+            </p>
+
             {/* app accent color (Pro except Classic) */}
             <div className="mb-3 mt-5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-widest text-faint">
               App color
-              {!isPro && (
-                <span
-                  className="rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white"
-                  style={{ background: "var(--color-brand)" }}
-                >
-                  PRO
-                </span>
-              )}
+              {!isPro && <ProTag />}
             </div>
-            <div className="flex flex-wrap gap-3">
-              {ACCENTS.map((a) => {
-                const locked = !isPro && isProAccent(a.id);
-                const current = (profile.accent ?? "classic") === a.id;
-                return (
-                  <button
-                    key={a.id}
-                    onClick={() =>
-                      locked
-                        ? router.push("/upgrade")
-                        : setProfile({ accent: a.id as AccentId })
-                    }
-                    aria-label={locked ? `${a.label} (Pro)` : a.label}
-                    className="flex flex-col items-center gap-1.5"
-                  >
-                    <span
-                      className="relative block h-9 w-9 rounded-full transition"
-                      style={{
-                        background: a.swatch,
-                        opacity: locked ? 0.45 : 1,
-                        outline: current ? `2px solid ${a.swatch}` : "none",
-                        outlineOffset: 2,
-                      }}
-                    >
-                      {locked && (
-                        <span
-                          className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-white"
-                          style={{ boxShadow: "0 1px 3px rgba(30,20,80,.2)" }}
-                        >
-                          <LockIcon className="h-2.5 w-2.5 text-[#79749B]" />
-                        </span>
-                      )}
-                    </span>
-                    <span className="text-[11px] font-medium text-muted">
-                      {a.label}
-                    </span>
-                  </button>
-                );
-              })}
+            <AccentRow
+              accents={accentsIn("core")}
+              isPro={isPro}
+              current={profile.accent ?? "classic"}
+              onPick={(id) => setProfile({ accent: id })}
+              onLocked={() => router.push("/upgrade")}
+            />
+
+            {/* The vibrant set — Pro-only, and shelved apart so it reads as
+                something extra rather than five more dots in the same row. */}
+            <div className="mb-3 mt-5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-widest text-faint">
+              Vibrant
+              <ProTag />
             </div>
+            <AccentRow
+              accents={accentsIn("vibrant")}
+              isPro={isPro}
+              current={profile.accent ?? "classic"}
+              onPick={(id) => setProfile({ accent: id })}
+              onLocked={() => router.push("/upgrade")}
+            />
+            {!isPro && (
+              <p className="mt-3 text-[12px] leading-snug text-faint">
+                Five louder themes that re-skin the whole app. Unlocked with Pro.
+              </p>
+            )}
           </div>
 
           {/* ── Reminders card ── */}
@@ -776,21 +773,24 @@ function SettingsForm() {
             </p>
           </div>
 
-          {/* ── Term card ──
+          {/* ── Semester card ──
               Without this a class added in September is still on the timetable
               the following June, and the GPA blends every course ever taken.
-              Archiving keeps the grades and clears the schedule. */}
-          {classes.length > 0 && (
-            <div
-              className="mt-4 rounded-[24px] bg-white px-5 py-5"
-              style={{ boxShadow: "0 2px 12px rgba(30,20,80,.07)" }}
-            >
-              <div className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-faint">
-                Term
-              </div>
+              The dates bound the schedule; archiving clears it and keeps the
+              grades. Shown even with no classes yet, because setting the term
+              up front is exactly when it's least annoying to do. */}
+          <div
+            className="mt-4 rounded-[24px] bg-white px-5 py-5"
+            style={{ boxShadow: "0 2px 12px rgba(30,20,80,.07)" }}
+          >
+            <div className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-faint">
+              Semester
+            </div>
 
-              <CurrentTerm />
+            <CurrentTerm />
 
+            {classes.length > 0 && (
+              <>
               <div className="my-5 h-px" style={{ background: "var(--bg-input)" }} />
 
               <p className="text-[13px] leading-snug text-muted">
@@ -865,8 +865,9 @@ function SettingsForm() {
                   Start a new term
                 </button>
               )}
-            </div>
-          )}
+              </>
+            )}
+          </div>
 
           {archived && (
             <p className="mt-3 text-center text-[13px] font-medium text-brand">
@@ -911,10 +912,10 @@ function SettingsForm() {
               className="flex w-full items-center gap-3 px-5 py-4 transition active:bg-canvas"
               style={{ borderBottom: "1px solid var(--bg-input)" }}
             >
-              <div className="flex h-[36px] w-[36px] items-center justify-center rounded-[10px] bg-[#FEECEB]">
-                <LogOutIcon className="h-[18px] w-[18px] text-[#E84040]" />
+              <div className="flex h-[36px] w-[36px] items-center justify-center rounded-[10px] bg-[var(--danger-soft)]">
+                <LogOutIcon className="h-[18px] w-[18px] text-[var(--danger)]" />
               </div>
-              <span className="flex-1 text-left text-[15px] font-medium text-[#E84040]">
+              <span className="flex-1 text-left text-[15px] font-medium text-[var(--danger)]">
                 Log out
               </span>
             </button>
@@ -930,7 +931,7 @@ function SettingsForm() {
                     be undone — export first if you want a copy.
                   </p>
                   {deleteError && (
-                    <p className="mt-2 text-[13px] font-medium text-[#E84040]">
+                    <p className="mt-2 text-[13px] font-medium text-[var(--danger)]">
                       {deleteError}
                     </p>
                   )}
@@ -950,7 +951,7 @@ function SettingsForm() {
                       onClick={handleDeleteAccount}
                       disabled={deleting}
                       className="flex-1 rounded-[15px] py-[13px] text-center text-[15px] font-semibold text-white transition active:scale-[0.98] disabled:opacity-60"
-                      style={{ background: "#E84040" }}
+                      style={{ background: "var(--danger)" }}
                     >
                       {deleting ? "Deleting…" : "Delete forever"}
                     </button>
@@ -959,7 +960,7 @@ function SettingsForm() {
               ) : (
                 <button
                   onClick={handleDeleteAccount}
-                  className="text-[14px] font-medium text-[#E84040]"
+                  className="text-[14px] font-medium text-[var(--danger)]"
                 >
                   Delete account
                 </button>
@@ -984,8 +985,10 @@ function SettingsForm() {
  *
  * Dates commit as they're picked (a date picker is a deliberate, discrete
  * choice) while the name commits on blur, so neither needs its own save
- * button. The progress read is the payoff — "week 6 of 16" is the thing a
- * student actually wants back for having entered two dates.
+ * button. Two things pay for the entry: the progress read ("week 6 of 16"),
+ * and the fact that these dates now bound the schedule everywhere — Today,
+ * the week grid and the exported calendar all stop at the end of term instead
+ * of repeating your Tuesday 9am into the next decade.
  */
 function CurrentTerm() {
   const { profile, setProfile } = useStore();
@@ -1022,18 +1025,25 @@ function CurrentTerm() {
 
       <div className="mt-2.5 flex gap-2.5">
         <DateBox
-          label="STARTS"
+          label="SEMESTER STARTS"
           value={start}
           max={end || undefined}
           onChange={(v) => setProfile({ termStart: v || null })}
         />
         <DateBox
-          label="ENDS"
+          label="SEMESTER ENDS"
           value={end}
           min={start || undefined}
           onChange={(v) => setProfile({ termEnd: v || null })}
         />
       </div>
+
+      {(start || end) && !inverted && (
+        <p className="mt-2.5 text-[12px] leading-snug text-faint">
+          Your classes only appear inside this window — on Today, on the week
+          grid, and in the calendar you export to your phone.
+        </p>
+      )}
 
       {progress ? (
         <div className="mt-3">
@@ -1107,6 +1117,85 @@ function DateBox({
         className="mt-[3px] w-full bg-transparent text-[15px] text-ink outline-none"
       />
     </label>
+  );
+}
+
+/** The little PRO badge that marks a locked section header. */
+function ProTag() {
+  return (
+    <span
+      className="rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white"
+      style={{ background: "var(--color-brand)" }}
+    >
+      PRO
+    </span>
+  );
+}
+
+/**
+ * One shelf of accent swatches. A locked swatch is dimmed, padlocked and
+ * routes to the upgrade screen rather than being disabled — a dead button
+ * tells the user nothing about why it won't work.
+ */
+function AccentRow({
+  accents,
+  isPro,
+  current,
+  onPick,
+  onLocked,
+}: {
+  accents: Accent[];
+  isPro: boolean;
+  current: AccentId;
+  onPick: (id: AccentId) => void;
+  onLocked: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-3">
+      {accents.map((a) => {
+        const locked = !isPro && isProAccent(a.id);
+        const active = current === a.id;
+        return (
+          <button
+            key={a.id}
+            onClick={() => (locked ? onLocked() : onPick(a.id))}
+            aria-label={locked ? `${a.label} (Pro)` : a.label}
+            aria-pressed={active}
+            className="flex flex-col items-center gap-1.5"
+          >
+            <span
+              className="relative block h-9 w-9 rounded-full transition"
+              style={{
+                background: a.swatch,
+                opacity: locked ? 0.45 : 1,
+                outline: active ? `2px solid ${a.swatch}` : "none",
+                outlineOffset: 2,
+              }}
+            >
+              {locked && (
+                <span
+                  className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full"
+                  style={{
+                    background: "var(--bg-card)",
+                    boxShadow: "0 1px 3px rgba(30,20,80,.2)",
+                  }}
+                >
+                  <LockIcon className="h-2.5 w-2.5 text-muted-2" />
+                </span>
+              )}
+            </span>
+            <span
+              className="text-[11px] font-medium"
+              style={{
+                color: active ? "var(--color-brand)" : "var(--color-muted)",
+              }}
+            >
+              {a.label}
+            </span>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

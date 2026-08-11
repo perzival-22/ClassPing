@@ -27,6 +27,7 @@ import {
   type DayIndex,
   type TaskItem,
 } from "@/lib/store";
+import { isWithinTerm, termRangeLabel } from "@/lib/time";
 import { termStats } from "@/lib/streak";
 
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
@@ -88,9 +89,21 @@ export default function HomeScreen() {
   const dayIndex = (((todayCol ?? 0) + offset) % 5) as DayIndex;
   const isToday = offset === 0 && todayCol !== null;
 
-  const dayClasses = classes
-    .filter((c) => c.days.includes(dayIndex))
-    .sort((a, b) => a.start - b.start);
+  // A timetable only exists inside its semester. Outside the configured term
+  // the day is genuinely empty — the classes haven't started yet, or they're
+  // over — so nothing is plotted and the screen says which it is.
+  const inTerm = isWithinTerm(
+    profile.termStart,
+    profile.termEnd,
+    dates[dayIndex],
+  );
+  const termLabel = termRangeLabel(profile.termStart, profile.termEnd);
+
+  const dayClasses = inTerm
+    ? classes
+        .filter((c) => c.days.includes(dayIndex))
+        .sort((a, b) => a.start - b.start)
+    : [];
 
   // Open assignments across all classes, soonest due first.
   const openTasks = tasks
@@ -116,7 +129,7 @@ export default function HomeScreen() {
   // A class that finished in the last half hour. Pro users get asked this by
   // push; without this banner free users never see the post-class capture loop
   // at all, even though it's the most distinctive thing the app does.
-  const justEnded = isToday ? justEndedClass(classes, now) : null;
+  const justEnded = isToday && inTerm ? justEndedClass(classes, now) : null;
   const showPrompt = justEnded !== null && promptDismissed !== justEnded.id;
 
   return (
@@ -222,8 +235,10 @@ export default function HomeScreen() {
                 </p>
                 <button
                   onClick={() => router.push("/class/new")}
-                  className="mt-4 w-full rounded-[15px] bg-white py-[14px] text-center text-[16px] font-semibold transition active:scale-[0.98]"
-                  style={{ color: "var(--color-brand)" }}
+                  className="mt-4 w-full rounded-[15px] py-[14px] text-center text-[16px] font-semibold transition active:scale-[0.98]"
+                  // Sits on the brand gradient, so it stays white in both
+                  // themes — `bg-white` would be rethemed to a dark card here.
+                  style={{ background: "#fff", color: "var(--color-brand)" }}
                 >
                   Add your first class
                 </button>
@@ -249,8 +264,40 @@ export default function HomeScreen() {
             </div>
           )}
 
+          {/* ── outside the semester ──
+              Distinct from "you're free today": the schedule isn't empty, it
+              just doesn't apply to this date, and saying so beats implying
+              the user has no classes. */}
+          {!isFirstRun && !inTerm && (
+            <div className="mt-10 flex flex-col items-center text-center">
+              <div
+                className="mb-5 flex h-[80px] w-[80px] items-center justify-center rounded-[28px]"
+                style={{ background: "var(--brand-soft)" }}
+              >
+                <span className="text-[38px]">📅</span>
+              </div>
+              <h2 className="text-[20px] font-semibold text-ink">
+                Outside your semester
+              </h2>
+              <p className="mt-1.5 max-w-[240px] text-[14px] leading-snug text-muted">
+                {termLabel
+                  ? `Your term runs ${termLabel}, so nothing is timetabled for ${
+                      isToday ? "today" : DAY_NAMES[dayIndex]
+                    }.`
+                  : "Nothing is timetabled for this date."}
+              </p>
+              <button
+                onClick={() => router.push("/settings")}
+                className="mt-6 rounded-[15px] px-5 py-[13px] text-[15px] font-semibold text-brand transition active:scale-[0.97]"
+                style={{ background: "var(--brand-soft)" }}
+              >
+                Change semester dates
+              </button>
+            </div>
+          )}
+
           {/* ── empty state ── */}
-          {!isFirstRun && isEmpty && !checkedAll && (
+          {!isFirstRun && inTerm && isEmpty && !checkedAll && (
             <div className="mt-10 flex flex-col items-center text-center">
               <div
                 className="mb-5 flex h-[80px] w-[80px] items-center justify-center rounded-[28px]"
@@ -281,7 +328,7 @@ export default function HomeScreen() {
           )}
 
           {/* ── whole week is free ── */}
-          {!isFirstRun && checkedAll && (
+          {!isFirstRun && inTerm && checkedAll && (
             <div className="mt-10 flex flex-col items-center text-center">
               <div
                 className="mb-5 flex h-[80px] w-[80px] items-center justify-center rounded-[28px]"
@@ -329,6 +376,31 @@ export default function HomeScreen() {
             <>
           {/* ── this term at a glance ── */}
           <TermGlance tasks={tasks} now={now} />
+
+          {/* ── Grades & GPA ──
+              Sits directly above Assignments: the two are the same question
+              asked from either end — what's owed, and what it added up to. */}
+          <button
+            onClick={() => router.push("/grades")}
+            className="mt-6 flex w-full items-center gap-3 rounded-[18px] bg-white px-4 py-4 text-left transition active:scale-[0.98]"
+            style={{ boxShadow: "0 2px 10px rgba(30,20,80,.05)" }}
+          >
+            <div
+              className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[11px] text-[17px]"
+              style={{ background: "var(--brand-soft)" }}
+            >
+              🎓
+            </div>
+            <div className="flex-1">
+              <div className="text-[15px] font-semibold text-ink">
+                Grades & GPA
+              </div>
+              <div className="mt-[2px] text-[12px] text-muted">
+                Log scores and track your GPA
+              </div>
+            </div>
+            <ArrowRightIcon className="h-[18px] w-[18px] text-brand" />
+          </button>
 
           {/* ── Assignments ── */}
           <div className="mt-8">
@@ -384,7 +456,7 @@ export default function HomeScreen() {
                           {t.kind === "exam" && (
                             <span
                               className="mr-1.5 rounded-full px-1.5 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide"
-                              style={{ background: "#FFF0D6", color: "#A96A00" }}
+                              style={{ background: "var(--warn-soft)", color: "var(--warn-ink)" }}
                             >
                               Exam
                             </span>
@@ -399,7 +471,7 @@ export default function HomeScreen() {
                         className="shrink-0 whitespace-nowrap rounded-full px-2.5 py-[5px] text-[12px] font-bold"
                         style={
                           due.urgent
-                            ? { background: "#FFE8E3", color: "#D33B22" }
+                            ? { background: "var(--danger-soft)", color: "var(--danger-ink)" }
                             : {
                                 background: "var(--brand-soft)",
                                 color: "var(--color-muted)",
@@ -479,7 +551,7 @@ export default function HomeScreen() {
                           onClick={() => router.push(`/class/${c.id}/edit`)}
                           aria-label="Edit class"
                           className="flex h-8 w-8 items-center justify-center rounded-full transition active:scale-95"
-                          style={{ background: "#F0EFF6" }}
+                          style={{ background: "var(--surface-2)" }}
                         >
                           <PencilIcon className="h-[15px] w-[15px] text-muted" />
                         </button>
@@ -490,13 +562,13 @@ export default function HomeScreen() {
                           aria-label="Delete class"
                           className="flex h-8 w-8 items-center justify-center rounded-full transition active:scale-95"
                           style={{
-                            background: isConfirming ? "#FFE8E3" : "#F0EFF6",
+                            background: isConfirming ? "var(--danger-soft)" : "var(--surface-2)",
                           }}
                         >
                           <TrashIcon
                             className="h-[15px] w-[15px]"
                             style={{
-                              color: isConfirming ? "#E84040" : "#9A96B4",
+                              color: isConfirming ? "var(--danger)" : "var(--color-faint)",
                             }}
                           />
                         </button>
@@ -506,16 +578,16 @@ export default function HomeScreen() {
                       {isConfirming && (
                         <div
                           className="flex items-center justify-between px-4 py-3"
-                          style={{ background: "#FFF5F5", borderTop: "1px solid #FFE0E0" }}
+                          style={{ background: "var(--danger-bg)", borderTop: "1px solid var(--danger-line)" }}
                         >
-                          <p className="text-[13px] font-medium text-[#C0392B]">
+                          <p className="text-[13px] font-medium text-[var(--danger-ink)]">
                             Delete &ldquo;{c.name}&rdquo;?
                           </p>
                           <div className="flex gap-2">
                             <button
                               onClick={() => setConfirmDeleteId(null)}
                               className="rounded-full px-3 py-1.5 text-[13px] font-semibold text-muted"
-                              style={{ background: "#F0EFF6" }}
+                              style={{ background: "var(--surface-2)" }}
                             >
                               Cancel
                             </button>
@@ -525,7 +597,7 @@ export default function HomeScreen() {
                                 setConfirmDeleteId(null);
                               }}
                               className="rounded-full px-3 py-1.5 text-[13px] font-semibold text-white"
-                              style={{ background: "#E84040" }}
+                              style={{ background: "var(--danger)" }}
                             >
                               Delete
                             </button>
@@ -539,28 +611,6 @@ export default function HomeScreen() {
             )}
           </div>
 
-          {/* ── Grades & GPA ── */}
-          <button
-            onClick={() => router.push("/grades")}
-            className="mt-5 flex w-full items-center gap-3 rounded-[18px] bg-white px-4 py-4 text-left transition active:scale-[0.98]"
-            style={{ boxShadow: "0 2px 10px rgba(30,20,80,.05)" }}
-          >
-            <div
-              className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[11px] text-[17px]"
-              style={{ background: "var(--brand-soft)" }}
-            >
-              🎓
-            </div>
-            <div className="flex-1">
-              <div className="text-[15px] font-semibold text-ink">
-                Grades & GPA
-              </div>
-              <div className="mt-[2px] text-[12px] text-muted">
-                Log scores and track your GPA
-              </div>
-            </div>
-            <ArrowRightIcon className="h-[18px] w-[18px] text-brand" />
-          </button>
             </>
           )}
         </div>
@@ -587,13 +637,13 @@ function TermGlance({ tasks, now }: { tasks: TaskItem[]; now: Date }) {
       style={{ boxShadow: "0 2px 10px rgba(30,20,80,.05)" }}
     >
       <Stat value={stats.completed} label="done" />
-      <div className="w-px shrink-0" style={{ background: "#F0EFF6" }} />
+      <div className="w-px shrink-0" style={{ background: "var(--surface-2)" }} />
       <Stat
         value={stats.dueThisWeek}
         label="this week"
         tone={stats.dueThisWeek > 0 ? "brand" : undefined}
       />
-      <div className="w-px shrink-0" style={{ background: "#F0EFF6" }} />
+      <div className="w-px shrink-0" style={{ background: "var(--surface-2)" }} />
       {stats.overdue > 0 ? (
         <Stat value={stats.overdue} label="overdue" tone="warn" />
       ) : (
@@ -618,9 +668,9 @@ function Stat({
 }) {
   const color =
     tone === "warn"
-      ? "#D33B22"
+      ? "var(--danger-ink)"
       : tone === "good"
-        ? "#2E9E4F"
+        ? "var(--good-ink)"
         : tone === "brand"
           ? "var(--color-brand)"
           : "var(--color-ink)";
@@ -714,7 +764,7 @@ function ClassCard({ c, nowMin }: { c: ClassItem; nowMin: number }) {
           </div>
 
           {isNow && (
-            <span className="shrink-0 rounded-full bg-[#34C759] px-2.5 py-[4px] text-[11px] font-bold text-white">
+            <span className="shrink-0 rounded-full bg-[var(--good)] px-2.5 py-[4px] text-[11px] font-bold text-white">
               Now
             </span>
           )}

@@ -560,7 +560,7 @@ function GoalBlock({
                 style={
                   on
                     ? { background: accent, color: "#fff" }
-                    : { background: "#fff", color: "var(--color-muted)" }
+                    : { background: "var(--chip)", color: "var(--color-muted)" }
                 }
               >
                 {b.letter}
@@ -588,7 +588,7 @@ function GoalBlock({
           {over ? (
             <>
               Heads up: your logged weights add up to{" "}
-              <span className="font-bold" style={{ color: "#C0392B" }}>
+              <span className="font-bold" style={{ color: "var(--danger-ink)" }}>
                 {Math.round(used * 10) / 10}%
               </span>
               , more than the 100% a class has. Tap a grade to fix its weight.
@@ -627,7 +627,7 @@ function GoalBlock({
       ) : over ? (
         <p className="mt-2 text-[13px] leading-snug text-ink">
           Your logged weights add up to{" "}
-          <span className="font-bold" style={{ color: "#C0392B" }}>
+          <span className="font-bold" style={{ color: "var(--danger-ink)" }}>
             {Math.round(used * 10) / 10}%
           </span>
           , more than the 100% a class has. The average still works — it&apos;s
@@ -725,9 +725,9 @@ function GradeRow({
           onClick={() => onDelete(g.id)}
           aria-label={`Delete ${g.title}`}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition active:scale-95"
-          style={{ background: "#F0EFF6" }}
+          style={{ background: "var(--surface-2)" }}
         >
-          <TrashIcon className="h-[15px] w-[15px] text-[#9A96B4]" />
+          <TrashIcon className="h-[15px] w-[15px] text-[var(--color-faint)]" />
         </button>
       </div>
 
@@ -748,7 +748,7 @@ function GradeRow({
             <QuickNumber label="WEIGHT %" value={weight} onChange={setWeight} />
           </div>
           {extraCredit && (
-            <p className="mt-2 px-0.5 text-[12px] leading-snug text-[#A96A00]">
+            <p className="mt-2 px-0.5 text-[12px] leading-snug text-[var(--warn-ink)]">
               {extraCredit}
             </p>
           )}
@@ -763,7 +763,7 @@ function GradeRow({
             <button
               onClick={() => setOpen(false)}
               className="rounded-full px-3 py-1.5 text-[13px] font-semibold text-muted"
-              style={{ background: "#fff" }}
+              style={{ background: "var(--chip)" }}
             >
               Cancel
             </button>

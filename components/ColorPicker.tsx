@@ -44,7 +44,7 @@ export function ColorPicker({
           className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-white"
           style={{ boxShadow: "0 1px 3px rgba(30,20,80,.2)" }}
         >
-          <LockIcon className="h-2.5 w-2.5 text-[#79749B]" />
+          <LockIcon className="h-2.5 w-2.5 text-[var(--color-muted-2)]" />
         </span>
       )}
     </button>

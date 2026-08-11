@@ -13,10 +13,7 @@ export function PhoneFrame({
   return (
     <div
       className="flex min-h-dvh justify-center md:items-center"
-      style={{
-        background:
-          "radial-gradient(1200px 700px at 20% -10%, #F1EFFB 0%, #E7E5F3 55%, #E2E0EE 100%)",
-      }}
+      style={{ background: "var(--bg-outer)" }}
     >
       <div
         className="relative h-dvh w-full overflow-hidden md:my-10 md:h-[874px] md:max-h-[calc(100dvh-80px)] md:w-[402px] md:rounded-[48px]"

@@ -55,8 +55,8 @@ export function ExtraReminders({
               on
                 ? { background: "var(--color-brand)", color: "#fff" }
                 : {
-                    background: "#fff",
-                    color: "#79749B",
+                    background: "var(--chip)",
+                    color: "var(--color-muted-2)",
                     boxShadow: "0 1px 3px rgba(30,20,80,.05)",
                     opacity: isPro ? 1 : 0.6,
                   }
@@ -68,7 +68,7 @@ export function ExtraReminders({
                 className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-white"
                 style={{ boxShadow: "0 1px 3px rgba(30,20,80,.2)" }}
               >
-                <LockIcon className="h-2.5 w-2.5 text-[#79749B]" />
+                <LockIcon className="h-2.5 w-2.5 text-[var(--color-muted-2)]" />
               </span>
             )}
           </button>

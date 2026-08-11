@@ -113,6 +113,69 @@ describe("classes", () => {
   });
 });
 
+describe("semester window", () => {
+  const withTerm = (start: string | null, end: string | null) =>
+    buildCalendarFile([klass()], [], nameById, NOW, { start, end });
+
+  it("repeats forever when no term is set", () => {
+    expect(build([klass()])).not.toContain("UNTIL=");
+  });
+
+  it("stops the weekly rule at the end of term", () => {
+    expect(withTerm("2026-08-01", "2026-12-15")).toContain(
+      "RRULE:FREQ=WEEKLY;BYDAY=MO,WE;UNTIL=20261215T235900",
+    );
+  });
+
+  it("starts a not-yet-begun term on its first meeting, not this week", () => {
+    // NOW is 10 Aug 2026; term opens Mon 7 Sep, and the class meets Mon/Wed.
+    expect(withTerm("2026-09-07", "2026-12-15")).toContain(
+      "DTSTART:20260907T100000",
+    );
+  });
+
+  it("anchors to today once the term is under way", () => {
+    // 10 Aug 2026 is itself a Monday, so the next meeting is today.
+    expect(withTerm("2026-08-01", "2026-12-15")).toContain(
+      "DTSTART:20260810T100000",
+    );
+  });
+
+  it("omits a class whose term has already ended", () => {
+    expect(withTerm("2026-01-05", "2026-05-01")).not.toContain(
+      "SUMMARY:Chemistry",
+    );
+  });
+
+  it("bounds the half of the term that is set", () => {
+    expect(withTerm(null, "2026-12-15")).toContain("UNTIL=20261215T235900");
+    expect(withTerm("2026-09-07", null)).toContain("DTSTART:20260907T100000");
+  });
+
+  it("ignores an inverted range rather than dropping the timetable", () => {
+    const ics = withTerm("2026-12-15", "2026-08-01");
+    expect(ics).toContain("SUMMARY:Chemistry");
+    expect(ics).not.toContain("UNTIL=");
+  });
+
+  it("ignores a malformed date", () => {
+    expect(withTerm("not-a-date", "also-not")).not.toContain("UNTIL=");
+  });
+
+  it("keeps deadlines even when they fall outside the term", () => {
+    // A deadline is a real date on a real calendar; only the recurring
+    // timetable is what the semester bounds.
+    const ics = buildCalendarFile(
+      [],
+      [task({ due: "2027-01-04T09:00:00" })],
+      nameById,
+      NOW,
+      { start: "2026-08-01", end: "2026-12-15" },
+    );
+    expect(ics).toContain("SUMMARY:Essay due");
+  });
+});
+
 describe("tasks and exams", () => {
   it("gives an assignment a single 24-hour alarm", () => {
     const ics = build([], [task()]);

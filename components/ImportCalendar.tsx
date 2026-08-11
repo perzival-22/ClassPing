@@ -132,7 +132,7 @@ export function ImportCalendar() {
       />
 
       {error && (
-        <p className="mt-2 text-[13px] font-medium text-[#E84040]">{error}</p>
+        <p className="mt-2 text-[13px] font-medium text-[var(--danger)]">{error}</p>
       )}
 
       {done !== null && (
