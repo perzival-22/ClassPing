@@ -30,7 +30,7 @@ const NOTIFS = [
 
 export default function LockScreen() {
   return (
-    <PhoneFrame dark>
+    <PhoneFrame dark chrome={false}>
       <div
         className="relative flex h-full flex-col items-center px-3.5"
         style={{

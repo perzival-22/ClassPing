@@ -197,7 +197,7 @@ function SignInForm() {
   }
 
   return (
-    <PhoneFrame>
+    <PhoneFrame chrome={false}>
       <div
         className="no-scrollbar h-full overflow-y-auto"
         style={{ background: "var(--bg-signin)" }}

@@ -347,6 +347,34 @@ export function TimerIcon(props: P) {
   );
 }
 
+/** Grades. A mortarboard rather than a chart: the app calls the screen
+ *  "Grades & GPA" and already labels it 🎓 on Home. */
+export function GradeIcon(props: P) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" {...props}>
+      <path
+        d="M12 3.5L2.5 8 12 12.5 21.5 8 12 3.5z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M6.5 10.3v4.9c0 1.6 2.5 2.9 5.5 2.9s5.5-1.3 5.5-2.9v-4.9"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M21.5 8v5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 export function SparkleIcon(props: P) {
   return (
     <svg viewBox="0 0 24 24" fill="none" {...props}>

@@ -38,8 +38,10 @@ export function TabBar() {
       : "/class/new";
 
   return (
+    // Phone only. From `md` up, Sidebar carries navigation — two of them at
+    // once would be two answers to the same question.
     <div
-      className="absolute left-3 right-3 z-40"
+      className="absolute left-3 right-3 z-40 md:hidden"
       style={{ bottom: "max(env(safe-area-inset-bottom), 14px)" }}
     >
       <div className="glass flex items-start justify-between rounded-[30px] px-6 pb-2.5 pt-3">
