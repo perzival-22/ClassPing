@@ -8,29 +8,76 @@
  * the *page itself* load offline, which is what "installable PWA" actually
  * promises and what this file previously didn't do.
  *
- * Bump CACHE_VERSION whenever the rules below change: the activate handler
- * deletes every cache that doesn't match, so stale entries can't linger.
+ * Cache generations are named after the deploy (see CACHE_VERSION below), so
+ * every release starts clean and `activate` deletes the generation before it.
+ * There is no version constant to remember to bump.
  */
 
-const CACHE_VERSION = "v1";
+/**
+ * The deploy this worker belongs to, read off its own registration URL
+ * (`/sw.js?v=<build id>`, set in lib/notifications.ts).
+ *
+ * This file's bytes are identical from one release to the next, so the browser
+ * would never see a new worker and `activate` — the only thing that deletes old
+ * caches — would never run again after the first install. Hashed asset names
+ * change every build, so that meant the static cache accumulated every chunk
+ * ever shipped, with nothing able to evict them. Keying the cache names on the
+ * build makes each release start clean and drop the one before it.
+ */
+const CACHE_VERSION = new URL(self.location.href).searchParams.get("v") || "v1";
 const STATIC_CACHE = `classping-static-${CACHE_VERSION}`;
 const PAGES_CACHE = `classping-pages-${CACHE_VERSION}`;
 
 /** Cap the page cache so a long semester of browsing can't grow it unbounded. */
 const MAX_PAGES = 30;
+/**
+ * And cap the static one. Versioning already bounds it per deploy, but a single
+ * long session can still touch every lazily-loaded route chunk, and a belt here
+ * is cheap insurance against a future rule that caches more than it should.
+ */
+const MAX_STATIC = 160;
 
 /** Available offline even on the very first launch. */
 const PRECACHE = ["/icons/icon-192.png", "/icons/icon-512.png"];
 
+/**
+ * Screens worth having ready before they're asked for.
+ *
+ * These are the tab-bar destinations. Warming them at install means the first
+ * offline launch opens on any of them, and — with the stale-while-revalidate
+ * rule below — the first *online* visit to each paints from cache instead of
+ * waiting on the server.
+ *
+ * Signed out, every one of these 302s to the sign-in page, and `isCacheable`
+ * rejects a redirected response — so this quietly does nothing until there's a
+ * session, which is exactly right.
+ */
+const PRECACHE_PAGES = ["/home", "/week", "/tasks", "/settings"];
+
+/** Fetch and store one URL, tolerating failure. Returns nothing either way. */
+async function warm(cacheName, url) {
+  try {
+    const res = await fetch(url, { credentials: "same-origin" });
+    if (isCacheable(res)) {
+      const cache = await caches.open(cacheName);
+      await cache.put(url, res);
+    }
+  } catch {
+    /* offline at install, or auth-redirected — neither is worth reporting */
+  }
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches
-      .open(STATIC_CACHE)
-      .then((c) => c.addAll(PRECACHE))
-      .catch(() => {
-        /* precache is best-effort — never block activation on it */
-      })
-      .then(() => self.skipWaiting()),
+    (async () => {
+      // Icons must be there; pages are a bonus. Neither may block activation,
+      // so every one of these is individually best-effort.
+      await Promise.all([
+        ...PRECACHE.map((u) => warm(STATIC_CACHE, u)),
+        ...PRECACHE_PAGES.map((u) => warm(PAGES_CACHE, u)),
+      ]);
+      await self.skipWaiting();
+    })(),
   );
 });
 
@@ -96,7 +143,12 @@ self.addEventListener("fetch", (event) => {
           fetch(request).then((res) => {
             if (isCacheable(res)) {
               const copy = res.clone();
-              caches.open(STATIC_CACHE).then((c) => c.put(request, copy));
+              event.waitUntil(
+                caches.open(STATIC_CACHE).then(async (c) => {
+                  await c.put(request, copy);
+                  await trim(STATIC_CACHE, MAX_STATIC);
+                }),
+              );
             }
             return res;
           }),
@@ -105,31 +157,70 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Pages: network-first, so a signed-in user always gets fresh HTML and the
-  // middleware's auth redirect is always honored. Cache is the offline fallback.
+  /*
+   * Pages: stale-while-revalidate.
+   *
+   * The cached shell is served immediately and the network runs behind it to
+   * refresh the copy for next time. This used to be network-first, which meant
+   * every screen open — including ones we already had on disk — waited a full
+   * round trip before painting anything.
+   *
+   * What we cache is a *shell*: the store hydrates the actual classes, tasks
+   * and grades from localStorage after mount, so a stale entry can't show stale
+   * data, only a stale frame around fresh data. Two consequences are worth
+   * being explicit about:
+   *
+   *   - A session that expired since the page was cached will paint the app for
+   *     a moment before Clerk redirects to sign-in. That is the cost of this
+   *     strategy, accepted deliberately.
+   *   - On a shared device the shell must not outlive its user, which is what
+   *     the signout handler at the bottom of this file is for — it drops the
+   *     whole page cache.
+   *
+   * A redirected response is never stored (see `isCacheable`), so the sign-in
+   * page can never end up pinned under the /home key.
+   */
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request)
-        .then((res) => {
-          if (isCacheable(res)) {
-            const copy = res.clone();
-            caches.open(PAGES_CACHE).then(async (c) => {
-              await c.put(request, copy);
-              await trim(PAGES_CACHE, MAX_PAGES);
-            });
-          }
-          return res;
-        })
-        .catch(async () => {
-          // Offline: this exact page if we've seen it, otherwise any shell we
-          // have, so the app opens rather than showing the browser's error page.
-          return (
-            (await caches.match(request)) ||
-            (await caches.match("/home")) ||
-            (await caches.match("/")) ||
-            Response.error()
-          );
-        }),
+      (async () => {
+        const cached = await caches.match(request);
+
+        // The clone is taken the instant the response lands, in the same tick,
+        // before anything can begin reading the body — a clone attempted later
+        // (once the browser is streaming the original to the page) throws.
+        const network = fetch(request).then(
+          (res) => ({ res, copy: isCacheable(res) ? res.clone() : null }),
+          () => null,
+        );
+
+        // Registered exactly once, unconditionally, so the worker is kept alive
+        // for the write whether or not we end up serving from cache. Calling
+        // waitUntil later — after respondWith has already settled on the cached
+        // copy — would be too late and would throw.
+        event.waitUntil(
+          network.then(async (r) => {
+            if (!r || !r.copy) return;
+            const c = await caches.open(PAGES_CACHE);
+            await c.put(request, r.copy);
+            await trim(PAGES_CACHE, MAX_PAGES);
+          }),
+        );
+
+        // The fast path: paint what we have, let the refresh land behind it.
+        if (cached) return cached;
+
+        // A genuine first visit to this URL — nothing to be stale with.
+        const r = await network;
+        if (r) return r.res;
+
+        // Offline with no copy of this page: fall back to any shell we have so
+        // the app opens rather than showing the browser's error page.
+        return (
+          (await caches.match("/home")) ||
+          (await caches.match("/")) ||
+          Response.error()
+        );
+      })(),
     );
   }
 });

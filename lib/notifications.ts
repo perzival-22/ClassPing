@@ -4,11 +4,23 @@
  * available, so they also work in the installed-PWA context.
  */
 
+/**
+ * The build this page was served from. The service worker reads it back off
+ * its own script URL and uses it to name its caches, so a deploy retires the
+ * previous generation instead of piling on top of it — see public/sw.js.
+ */
+const BUILD_ID = process.env.NEXT_PUBLIC_BUILD_ID ?? "dev";
+
 export function registerServiceWorker() {
   if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
-  navigator.serviceWorker.register("/sw.js").catch(() => {
-    /* SW is progressive enhancement — ignore registration failures */
-  });
+  // The query string is the whole point: the file's bytes never change between
+  // deploys, so without it the browser sees no new worker and never runs the
+  // activate handler that cleans up stale caches.
+  navigator.serviceWorker
+    .register(`/sw.js?v=${encodeURIComponent(BUILD_ID)}`)
+    .catch(() => {
+      /* SW is progressive enhancement — ignore registration failures */
+    });
 }
 
 export function notificationsSupported(): boolean {
