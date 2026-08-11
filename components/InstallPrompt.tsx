@@ -115,7 +115,7 @@ export function InstallPrompt() {
               onClick={dismiss}
               aria-label="Dismiss"
               className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted transition active:scale-95"
-              style={{ background: "rgba(30,20,80,.06)" }}
+              style={{ background: "var(--surface-2)" }}
             >
               <svg viewBox="0 0 24 24" className="h-[15px] w-[15px]" fill="none">
                 <path
@@ -150,7 +150,7 @@ export function InstallPrompt() {
                 onClick={dismiss}
                 aria-label="Close"
                 className="flex h-7 w-7 items-center justify-center rounded-full text-muted transition active:scale-95"
-                style={{ background: "rgba(30,20,80,.06)" }}
+                style={{ background: "var(--surface-2)" }}
               >
                 <svg viewBox="0 0 24 24" className="h-[16px] w-[16px]" fill="none">
                   <path
