@@ -11,6 +11,15 @@ import {
   TrophyCelebration,
   TrophyGraphSheet,
 } from "@/components/Trophies";
+import { LevelBar, LevelSheet, LevelUpCelebration } from "@/components/Level";
+import {
+  BossCard,
+  BossDetailSheet,
+  BossResultOverlay,
+  BossSetupSheet,
+} from "@/components/BossFight";
+import { XP_AWARDS } from "@/lib/xp";
+import { canStart as canStartBoss } from "@/lib/boss";
 import {
   CheckIcon,
   ChevronRightIcon,
@@ -19,7 +28,7 @@ import {
   TrophyIcon,
 } from "@/components/icons";
 import { PALETTE } from "@/lib/palette";
-import { useStore, dueLabel, longDate, type TaskItem } from "@/lib/store";
+import { useStore, useNow, dueLabel, longDate, type TaskItem } from "@/lib/store";
 
 export default function TasksScreen() {
   const router = useRouter();
@@ -30,18 +39,34 @@ export default function TasksScreen() {
     trophies,
     recentTrophy,
     clearRecentTrophy,
+    xp,
+    pendingLevel,
+    ackLevelUp,
+    addXp,
+    profile,
+    setProfile,
+    boss,
+    startBoss,
+    abandonBoss,
+    ackBossResult,
     hydrated,
   } = useStore();
   const [tab, setTab] = useState<"open" | "done">("open");
   const [showTrophies, setShowTrophies] = useState(false);
+  const [showLevel, setShowLevel] = useState(false);
+  const [bossSetup, setBossSetup] = useState(false);
+  const [bossDetail, setBossDetail] = useState(false);
   /** The assignment a study block is running for, if any. */
   const [timerFor, setTimerFor] = useState<TaskItem | null>(null);
+  // The boss card counts down the days left in the week; a minute is plenty.
+  const now = useNow(60_000);
 
   const open = tasks.filter((t) => !t.done);
   const done = tasks.filter((t) => t.done);
   const list = tab === "open" ? open : done;
 
-  if (!hydrated) {
+  // `now` is null on the server-rendered first paint, by design — see useNow.
+  if (!hydrated || !now) {
     return <TasksSkeleton />;
   }
 
@@ -49,9 +74,19 @@ export default function TasksScreen() {
     <PhoneFrame>
       <div className="flex h-full flex-col bg-aurora">
         {/* trophies, above everything — the streak is the reason the rest of
-            this screen gets opened */}
-        <div className="px-5 pb-1 pt-12">
+            this screen gets opened. The level sits under it: the same idea over
+            a longer horizon, so it reads as the quieter of the two. */}
+        <div className="flex flex-col gap-1.5 px-5 pb-1 pt-12">
           <TrophyBar trophies={trophies} onOpen={() => setShowTrophies(true)} />
+          <LevelBar xp={xp} onOpen={() => setShowLevel(true)} />
+          <BossCard
+            fight={boss.current}
+            tasks={tasks}
+            now={now}
+            canStart={canStartBoss(boss, open.length)}
+            onStart={() => setBossSetup(true)}
+            onOpen={() => setBossDetail(true)}
+          />
         </div>
 
         {/* header */}
@@ -135,6 +170,34 @@ export default function TasksScreen() {
           />
         )}
 
+        {bossSetup && (
+          <BossSetupSheet
+            tasks={open}
+            onCommit={startBoss}
+            onClose={() => setBossSetup(false)}
+          />
+        )}
+
+        {bossDetail && boss.current && (
+          <BossDetailSheet
+            fight={boss.current}
+            tasks={tasks}
+            now={now}
+            onToggleTask={toggleTask}
+            onAbandon={abandonBoss}
+            onClose={() => setBossDetail(false)}
+          />
+        )}
+
+        {showLevel && (
+          <LevelSheet
+            xp={xp}
+            frame={profile.frame}
+            onEquipFrame={(frame) => setProfile({ frame })}
+            onClose={() => setShowLevel(false)}
+          />
+        )}
+
         {timerFor && (
           <StudyTimer
             title={timerFor.title}
@@ -144,6 +207,9 @@ export default function TasksScreen() {
               // shouldn't hand you a button that un-ticks the task.
               timerFor.done ? undefined : () => toggleTask(timerFor.id)
             }
+            // Paid per completed focus block, so abandoning a Pomodoro run
+            // half way still banks the halves that actually happened.
+            onFocusComplete={(mins) => addXp(mins * XP_AWARDS.focusMinute)}
           />
         )}
 
@@ -152,6 +218,18 @@ export default function TasksScreen() {
             trophy={recentTrophy}
             onClose={clearRecentTrophy}
           />
+        )}
+
+        {/* After the trophy, not instead of it: finishing the assignment that
+            crosses a level often mints both, and the trophy is the louder. */}
+        {!recentTrophy && pendingLevel !== null && (
+          <LevelUpCelebration level={pendingLevel} onClose={ackLevelUp} />
+        )}
+
+        {/* Last in the queue: a fight resolves at most once a week, and the
+            trophy or level that resolved it is the more immediate news. */}
+        {!recentTrophy && pendingLevel === null && boss.lastResult && (
+          <BossResultOverlay result={boss.lastResult} onClose={ackBossResult} />
         )}
 
         <TabBar />

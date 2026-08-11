@@ -31,7 +31,10 @@ const CSP_REPORT_ONLY = [
   `frame-src ${CLERK_ORIGIN} https://challenges.cloudflare.com`,
   // Service worker + Clerk's web workers.
   "worker-src 'self' blob:",
-  "media-src 'self'",
+  // blob: — the study-mode ambience is synthesised on the device into a WAV
+  // blob (lib/ambient.ts) rather than shipped or streamed, so the <audio>
+  // element's src is a blob: URL. Without this the sound is silently blocked.
+  "media-src 'self' blob:",
   "font-src 'self' data:",
   "object-src 'none'",
   "base-uri 'self'",

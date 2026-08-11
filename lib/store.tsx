@@ -23,6 +23,25 @@ import {
   type Trophy,
   type TrophyState,
 } from "./trophies";
+import {
+  XP_AWARDS,
+  ackLevel,
+  awardXp,
+  emptyXpState,
+  levelFromXp,
+  normalizeXpState,
+  type XpState,
+} from "./xp";
+import { emptyPetState, normalizePetState, type PetState } from "./pet";
+import {
+  abandonFight,
+  ackResult,
+  emptyBossState,
+  normalizeBossState,
+  settle,
+  startFight,
+  type BossState,
+} from "./boss";
 import { useIsPro } from "./useIsPro";
 
 /** Days of the week the app plots (Mon–Fri). 0 = Mon … 4 = Fri */
@@ -140,6 +159,12 @@ export interface Profile {
   termEnd?: string | null;
   /** What the current term is called, e.g. "Fall 2025". Titles the report. */
   termName?: string;
+  /**
+   * Equipped avatar frame — a cosmetic id from lib/xp.ts, earned by levelling.
+   * Deliberately not an accent: accents are the Pro shelf, frames are the XP
+   * one, and the two never overlap. Undefined means no ring.
+   */
+  frame?: string;
 }
 
 interface Store {
@@ -161,6 +186,40 @@ interface Store {
    */
   recentTrophy: Trophy | null;
   clearRecentTrophy: () => void;
+  /** Lifetime XP and the level it buys — the slow counterpart to the streak. */
+  xp: XpState;
+  /**
+   * A level crossed but not yet celebrated on screen, or null. Derived from
+   * `xp.seenLevel` rather than kept as its own event, so it survives a reload
+   * mid-celebration and can't fire twice.
+   */
+  pendingLevel: number | null;
+  /** Mark the level-up as seen. */
+  ackLevelUp: () => void;
+  /**
+   * Credit XP for something the store doesn't own — a finished focus block,
+   * a boss fight won. Task and trophy awards happen inside `toggleTask`, where
+   * the anti-farming guard lives.
+   */
+  addXp: (amount: number) => void;
+  /**
+   * The companion. Only the two things the user chose — its name and what it's
+   * wearing. Its mood is a pure function of the term (lib/pet.ts) and is never
+   * stored, so it can't drift out of step with the tasks that cause it.
+   */
+  pet: PetState;
+  setPet: (updates: Partial<PetState>) => void;
+  /**
+   * The week-long commitment, if one is running, plus lifetime win/loss counts
+   * and the result of the fight that just ended.
+   */
+  boss: BossState;
+  /** Commit to a set of open task ids for the current week. */
+  startBoss: (taskIds: string[]) => void;
+  /** Walk away from the running fight. Records no loss — see lib/boss.ts. */
+  abandonBoss: () => void;
+  /** The result overlay has been shown. */
+  ackBossResult: () => void;
   /** false until persisted state has been loaded from localStorage */
   hydrated: boolean;
   addClass: (c: Omit<ClassItem, "id">) => void;
@@ -255,6 +314,12 @@ interface PersistedState {
   profile?: Profile;
   /** Streak + trophy record. Absent on documents written before gamification. */
   trophies?: TrophyState;
+  /** Lifetime XP. Two integers — deliberately not an event log; see lib/xp.ts. */
+  xp?: XpState;
+  /** Pet name and hat. Absent on documents written before the companion. */
+  pet?: PetState;
+  /** Boss fight in progress and lifetime counts. Absent before boss fights. */
+  boss?: BossState;
   /** ms timestamp of the last local mutation — drives last-write-wins sync */
   updatedAt?: number;
   /**
@@ -272,6 +337,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfileState] = useState<Profile>(DEFAULT_PROFILE);
   const [trophies, setTrophies] = useState<TrophyState>(emptyTrophyState);
   const [recentTrophy, setRecentTrophy] = useState<Trophy | null>(null);
+  const [xp, setXp] = useState<XpState>(emptyXpState);
+  const [pet, setPetState] = useState<PetState>(emptyPetState);
+  const [boss, setBoss] = useState<BossState>(emptyBossState);
   const [updatedAt, setUpdatedAt] = useState(0);
   const [hydrated, setHydrated] = useState(false);
   const { isPro } = useIsPro();
@@ -293,6 +361,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         if (parsed.tasks) setTasks(parsed.tasks);
         if (parsed.grades) setGrades(parsed.grades);
         if (parsed.trophies) setTrophies(normalizeTrophyState(parsed.trophies));
+        if (parsed.xp) setXp(normalizeXpState(parsed.xp));
+        if (parsed.pet) setPetState(normalizePetState(parsed.pet));
+        if (parsed.boss) setBoss(normalizeBossState(parsed.boss));
         // Merge over defaults so profiles saved before new fields existed
         // (e.g. accent) still get sensible values.
         if (parsed.profile)
@@ -315,12 +386,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.setItem(
         KEY,
-        JSON.stringify({ classes, tasks, grades, profile, trophies, updatedAt }),
+        JSON.stringify({
+          classes,
+          tasks,
+          grades,
+          profile,
+          trophies,
+          xp,
+          pet,
+          boss,
+          updatedAt,
+        }),
       );
     } catch {
       /* storage full / unavailable */
     }
-  }, [classes, tasks, grades, profile, trophies, updatedAt, hydrated]);
+  }, [classes, tasks, grades, profile, trophies, xp, pet, boss, updatedAt, hydrated]);
 
   /* ── cloud sync (Pro) ───────────────────────────────────
      Whole-document, last-write-wins: pull once after hydration, apply the
@@ -346,6 +427,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           setTasks(server.data.tasks ?? []);
           setGrades(server.data.grades ?? []);
           setTrophies(normalizeTrophyState(server.data.trophies));
+          setXp(normalizeXpState(server.data.xp));
+          setPetState(normalizePetState(server.data.pet));
+          setBoss(normalizeBossState(server.data.boss));
           if (server.data.profile)
             setProfileState({
               ...DEFAULT_PROFILE,
@@ -379,6 +463,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             grades,
             profile,
             trophies,
+            xp,
+            pet,
+            boss,
             tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
           },
           updatedAt,
@@ -388,7 +475,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       });
     }, 1500);
     return () => clearTimeout(t);
-  }, [classes, tasks, grades, profile, trophies, updatedAt, hydrated, isPro]);
+  }, [classes, tasks, grades, profile, trophies, xp, pet, boss, updatedAt, hydrated, isPro]);
 
   const touch = () => setUpdatedAt(Date.now());
 
@@ -497,14 +584,33 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (nextDone) {
         const due = new Date(task.due).getTime();
         const onTime = !Number.isFinite(due) || now.getTime() <= due;
+        // Whether the trophy module has already resolved this task decides
+        // whether XP is owed: without the check, ticking one assignment off and
+        // on repeatedly would mint XP forever. `completeTask` guards its own
+        // state the same way, so the two stay in step.
+        const firstTime = !trophies.counted.includes(id);
         const { state, earned } = completeTask(trophies, id, onTime, now);
         setTrophies(state);
         // The highest tier crossed is the one worth celebrating — crossing two
         // at once is impossible with these thresholds, but the last is still
         // the right one to show.
         if (earned.length > 0) setRecentTrophy(earned[earned.length - 1]);
+
+        if (firstTime) {
+          const trophyBonus = earned.reduce(
+            (sum, t) => sum + XP_AWARDS.trophy[t.tier],
+            0,
+          );
+          const amount =
+            (onTime ? XP_AWARDS.taskOnTime : XP_AWARDS.taskLate) + trophyBonus;
+          setXp((prev) => awardXp(prev, amount).state);
+        }
       } else {
         setTrophies(uncompleteTask(trophies, id));
+        // XP deliberately stays put. Un-ticking is how a mis-tap is corrected
+        // and how a student reopens work they thought was finished; clawing
+        // the award back would make both feel like a penalty, and the
+        // `counted` guard above already stops it being re-earned.
       }
       touch();
     },
@@ -512,6 +618,26 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   );
 
   const clearRecentTrophy = useCallback(() => setRecentTrophy(null), []);
+
+  const addXp = useCallback((amount: number) => {
+    setXp((prev) => {
+      const { state } = awardXp(prev, amount);
+      return state === prev ? prev : state;
+    });
+    touch();
+  }, []);
+
+  const ackLevelUp = useCallback(() => setXp((prev) => ackLevel(prev)), []);
+
+  /**
+   * A level reached but not yet shown. Derived rather than stored as an event:
+   * a "you levelled up" flag written at award time would be lost if the tab
+   * closed before the overlay appeared, and could fire twice if it didn't.
+   */
+  const pendingLevel = useMemo(() => {
+    const level = levelFromXp(xp.xp);
+    return level > xp.seenLevel ? level : null;
+  }, [xp]);
 
   /**
    * Start over without losing the account.
@@ -547,6 +673,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setGrades([]);
     setTrophies(emptyTrophyState());
     setRecentTrophy(null);
+    // XP goes with the trophies, for the same reason: both are a record of
+    // work on the planner being emptied, and keeping a level that was earned
+    // by assignments which no longer exist would leave the profile describing
+    // a term the user just asked to forget. Cosmetics unlocked by that level
+    // are lost with it — which is why the confirmation this action requires
+    // says "irreversible" and means it.
+    setXp(emptyXpState());
+    setBoss(emptyBossState());
     setProfileState(clearedProfile);
     setUpdatedAt(now);
 
@@ -569,6 +703,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             tasks: [],
             grades: [],
             trophies: emptyTrophyState(),
+            xp: emptyXpState(),
+            boss: emptyBossState(),
             profile: clearedProfile,
             tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
           },
@@ -624,6 +760,31 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const setProfile = useCallback((p: Partial<Profile>) => {
     setProfileState((prev) => ({ ...prev, ...p }));
+    touch();
+  }, []);
+
+  /**
+   * Normalised on the way in as well as on the way out. `hat: undefined` has to
+   * survive the spread as an actual removal — a merge that kept the old value
+   * would make "None" in the wardrobe do nothing.
+   */
+  const setPet = useCallback((updates: Partial<PetState>) => {
+    setPetState((prev) => normalizePetState({ ...prev, ...updates }));
+    touch();
+  }, []);
+
+  const startBoss = useCallback((taskIds: string[]) => {
+    setBoss((prev) => startFight(prev, taskIds));
+    touch();
+  }, []);
+
+  const abandonBoss = useCallback(() => {
+    setBoss((prev) => abandonFight(prev));
+    touch();
+  }, []);
+
+  const ackBossResult = useCallback(() => {
+    setBoss((prev) => ackResult(prev));
     touch();
   }, []);
 
@@ -755,6 +916,37 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(iv);
   }, [tasks, trophies, hydrated]);
 
+  /**
+   * Boss-fight sweep.
+   *
+   * A poll for the same reason the missed-assignment sweep above is one: two of
+   * the three ways a fight ends — the week running out, and the last committed
+   * task being deleted — are not things the user does to the fight, so nothing
+   * but the passage of time will report them. `settle` returns the same
+   * reference when there's nothing to do, which is what makes this converge
+   * instead of writing on every tick.
+   *
+   * The win bonus is paid here rather than inside `settle` so that module stays
+   * pure and knows nothing about XP.
+   */
+  useEffect(() => {
+    if (!hydrated) return;
+
+    const sweep = () => {
+      const next = settle(boss, tasks);
+      if (next === boss) return;
+      setBoss(next);
+      if (next.won > boss.won) {
+        setXp((prev) => awardXp(prev, XP_AWARDS.bossWin).state);
+      }
+      touch();
+    };
+
+    sweep();
+    const iv = setInterval(sweep, 60_000);
+    return () => clearInterval(iv);
+  }, [boss, tasks, hydrated]);
+
   // Sync dark/light class and accent theme to <html> whenever they change.
   useEffect(() => {
     if (profile.theme === "dark") {
@@ -769,12 +961,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     () => ({
       classes, activeClasses, tasks, grades, profile, hydrated,
       trophies, recentTrophy, clearRecentTrophy,
+      xp, pendingLevel, ackLevelUp, addXp, pet, setPet,
+      boss, startBoss, abandonBoss, ackBossResult,
       addClass, importItems, updateClass, deleteClass, archiveTerm, unarchiveClass,
       addTask, updateTask, deleteTask, toggleTask,
       addGrade, updateGrade, deleteGrade,
       clearData, classById, taskById, gradeById, setProfile,
     }),
-    [classes, activeClasses, tasks, grades, profile, hydrated, trophies, recentTrophy, clearRecentTrophy, addClass, importItems, updateClass, deleteClass, archiveTerm, unarchiveClass, addTask, updateTask, deleteTask, toggleTask, addGrade, updateGrade, deleteGrade, clearData, classById, taskById, gradeById, setProfile],
+    [classes, activeClasses, tasks, grades, profile, hydrated, trophies, recentTrophy, clearRecentTrophy, xp, pendingLevel, ackLevelUp, addXp, pet, setPet, boss, startBoss, abandonBoss, ackBossResult, addClass, importItems, updateClass, deleteClass, archiveTerm, unarchiveClass, addTask, updateTask, deleteTask, toggleTask, addGrade, updateGrade, deleteGrade, clearData, classById, taskById, gradeById, setProfile],
   );
 
   return (

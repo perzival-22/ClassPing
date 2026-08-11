@@ -39,6 +39,8 @@ import {
   uploadAvatar,
 } from "@/lib/avatar";
 import { useIsPro } from "@/lib/useIsPro";
+import { AvatarFrame } from "@/components/Level";
+import { levelFromXp, unlockedCosmetics } from "@/lib/xp";
 
 export default function SettingsScreen() {
   const { hydrated } = useStore();
@@ -67,6 +69,7 @@ function SettingsForm() {
     archiveTerm,
     tasks,
     trophies,
+    xp,
     clearData,
   } = useStore();
   const { isPro } = useIsPro();
@@ -425,24 +428,38 @@ function SettingsForm() {
                 className="relative"
                 aria-label="Change profile picture"
               >
-                {avatarUrl ? (
-                  <img
-                    src={avatarUrl}
-                    alt="avatar"
-                    className="h-[90px] w-[90px] rounded-full object-cover"
-                    style={{ boxShadow: "0 4px 16px rgba(var(--brand-rgb),.25)" }}
-                  />
-                ) : (
-                  <div
-                    className="flex h-[90px] w-[90px] items-center justify-center rounded-full text-[28px] font-bold text-white"
-                    style={{
-                      background: "var(--brand-grad)",
-                      boxShadow: "0 4px 16px rgba(var(--brand-rgb),.25)",
-                    }}
-                  >
-                    {initials}
-                  </div>
-                )}
+                {/* The frame is an XP unlock, so it's gated on the level here
+                    rather than on the stored id alone — a document edited to
+                    name a ring the user hasn't earned simply doesn't get one. */}
+                <AvatarFrame
+                  cosmeticId={
+                    unlockedCosmetics(levelFromXp(xp.xp), "frame").some(
+                      (c) => c.id === profile.frame,
+                    )
+                      ? profile.frame
+                      : undefined
+                  }
+                  size={90}
+                >
+                  {avatarUrl ? (
+                    <img
+                      src={avatarUrl}
+                      alt="avatar"
+                      className="h-[90px] w-[90px] rounded-full object-cover"
+                      style={{ boxShadow: "0 4px 16px rgba(var(--brand-rgb),.25)" }}
+                    />
+                  ) : (
+                    <div
+                      className="flex h-[90px] w-[90px] items-center justify-center rounded-full text-[28px] font-bold text-white"
+                      style={{
+                        background: "var(--brand-grad)",
+                        boxShadow: "0 4px 16px rgba(var(--brand-rgb),.25)",
+                      }}
+                    >
+                      {initials}
+                    </div>
+                  )}
+                </AvatarFrame>
                 <div
                   className="absolute bottom-0 right-0 flex h-[28px] w-[28px] items-center justify-center rounded-full bg-brand text-white"
                   style={{ boxShadow: "0 2px 6px rgba(var(--brand-rgb),.4)" }}

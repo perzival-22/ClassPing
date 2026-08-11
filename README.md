@@ -89,12 +89,17 @@ app/
     sync/route.ts       # PRO — GET pull / PUT push the whole document
     export/route.ts     # PRO — POST → text/calendar (.ics)
 components/             # PhoneFrame, TabBar, ColorPicker, Skeleton, …
+  StudyTimer.tsx        # focus blocks, Pomodoro, zen mode, ambient sound
+  Level.tsx ClassPet.tsx BossFight.tsx   # the gamification surfaces
 lib/
   store.tsx             # ⭐ state, persistence, sync, reminder loop
   entitlements.ts       # ⭐ server source of truth for Pro
   useIsPro.ts           # client Pro check — UI only, never a real gate
   db.ts calendar.ts gpa.ts notifications.ts avatar.ts ratelimit.ts
   plan.ts palette.ts accents.ts
+  trophies.ts streak.ts # short-loop streak; gentle "days clear" read
+  xp.ts pet.ts boss.ts  # levels + cosmetics, the companion, the weekly boss
+  study.ts ambient.ts   # session plans; on-device noise synthesis
 middleware.ts           # Clerk route protection
 public/sw.js            # service worker — notifications + offline app shell
 ```
@@ -103,7 +108,10 @@ public/sw.js            # service worker — notifications + offline app shell
 
 - **`useIsPro()` decides what to *show*; `isPro()` decides what to *allow*.** Every Pro action with a real server cost re-checks the entitlement in [`lib/entitlements.ts`](lib/entitlements.ts).
 - **Respect the `hydrated` flag.** `localStorage` doesn't exist during SSR, so any screen reading store data must render a skeleton until `hydrated` is true — otherwise you ship a hydration mismatch.
-- **Persisted shapes are a contract.** The store document and the `.ics` UID scheme already exist on users' devices and in Postgres. Add optional fields; never rename or drop one without a migration path.
+- **Persisted shapes are a contract.** The store document and the `.ics` UID scheme already exist on users' devices and in Postgres. Add optional fields; never rename or drop one without a migration path. The document currently carries `classes`, `tasks`, `grades`, `profile`, `trophies`, `xp`, `pet` and `boss` — every one after `profile` is optional and normalised on read.
+- **Counters, not ledgers.** `/api/sync` caps the document at 512KB and its item cap only covers `classes`, `tasks` and `grades`. Anything new that grows per event (XP, boss weeks) is stored as a total, so a heavy user can't silently break their own sync a year from now.
+- **Gamification is earned, Pro is bought, and they never share a shelf.** App accents are the Pro ladder ([`lib/accents.ts`](lib/accents.ts)); levelling pays out in avatar frames and pet hats ([`lib/xp.ts`](lib/xp.ts)). Keeping them different *kinds* of object is what stops a Level 9 reward turning into a paywall.
+- **Nothing punishes.** A missed streak, a droopy pet and a lost boss week all cost exactly nothing — no XP is deducted and no trophy is revoked. The student who is behind is the one most likely to close the app for good.
 
 ## Design tokens
 

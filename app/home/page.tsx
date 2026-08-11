@@ -29,6 +29,8 @@ import {
 } from "@/lib/store";
 import { isWithinTerm, termRangeLabel } from "@/lib/time";
 import { termStats } from "@/lib/streak";
+import { ClassPetCard, PetSheet } from "@/components/ClassPet";
+import { levelFromXp } from "@/lib/xp";
 
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 const DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri"];
@@ -71,12 +73,17 @@ export default function HomeScreen() {
     profile,
     classById,
     deleteClass,
+    trophies,
+    xp,
+    pet,
+    setPet,
     hydrated,
   } = useStore();
   const router = useRouter();
   const [offset, setOffset] = useState(0);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [promptDismissed, setPromptDismissed] = useState<string | null>(null);
+  const [showPet, setShowPet] = useState(false);
   const now = useNow();
 
   if (!now || !hydrated) {
@@ -132,6 +139,15 @@ export default function HomeScreen() {
   const justEnded = isToday && inTerm ? justEndedClass(classes, now) : null;
   const showPrompt = justEnded !== null && promptDismissed !== justEnded.id;
 
+  // Everything the pet knows, assembled from what the app already tracks —
+  // no attendance, because the app has never recorded it (see lib/pet.ts).
+  const petSignals = {
+    stats: termStats(tasks, now),
+    trophyStreak: trophies.streak,
+    level: levelFromXp(xp.xp),
+    hasTasks: tasks.length > 0,
+  };
+
   return (
     <PhoneFrame>
       <div className="flex h-full flex-col bg-aurora">
@@ -167,6 +183,18 @@ export default function HomeScreen() {
         </div>
 
         <div className="no-scrollbar flex-1 overflow-y-auto px-5 pb-32 pt-1">
+          {/* ── the companion ──
+              Below the schedule prompt, above the timetable: it's the reason to
+              open the app on a quiet day, but it is never the reason someone
+              opened it on a busy one. */}
+          <div className="mb-3">
+            <ClassPetCard
+              pet={pet}
+              signals={petSignals}
+              onOpen={() => setShowPet(true)}
+            />
+          </div>
+
           {/* ── just-ended class → capture what it assigned ── */}
           {showPrompt && justEnded && (
             <div
@@ -614,6 +642,15 @@ export default function HomeScreen() {
             </>
           )}
         </div>
+
+        {showPet && (
+          <PetSheet
+            pet={pet}
+            signals={petSignals}
+            onSave={setPet}
+            onClose={() => setShowPet(false)}
+          />
+        )}
 
         <InstallPrompt />
         <TabBar />
