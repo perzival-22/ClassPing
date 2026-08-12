@@ -32,9 +32,36 @@ export interface XpState {
    * level-up be noticed exactly once without keeping a history of them.
    */
   seenLevel: number;
+  /**
+   * Items that have already paid a creation award, as `creditKey` strings.
+   *
+   * This is the one place this file keeps a list, and it is kept for the same
+   * reason lib/trophies.ts keeps `counted`: without it, un-adding and re-adding
+   * a class mints XP every time. It is bounded twice over — pruned against the
+   * items that still exist (`pruneXpState`) and hard-capped at MAX_CREDITED —
+   * so rule 1 in the header still holds: no unbounded history in the document.
+   */
+  credited: string[];
+  /** Local `YYYY-MM-DD` the creation cap is counting. */
+  creditDay: string;
+  /** Creation XP already paid on `creditDay`. Resets when the day turns over. */
+  creditSpent: number;
 }
 
-export const emptyXpState = (): XpState => ({ xp: 0, seenLevel: 1 });
+/**
+ * Ceiling on the credited list, in case pruning never runs — a corrupt or
+ * partially-synced document must not be able to grow the payload without limit.
+ * Comfortably above MAX_NOTES plus a term of classes and deadlines.
+ */
+export const MAX_CREDITED = 1200;
+
+export const emptyXpState = (): XpState => ({
+  xp: 0,
+  seenLevel: 1,
+  credited: [],
+  creditDay: "",
+  creditSpent: 0,
+});
 
 /**
  * What each thing is worth.
@@ -77,38 +104,105 @@ export const XP_AWARDS = {
   focusedFinish: 25,
   trophy: { bronze: 50, gold: 100, platinum: 200 },
   bossWin: 150,
+
+  /* ── setting the app up, which is also work ──────────────────────────────
+   *
+   * Filling a timetable in, logging a deadline before it bites and typing a
+   * lecture up are all things this app exists to make happen, and none of them
+   * paid anything. The ladder now runs to a hundred levels and has to be
+   * climbable inside a year, so these carry the part of the week that isn't
+   * ticking boxes.
+   *
+   * They are worth a fraction of finishing something, and that ratio is the
+   * claim: writing a deadline down is not the same as meeting it. A test holds
+   * the gap so nobody ever quietly makes admin the best-paid thing in the app
+   * again.
+   *
+   * None of them are announced. See `silent` in the store's award path — a
+   * reward you are told about becomes a target, and the moment "+5 XP" appears
+   * for adding a task, adding tasks is a thing people do for XP rather than
+   * because they have homework. These are meant to reward the term you were
+   * having anyway, so they land in the total and say nothing.
+   */
+  /** First time a class is added. Timetables are built once and lived in. */
+  classAdded: 15,
+  /** First time an assignment is logged, whatever becomes of it later. */
+  taskAdded: 5,
+  /** First time a note grows past NOTE_XP_CHARS — see below. */
+  noteWritten: 10,
 } as const;
 
 /**
- * The curve. Level n → n+1 costs 100 + 50(n−1), so the cumulative threshold for
- * level L closes to 25(L−1)(L+2): 100 for level 2, 450 for 4, 2700 for 10.
+ * How much of a note counts as having written one.
  *
- * Sized against a real term rather than picked for feel: three assignments and
- * four focus blocks a week is 160 XP, and one of those assignments finished
- * from the timer makes it 185 — which still lands a student around level 10 by
- * the end of a fifteen-week semester, the pacing this curve was built for.
- * Fast enough that the first few levels arrive during onboarding, slow enough
- * that the last one still means something in April.
- *
- * The rebalance in XP_AWARDS deliberately kept that total where it was for a
- * student who uses the timer, and moved it down a little for one who only ever
- * ticks boxes. A test holds the arithmetic to it, because a doc comment about
- * pacing is exactly the kind of claim that rots the first time a constant moves.
+ * A note pays once, when it first crosses this length. Paying on creation would
+ * pay for an empty note, and paying per keystroke or per save would pay for
+ * holding down a key — so the award is hung on the note having actual content
+ * in it, and hung on the note's *id*, so the same lecture can't pay twice by
+ * being edited over three days.
  */
-export const MAX_LEVEL = 30;
+export const NOTE_XP_CHARS = 180;
+
+/**
+ * The most creation XP one day can pay, across all three sources above.
+ *
+ * Creation is the one award in this file the user controls the timing of
+ * completely: an assignment has to be finished before its deadline to pay, but
+ * fifty assignments can be typed in in an afternoon. The per-item guard stops a
+ * single item paying twice; this stops a single sitting paying for a term.
+ *
+ * Set well above a genuinely busy day — five classes and a dozen deadlines at
+ * the start of a semester is 135, comfortably inside it — so the only person
+ * who ever meets this ceiling is someone going out of their way to.
+ */
+export const DAILY_CREATION_XP = 200;
+
+/**
+ * The curve. Level n → n+1 costs 40 + 2(n−1), so the cumulative threshold for
+ * level L closes to (L−1)(L+38): 40 for level 2, 432 for 10, 13,662 for 100.
+ *
+ * ── Why a hundred levels, and why this shape ────────────────────────────────
+ *
+ * The ladder carries twenty-seven pets across five families (lib/pet.ts), and
+ * every one of them has to be reachable inside an academic year or the last
+ * families are a rumour rather than a reward. That is the constraint the curve
+ * is solved for, not a feel: about 36 teaching weeks, at roughly 380 XP a week
+ * for a student who actually uses the app, is a shade under 14,000 XP — so
+ * level 100 sits at 13,662 and the top family lands in the closing weeks.
+ *
+ * The increment is deliberately shallow. Over 30 levels a steep quadratic was
+ * fine; stretched over 100 the same shape would price the last level at four
+ * figures and the ladder would visibly stall halfway up. At +2 XP per level the
+ * first rung costs 40 and the hundredth costs 238 — a step that grows enough to
+ * be felt across a year, and never enough to become a wall.
+ *
+ * ── What this replaced, and what it did to everyone's level ─────────────────
+ *
+ * The old curve was 25(L−1)(L+2) over 30 levels. It was much steeper, so every
+ * stored XP total now buys a *higher* level than it did — 2,700 XP was level 10
+ * and is now level 37. That direction is the only acceptable one: levels drive
+ * the pet's tier, and a curve change that walked anyone backwards would take
+ * away a pet they had earned. Existing accounts get a one-time jump up the new
+ * ladder, which is the honest price of restretching it.
+ *
+ * A test holds the pacing arithmetic, because a doc comment about how long a
+ * year takes is exactly the kind of claim that rots the first time a constant
+ * moves.
+ */
+export const MAX_LEVEL = 100;
 
 /** Total lifetime XP needed to *be* this level. */
 export function xpForLevel(level: number): number {
   const l = Math.max(1, Math.floor(level));
-  return 25 * (l - 1) * (l + 2);
+  return (l - 1) * (l + 38);
 }
 
 /** The level a given lifetime total buys, solved rather than looped. */
 export function levelFromXp(xp: number): number {
   if (!Number.isFinite(xp) || xp <= 0) return 1;
   if (xp >= xpForLevel(MAX_LEVEL)) return MAX_LEVEL;
-  // Invert xp = 25(L-1)(L+2)  ⇒  L = (-1 + sqrt(9 + 4xp/25)) / 2
-  let level = Math.floor((-1 + Math.sqrt(9 + (4 * xp) / 25)) / 2);
+  // Invert xp = (L-1)(L+38) = L² + 37L - 38  ⇒  L = (-37 + sqrt(1521 + 4xp)) / 2
+  let level = Math.floor((-37 + Math.sqrt(1521 + 4 * xp)) / 2);
   // Correct for floating-point error at the boundaries, where sqrt of a
   // perfect square can land a hair under the integer and floor a whole level
   // away. Cheaper and more obviously right than reasoning about the epsilon.
@@ -117,15 +211,21 @@ export function levelFromXp(xp: number): number {
   return Math.min(MAX_LEVEL, Math.max(1, level));
 }
 
-/** Names for the bands. Warm rather than corporate — it's a student's app. */
+/**
+ * Names for the bands. Warm rather than corporate — it's a student's app.
+ *
+ * Spread across the hundred levels in the same proportions they held across
+ * thirty, so the rhythm a returning user knows is preserved even though every
+ * number under it moved.
+ */
 const TITLES: { at: number; title: string }[] = [
   { at: 1, title: "Starter" },
-  { at: 3, title: "Regular" },
-  { at: 5, title: "Focused" },
-  { at: 8, title: "Diligent" },
-  { at: 12, title: "Scholar" },
-  { at: 17, title: "Honours" },
-  { at: 23, title: "Legend" },
+  { at: 8, title: "Regular" },
+  { at: 15, title: "Focused" },
+  { at: 25, title: "Diligent" },
+  { at: 39, title: "Scholar" },
+  { at: 56, title: "Honours" },
+  { at: 76, title: "Legend" },
 ];
 
 export function levelTitle(level: number): string {
@@ -193,6 +293,96 @@ export function awardXp(state: XpState, amount: number): AwardResult {
   };
 }
 
+/* ── creation awards ────────────────────────────────────── */
+
+export type CreationKind = "class" | "task" | "note";
+
+const CREATION_AWARD: Record<CreationKind, number> = {
+  class: XP_AWARDS.classAdded,
+  task: XP_AWARDS.taskAdded,
+  note: XP_AWARDS.noteWritten,
+};
+
+/**
+ * The key an item is remembered under.
+ *
+ * Prefixed by kind because the three id spaces are generated independently and
+ * nothing guarantees a note id can't equal a task id — an unprefixed key would
+ * silently let one of them swallow the other's award.
+ */
+export const creditKey = (kind: CreationKind, id: string): string =>
+  `${kind[0]}:${id}`;
+
+/** Local `YYYY-MM-DD`. The cap is a *day* to a student, not 24 rolling hours. */
+function localDay(d: Date = new Date()): string {
+  const m = `${d.getMonth() + 1}`.padStart(2, "0");
+  const day = `${d.getDate()}`.padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+/**
+ * Pay for something being created, at most once ever and at most so much a day.
+ *
+ * Returns the state unchanged — same reference — when the item has already
+ * paid, when the day's ceiling is reached, or when the kind is unknown, so a
+ * caller can fire this on every render of a note without churning state.
+ *
+ * A partial award is deliberately *not* paid when the ceiling is close: half an
+ * award would still mark the item as credited and quietly rob it of the rest
+ * forever. The item stays uncredited and pays in full tomorrow.
+ */
+export function awardCreation(
+  state: XpState,
+  kind: CreationKind,
+  id: string,
+  now: Date = new Date(),
+): AwardResult {
+  const amount = CREATION_AWARD[kind];
+  if (!amount || !id) return { state, leveledUp: null, gained: 0 };
+
+  const key = creditKey(kind, id);
+  if (state.credited.includes(key)) return { state, leveledUp: null, gained: 0 };
+
+  const day = localDay(now);
+  const spent = state.creditDay === day ? state.creditSpent : 0;
+  if (spent + amount > DAILY_CREATION_XP) {
+    return { state, leveledUp: null, gained: 0 };
+  }
+
+  const paid = awardXp(state, amount);
+  // Saturating at MAX_LEVEL still credits the item: it has been paid what
+  // there was left to pay, and leaving it open would re-check it forever.
+  const credited = [...state.credited, key];
+  return {
+    ...paid,
+    state: {
+      ...paid.state,
+      credited:
+        credited.length > MAX_CREDITED
+          ? credited.slice(credited.length - MAX_CREDITED)
+          : credited,
+      creditDay: day,
+      creditSpent: spent + amount,
+    },
+  };
+}
+
+/**
+ * Drop credits for items that no longer exist.
+ *
+ * Mirrors pruneTrophyState: without it the list grows for the whole semester
+ * and is synced on every change. The trade is that deleting a class and adding
+ * it back pays a second time — which the daily ceiling already bounds, and
+ * which is the right way round, because the alternative is a list that
+ * remembers every assignment a student ever binned.
+ */
+export function pruneXpState(state: XpState, liveKeys: Set<string>): XpState {
+  const credited = state.credited.filter((k) => liveKeys.has(k));
+  return credited.length === state.credited.length
+    ? state
+    : { ...state, credited };
+}
+
 /** Mark every level up to the current one as celebrated. */
 export function ackLevel(state: XpState): XpState {
   const level = levelFromXp(state.xp);
@@ -214,7 +404,23 @@ export function normalizeXpState(raw: unknown): XpState {
     typeof v.seenLevel === "number" && Number.isFinite(v.seenLevel)
       ? Math.min(Math.max(Math.floor(v.seenLevel), 1), MAX_LEVEL)
       : 1;
-  return { xp, seenLevel: seen };
+
+  // A document written before creation awards existed has none of the three
+  // fields below, and reads back as an account that has simply never been
+  // credited for anything — which is exactly right. Nothing is back-paid: the
+  // awards are for the term you are having, not the one you already had.
+  const credited = Array.isArray(v.credited)
+    ? v.credited
+        .filter((k): k is string => typeof k === "string" && k.length > 0)
+        .slice(0, MAX_CREDITED)
+    : [];
+  const creditDay = typeof v.creditDay === "string" ? v.creditDay : "";
+  const creditSpent =
+    typeof v.creditSpent === "number" && Number.isFinite(v.creditSpent)
+      ? Math.min(Math.max(Math.floor(v.creditSpent), 0), DAILY_CREATION_XP)
+      : 0;
+
+  return { xp, seenLevel: seen, credited, creditDay, creditSpent };
 }
 
 /* ── what levelling buys ────────────────────────────────

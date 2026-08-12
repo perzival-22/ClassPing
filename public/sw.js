@@ -33,10 +33,13 @@ const PAGES_CACHE = `classping-pages-${CACHE_VERSION}`;
  *
  * The suffix is therefore the one thing that can ever evict them, and it is
  * bumped by hand when the set changes — `activate` deletes every cache it does
- * not recognise, so v1 (the five `pet_*.jpg` portraits this replaced) goes with
- * it rather than sitting on disk forever with nothing left that can request it.
+ * not recognise, so the generation before it goes with it rather than sitting
+ * on disk forever with nothing left that can request it.
+ *
+ * v3: the five families. v2 held six ghost portraits, and v1 the five that
+ * preceded them at their original resolution.
  */
-const ART_CACHE = "classping-art-v2";
+const ART_CACHE = "classping-art-v3";
 
 /** Cap the page cache so a long semester of browsing can't grow it unbounded. */
 const MAX_PAGES = 30;
@@ -49,13 +52,47 @@ const MAX_STATIC = 160;
 
 /** Available offline even on the very first launch. */
 const PRECACHE = ["/icons/icon-192.png", "/icons/icon-512.png"];
+/**
+ * The pet ladder, all twenty-seven of them (lib/pet.ts).
+ *
+ * Warmed at install rather than on demand because the shelf draws the whole
+ * collection at once — including the rungs you haven't earned — so the first
+ * time somebody opens it offline is exactly when every one of these is needed.
+ * The set is ~1.8MB, which is the reason each file is a 512px crop rather than
+ * the 2048px original it was drawn at.
+ *
+ * A test in lib/pet.test.ts holds this list to the ladder, element for element,
+ * because a portrait that 404s offline is indistinguishable from a rung that
+ * hasn't been earned.
+ */
 const PRECACHE_ART = [
+  "/pet/pet_common.jpg",
+  "/pet/pet_bronze.jpg",
+  "/pet/pet_silver.jpg",
+  "/pet/pet_gold.jpg",
+  "/pet/pet_galaxy.jpg",
   "/pet/ghost_common.jpg",
   "/pet/ghost_bronze.jpg",
   "/pet/ghost_rare.jpg",
   "/pet/ghost_silver.jpg",
   "/pet/ghost_gold.jpg",
   "/pet/ghost_galaxy.jpg",
+  "/pet/ember_common.jpg",
+  "/pet/ember_bronze.jpg",
+  "/pet/ember_rare.jpg",
+  "/pet/ember_silver.jpg",
+  "/pet/crystal_common.jpg",
+  "/pet/crystal_bronze.jpg",
+  "/pet/crystal_rare.jpg",
+  "/pet/crystal_silver.jpg",
+  "/pet/crystal_gold.jpg",
+  "/pet/crystal_galaxy.jpg",
+  "/pet/astral_common.jpg",
+  "/pet/astral_bronze.jpg",
+  "/pet/astral_rare.jpg",
+  "/pet/astral_silver.jpg",
+  "/pet/astral_gold.jpg",
+  "/pet/astral_galaxy.jpg",
 ];
 
 /**

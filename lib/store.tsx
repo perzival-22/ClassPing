@@ -24,11 +24,16 @@ import {
   type TrophyState,
 } from "./trophies";
 import {
+  NOTE_XP_CHARS,
   XP_AWARDS,
   ackLevel,
+  awardCreation,
   awardXp,
+  creditKey,
   emptyXpState,
   levelFromXp,
+  pruneXpState,
+  type CreationKind,
   normalizeXpState,
   type XpState,
 } from "./xp";
@@ -527,10 +532,37 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const touch = () => setUpdatedAt(Date.now());
 
-  const addClass = useCallback((c: Omit<ClassItem, "id">) => {
-    setClasses((prev) => [...prev, { ...c, id: uid() }]);
-    touch();
+  /**
+   * Pay for something being made — and say nothing about it.
+   *
+   * Setting a timetable up, writing a deadline down and typing a lecture out
+   * are the work this app exists to make happen, and the hundred-level ladder
+   * in lib/pet.ts is priced assuming they count for something. But they are
+   * announced nowhere: no toast, no number, no mention on the level sheet.
+   *
+   * That silence is the design, not an omission. The moment "+5 XP" appears
+   * next to Add Assignment, adding assignments becomes a thing people do for
+   * XP rather than because they have homework — and the one award in this app
+   * whose timing the user completely controls is the one that must never
+   * become a target. A level that quietly arrives sooner because the term was
+   * busy is the whole intended effect.
+   *
+   * `awardCreation` is idempotent per item and capped per day, and returns the
+   * same reference when it declines, so this is safe to call on every save.
+   */
+  const credit = useCallback((kind: CreationKind, id: string) => {
+    setXp((prev) => awardCreation(prev, kind, id).state);
   }, []);
+
+  const addClass = useCallback(
+    (c: Omit<ClassItem, "id">) => {
+      const id = uid();
+      setClasses((prev) => [...prev, { ...c, id }]);
+      credit("class", id);
+      touch();
+    },
+    [credit],
+  );
 
   const updateClass = useCallback(
     (id: string, updates: Partial<Omit<ClassItem, "id">>) => {
@@ -552,18 +584,24 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       // separate calendars). Fall back to the first imported class so the task
       // still has a colour and a home rather than a dangling classId.
       const fallbackClassId = withIds[0]?.id ?? "";
+      const taskIds = newTasks.map(() => uid());
       setClasses((prev) => [...prev, ...withIds]);
       setTasks((prev) => [
         ...prev,
-        ...newTasks.map((t) => ({
+        ...newTasks.map((t, i) => ({
           ...t,
-          id: uid(),
+          id: taskIds[i],
           classId: t.classId || fallbackClassId,
         })),
       ]);
+      // An import is the same work as typing it all in, so it pays the same —
+      // and runs into the same daily ceiling, which is what stops a 200-event
+      // feed from buying a term of levels in one tap.
+      for (const c of withIds) credit("class", c.id);
+      for (const id of taskIds) credit("task", id);
       touch();
     },
-    [],
+    [credit],
   );
 
   const archiveTerm = useCallback((term: string) => {
@@ -594,10 +632,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     touch();
   }, []);
 
-  const addTask = useCallback((t: Omit<TaskItem, "id">) => {
-    setTasks((prev) => [...prev, { ...t, id: uid() }]);
-    touch();
-  }, []);
+  const addTask = useCallback(
+    (t: Omit<TaskItem, "id">) => {
+      const id = uid();
+      setTasks((prev) => [...prev, { ...t, id }]);
+      credit("task", id);
+      touch();
+    },
+    [credit],
+  );
 
   const updateTask = useCallback(
     (id: string, updates: Partial<Omit<TaskItem, "id">>) => {
@@ -666,10 +709,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           n.id === id ? { ...n, ...updates, updatedAt: Date.now() } : n,
         ),
       );
+
+      // A note pays once, when it first has a lecture's worth of content in it.
+      // Hung on length rather than on creation because an empty note is not a
+      // note, and on the note's *id* so three days of editing the same lecture
+      // is still one award. Silent — see `credit`.
+      const body = updates.body ?? current.body;
+      if (body.length >= NOTE_XP_CHARS) credit("note", id);
+
       touch();
       return true;
     },
-    [notes],
+    [notes, credit],
   );
 
   const deleteNote = useCallback((id: string) => {
@@ -1059,10 +1110,29 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       touch();
     };
 
+    // The creation ledger is pruned on the same beat and for the same reason:
+    // without it the list grows for the whole semester and is synced on every
+    // change. Deleting an item and re-adding it therefore pays twice, which
+    // the daily ceiling bounds — and which is far better than a document that
+    // remembers every assignment a student ever binned.
+    const pruneCredits = () => {
+      const live = new Set([
+        ...classes.map((c) => creditKey("class", c.id)),
+        ...tasks.map((t) => creditKey("task", t.id)),
+        ...notes.map((n) => creditKey("note", n.id)),
+      ]);
+      setXp((prev) => {
+        const pruned = pruneXpState(prev, live);
+        if (pruned !== prev) touch();
+        return pruned;
+      });
+    };
+    pruneCredits();
+
     sweep();
     const iv = setInterval(sweep, 60_000);
     return () => clearInterval(iv);
-  }, [tasks, trophies, hydrated]);
+  }, [classes, notes, tasks, trophies, hydrated]);
 
   /**
    * Boss-fight sweep.

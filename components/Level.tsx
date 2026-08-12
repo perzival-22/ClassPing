@@ -5,7 +5,8 @@ import {
   levelProgress,
   type XpState,
 } from "@/lib/xp";
-import { TIERS, type Tier } from "@/lib/pet";
+import { TIERS, tierFor, type Tier } from "@/lib/pet";
+import { TierLadder } from "./ClassPet";
 
 /**
  * The level readout, its unlock shelf, and the moment a level lands.
@@ -146,7 +147,7 @@ export function LevelSheet({
       aria-label="Level and unlocks"
     >
       <div
-        className="w-full rounded-t-[26px] bg-white px-5 pb-8 pt-4"
+        className="no-scrollbar max-h-[88%] w-full overflow-y-auto rounded-t-[26px] bg-white px-5 pb-8 pt-4"
         style={{ boxShadow: "0 -8px 32px rgba(10,8,24,.28)" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -171,49 +172,15 @@ export function LevelSheet({
           </p>
         </div>
 
-        <div className="mt-5 flex justify-between gap-1">
-          {TIERS.map((t) => {
-            const unlocked = p.level >= t.at;
-            return (
-              <div key={t.id} className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
-                {/* Sized as a fraction of the row rather than at a fixed 46px.
-                    Six rungs at 46 overflow a 320px-wide phone where five did
-                    not, and a ladder that scrolls sideways stops reading as a
-                    ladder. The cap keeps it from growing on a wide sheet. */}
-                <div
-                  className="relative flex aspect-square w-full max-w-[46px] items-center justify-center rounded-full transition"
-                  style={{ background: unlocked ? t.ring : "var(--surface-3)" }}
-                >
-                  {unlocked ? (
-                    // Masked into the disc, the same way the portrait and the
-                    // chips in PetSheet are. The art is an opaque JPEG, so the
-                    // `object-contain` framing this used to have — sized past
-                    // the box and anchored to its bottom edge, back when the
-                    // tiers were full-body figures on a pale ground — now just
-                    // hangs a square outside the ring it belongs inside.
-                    <img
-                      src={t.art}
-                      alt={t.label}
-                      width={40}
-                      height={40}
-                      loading="lazy"
-                      decoding="async"
-                      className="h-[87%] w-[87%] rounded-full object-cover"
-                      style={{ boxShadow: `0 0 0 1px ${t.sheen}` }}
-                    />
-                  ) : (
-                    <span className="text-[12px] font-bold text-faint">{t.at}</span>
-                  )}
-                </div>
-                <span
-                  className="text-center text-[10.5px] font-medium"
-                  style={{ color: unlocked ? "var(--color-muted)" : "var(--color-faint)" }}
-                >
-                  {unlocked ? t.label : `Lv ${t.at}`}
-                </span>
-              </div>
-            );
-          })}
+        {/* The same ladder the pet sheet draws, from the same component.
+            This screen has no `bestTier` to hand it — it is reached from the
+            level bar, which is about the climb rather than the collection — so
+            it passes the tier the current level supports and shows exactly what
+            has been *reached*. On an account that has never been cleared the
+            two are identical, and on one that has, the pet sheet is the place
+            that tells the fuller story. */}
+        <div className="mt-5">
+          <TierLadder best={tierFor(p.level).id} current={tierFor(p.level).id} />
         </div>
 
         <p className="mt-6 text-center text-[11.5px] leading-snug text-faint">

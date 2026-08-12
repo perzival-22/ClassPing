@@ -187,6 +187,38 @@ describe("htmlToMd", () => {
     expect(md(root)).toBe("# Title\n## Sub\nplain\n> quoted");
   });
 
+  /**
+   * `<p><br></p>` is what every engine — and mdToHtml itself — writes for a
+   * blank line. Serialising it as two empty lines meant every blank line in a
+   * note gained a companion each time the note was opened and saved again, so
+   * "one\n\ntwo" reached nine newlines after three round trips and a note with
+   * whitespace in it walked steadily towards the character budget.
+   */
+  it("reads an empty paragraph as one blank line, not two", () => {
+    const root = el("div", [
+      el("p", ["one"]),
+      el("p", [el("br")]),
+      el("p", ["two"]),
+    ]);
+    expect(md(root)).toBe("one\n\ntwo");
+  });
+
+  it("still splits a <br> *inside* a line into two lines", () => {
+    const root = el("div", [el("p", ["a", el("br"), "b"])]);
+    expect(md(root)).toBe("a\nb");
+  });
+
+  /**
+   * The property that matters is that rendering and serialising is a fixed
+   * point. There is no HTML parser here to close that loop in one expression,
+   * so it is closed in two: mdToHtml turns a blank line into exactly the
+   * markup the test above serialises back to a blank line. Between them the
+   * cycle is pinned at both ends.
+   */
+  it("renders a blank line as the markup that reads back as one", () => {
+    expect(mdToHtml("one\n\ntwo")).toBe("<p>one</p><p><br></p><p>two</p>");
+  });
+
   it("serialises the inline set, including a span highlight", () => {
     const root = el("div", [
       el("p", [

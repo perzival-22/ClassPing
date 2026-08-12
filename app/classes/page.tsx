@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { TabBar } from "@/components/TabBar";
 import { NoteEditor } from "@/components/NoteEditor";
+import { NoteReader } from "@/components/NoteReader";
+import { DESKTOP_QUERY, useMediaQuery } from "@/lib/useMediaQuery";
 import {
   ArrowLeftIcon,
   ChevronRightIcon,
@@ -60,6 +62,15 @@ export default function ClassesScreen() {
   } = useStore();
   const router = useRouter();
   const now = useNow();
+  /**
+   * Whether this screen can be written on, not just how it is laid out.
+   *
+   * Everything else responsive here is a `md:` class; this is a real branch,
+   * because below it the note is rendered by a different component entirely.
+   * Same 768px breakpoint the two panes split at — "there is room for a list
+   * and a note" and "there is room to type a lecture" are one question.
+   */
+  const desktop = useMediaQuery(DESKTOP_QUERY);
 
   const [classId, setClassId] = useState<string | null>(null);
   const [noteId, setNoteId] = useState<string | null>(null);
@@ -169,6 +180,7 @@ export default function ClassesScreen() {
             <NotePane
               note={openNote}
               className={selected.name}
+              desktop={desktop}
               onBack={() => setNoteId(null)}
               onTitle={(title) => updateNote(openNote.id, { title })}
               onBody={(body) => updateNote(openNote.id, { body })}
@@ -181,6 +193,7 @@ export default function ClassesScreen() {
             <NoteListPane
               c={selected}
               notes={classNotes}
+              desktop={desktop}
               live={selected.id === liveClassId}
               confirmDelete={confirmDelete}
               onBack={() => {
@@ -275,6 +288,7 @@ function EmptyPane() {
 function NoteListPane({
   c,
   notes,
+  desktop,
   live,
   confirmDelete,
   onBack,
@@ -287,6 +301,8 @@ function NoteListPane({
 }: {
   c: ClassItem;
   notes: NoteItem[];
+  /** Wide enough to write on. Below this, notes are read and highlighted only. */
+  desktop: boolean;
   live: boolean;
   confirmDelete: string | null;
   onBack: () => void;
@@ -335,22 +351,29 @@ function NoteListPane({
         </button>
       </div>
 
-      <div className="px-5 pb-3">
-        <button
-          onClick={onNew}
-          className="btn-brand flex w-full items-center justify-center gap-2 rounded-[15px] py-[13px] text-[15px] font-semibold text-white transition active:scale-[0.98]"
-        >
-          <PlusIcon className="h-[18px] w-[18px]" />
-          {live ? "Take notes — this class is on now" : "Start today's note"}
-        </button>
-      </div>
+      {/* Writing is a laptop job (see NoteReader). Offering "start today's
+          note" on a phone would open a note there is no way to type into, so
+          the phone gets the truth instead of a dead end. */}
+      {desktop && (
+        <div className="px-5 pb-3">
+          <button
+            onClick={onNew}
+            className="btn-brand flex w-full items-center justify-center gap-2 rounded-[15px] py-[13px] text-[15px] font-semibold text-white transition active:scale-[0.98]"
+          >
+            <PlusIcon className="h-[18px] w-[18px]" />
+            {live ? "Take notes — this class is on now" : "Start today's note"}
+          </button>
+        </div>
+      )}
 
       <div className="no-scrollbar flex-1 overflow-y-auto px-5 pb-32 md:pb-8">
         {notes.length === 0 ? (
           <p className="mt-6 text-center text-[13.5px] leading-snug text-muted">
             No notes yet for this class.
             <br />
-            One note per lecture — the date fills itself in.
+            {desktop
+              ? "One note per lecture — the date fills itself in."
+              : "Lectures are typed up on a computer. They'll show up here to read and highlight."}
           </p>
         ) : (
           <div className="flex flex-col gap-2">
@@ -436,6 +459,7 @@ function NoteListPane({
 function NotePane({
   note,
   className,
+  desktop,
   onBack,
   onTitle,
   onBody,
@@ -443,6 +467,8 @@ function NotePane({
 }: {
   note: NoteItem;
   className: string;
+  /** Wide enough to write on. Below this the note is read-and-highlight only. */
+  desktop: boolean;
   onBack: () => void;
   onTitle: (title: string) => void;
   onBody: (body: string) => boolean;
@@ -460,13 +486,22 @@ function NotePane({
           <ArrowLeftIcon className="h-[17px] w-[17px] text-muted" />
         </button>
         <div className="min-w-0 flex-1">
-          <input
-            defaultValue={note.title}
-            onChange={(e) => onTitle(e.target.value)}
-            placeholder={noteTitle({ title: "", body: note.body })}
-            aria-label="Note title"
-            className="w-full truncate bg-transparent font-[family-name:var(--font-fredoka)] text-[22px] font-semibold leading-tight text-ink outline-none placeholder:text-hint"
-          />
+          {/* The title is typing too. Leaving an input here would put a
+              keyboard back on a screen whose whole point is not having one —
+              so on a phone it is the heading it looks like. */}
+          {desktop ? (
+            <input
+              defaultValue={note.title}
+              onChange={(e) => onTitle(e.target.value)}
+              placeholder={noteTitle({ title: "", body: note.body })}
+              aria-label="Note title"
+              className="w-full truncate bg-transparent font-[family-name:var(--font-fredoka)] text-[22px] font-semibold leading-tight text-ink outline-none placeholder:text-hint"
+            />
+          ) : (
+            <h1 className="truncate font-[family-name:var(--font-fredoka)] text-[22px] font-semibold leading-tight text-ink">
+              {noteTitle(note)}
+            </h1>
+          )}
           <p className="truncate text-[12.5px] text-muted">
             {className} · {dayLabel(note.date)}
           </p>
@@ -483,8 +518,18 @@ function NotePane({
 
       {/* Keyed by note id on purpose: switching notes must unmount the editor
           so its cleanup saves the outgoing note through the outgoing note's
-          own handler, rather than writing it into the one just opened. */}
-      <NoteEditor key={note.id} note={note} onChange={onBody} />
+          own handler, rather than writing it into the one just opened.
+
+          Which of the two mounts is a real branch rather than a `md:` class:
+          rendering both and hiding one would put two components on the same
+          note, and the editor saves on unmount — so the hidden one would keep
+          writing over the visible one's work. See NoteReader's header for why
+          the phone gets a reader at all. */}
+      {desktop ? (
+        <NoteEditor key={note.id} note={note} onChange={onBody} />
+      ) : (
+        <NoteReader key={note.id} note={note} onChange={onBody} />
+      )}
     </div>
   );
 }

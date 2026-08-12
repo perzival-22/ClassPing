@@ -6,10 +6,11 @@ import {
   DEFAULT_PET_NAME,
   MAX_PET_NAME,
   petStatus,
+  shelves,
   TIERS,
-  tierRank,
   type PetState,
   type PetStatus,
+  type Shelf,
   type Tier,
   type TierId,
 } from "@/lib/pet";
@@ -155,17 +156,71 @@ function ShelfPet({ tier, collected }: { tier: Tier; collected: boolean }) {
 }
 
 /**
- * The pet shelf — every tier ever collected, standing in a row.
+ * One family's row: its pets standing on a lit ledge, named underneath.
  *
- * Deliberately the same cabinet as the trophy case it sits above: recessed
- * surface, a lit ledge under the objects, a caption reading what the next one
- * costs. Two kinds of reward in two visually unrelated containers would read as
- * two apps, and the whole point of the rail is that it is one place where the
- * things you own live.
+ * The ledge and the caption are lifted from the trophy shelf in DisplayCase on
+ * purpose — a lit top edge over a darker body is what reads as a shelf with
+ * depth instead of a rule, and two kinds of reward in two visually unrelated
+ * containers would read as two apps.
+ *
+ * An untouched family keeps its ledge, its name and its full complement of
+ * empty sockets. That emptiness is how a user finds out Astral exists, and it
+ * is the state every family but the first is in on the day they first look.
+ */
+function FamilyRow({ shelf, last }: { shelf: Shelf; last: boolean }) {
+  return (
+    <div className={last ? "" : "mb-2.5"}>
+      <div className="flex min-h-[38px] items-end gap-[3px] px-0.5">
+        {shelf.tiers.map((t, i) => (
+          <ShelfPet key={t.id} tier={t} collected={i < shelf.held} />
+        ))}
+      </div>
+
+      <div
+        className="h-[3px] rounded-full"
+        style={{
+          background: "var(--line-strong)",
+          boxShadow: "inset 0 1px 0 var(--pill-active)",
+          // A family you haven't started is a real shelf you don't own yet.
+          opacity: shelf.untouched ? 0.55 : 1,
+        }}
+      />
+
+      <div className="flex items-baseline justify-between gap-2 pt-[3px]">
+        <span
+          className="text-[10.5px] font-semibold uppercase tracking-wide"
+          style={{
+            color: shelf.untouched
+              ? "var(--color-hint)"
+              : "var(--color-muted-2)",
+          }}
+        >
+          {shelf.family.label}
+        </span>
+        <span
+          className="text-[12px] font-bold tabular-nums"
+          style={{
+            color: shelf.untouched ? "var(--color-hint)" : "var(--color-ink)",
+          }}
+        >
+          {shelf.held}/{shelf.tiers.length}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The pet shelf — every pet ever collected, five families deep.
+ *
+ * One row per family rather than one row of twenty-seven, which is the whole
+ * reason lib/pet.ts grew a family axis: a flat row that long has no shape, and
+ * "nineteen of twenty-seven" is a number nobody can picture. Five rows of six
+ * can be read at a glance, and each one is a thing with a name.
  *
  * What it is *not* is a second scoreboard. Nothing here is state — see
- * `collection` in lib/pet.ts, which derives the whole row from the one stored
- * field, so the shelf can never disagree with the portrait above it.
+ * `shelves` in lib/pet.ts, which derives every row from the one stored field,
+ * so the shelf can never disagree with the portrait above it.
  */
 export function PetShelf({
   best,
@@ -175,13 +230,13 @@ export function PetShelf({
   best: TierId;
   onOpen: () => void;
 }) {
-  const { collected, next, complete } = collection(best);
-  const bestRank = tierRank(best);
+  const rows = shelves(best);
+  const { collected, next } = collection(best);
 
   return (
     <button
       onClick={onOpen}
-      aria-label={`Pet shelf: ${collected.length} of ${TIERS.length} tiers collected.${
+      aria-label={`Pet shelf: ${collected.length} of ${TIERS.length} pets collected.${
         next ? ` ${next.label} unlocks at level ${next.at}.` : ""
       } Open pet.`}
       className="mt-2 w-full cursor-pointer rounded-[20px] px-3.5 pb-2.5 pt-3.5 text-left transition hover:brightness-[.99] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand active:scale-[0.99]"
@@ -190,31 +245,130 @@ export function PetShelf({
         boxShadow: "inset 0 2px 5px rgba(30,20,80,.07)",
       }}
     >
-      <div className="flex min-h-[38px] items-end justify-between gap-[3px] px-0.5">
-        {TIERS.map((t, i) => (
-          <ShelfPet key={t.id} tier={t} collected={i <= bestRank} />
-        ))}
-      </div>
+      {rows.map((shelf, i) => (
+        <FamilyRow
+          key={shelf.family.id}
+          shelf={shelf}
+          last={i === rows.length - 1}
+        />
+      ))}
 
-      {/* The ledge, lifted verbatim from the trophy shelf: a lit top edge over
-          a darker body is what reads as a shelf with depth instead of a rule. */}
-      <div
-        className="mt-1.5 h-[3px] rounded-full"
-        style={{
-          background: "var(--line-strong)",
-          boxShadow: "inset 0 1px 0 var(--pill-active)",
-        }}
-      />
-
-      <div className="flex items-baseline justify-between gap-2 pt-[3px]">
+      <div className="flex items-baseline justify-between gap-2 pt-2">
         <span className="text-[11px] font-medium text-muted-2">
-          {complete ? "Complete" : "Next up"}
+          {next ? "Next up" : "Complete"}
         </span>
         <span className="truncate text-[11.5px] font-semibold text-ink">
-          {next ? `${next.label} at level ${next.at}` : "Every tier collected"}
+          {next ? `${next.label} at level ${next.at}` : "Every pet collected"}
         </span>
       </div>
     </button>
+  );
+}
+
+/* ── the full ladder, as a sheet reads it ───────────────── */
+
+/**
+ * Twenty-seven pets in five labelled rows.
+ *
+ * Shared by the pet sheet and the level sheet rather than written twice. They
+ * showed the same six chips side by side for as long as the ladder was six
+ * long, and two copies of a thing this fiddly is two chances for only one of
+ * them to learn about families.
+ *
+ * The grid is six columns wide whatever the family holds, so Base's five pets
+ * and Ember's four line up under Ghost's six instead of each row finding its
+ * own rhythm. The empty cells at the end of a short row are not placeholders
+ * for anything — those families simply have fewer pets in them.
+ */
+export function TierLadder({
+  best,
+  current,
+}: {
+  /** Highest tier ever reached, which is what counts as collected. */
+  best: TierId;
+  /** The tier being *worn* right now, ringed in the brand colour. */
+  current?: TierId;
+}) {
+  return (
+    <div className="flex flex-col gap-3.5">
+      {shelves(best).map((shelf) => (
+        <div key={shelf.family.id}>
+          <div className="mb-1.5 flex items-baseline justify-between">
+            <span
+              className="text-[10.5px] font-semibold uppercase tracking-wide"
+              style={{
+                color: shelf.untouched
+                  ? "var(--color-hint)"
+                  : "var(--color-muted)",
+              }}
+            >
+              {shelf.family.label}
+            </span>
+            <span
+              className="text-[10.5px] font-semibold tabular-nums"
+              style={{
+                color: shelf.untouched
+                  ? "var(--color-hint)"
+                  : "var(--color-muted-2)",
+              }}
+            >
+              {shelf.held}/{shelf.tiers.length}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-6 gap-1.5">
+            {shelf.tiers.map((t, i) => {
+              /*
+               * Collected, not "the level currently supports". Those are the
+               * same thing right up until a semester is cleared, at which point
+               * the level resets and `bestTier` doesn't — and a shelf that takes
+               * back an Astral you spent a year earning is the exact outcome
+               * bestTier exists to prevent. The brand ring still marks the tier
+               * being *worn*, so the sheet says both things: what you own, and
+               * what you have on today.
+               */
+              const unlocked = i < shelf.held;
+              return (
+                <div
+                  key={t.id}
+                  title={`${t.label} — level ${t.at}`}
+                  className="relative flex aspect-square w-full items-center justify-center rounded-full transition"
+                  style={{
+                    background: unlocked ? t.ring : "var(--surface-3)",
+                    ...(t.id === current
+                      ? {
+                          boxShadow:
+                            "0 0 0 2.5px var(--bg-card), 0 0 0 5px var(--color-brand)",
+                        }
+                      : {}),
+                  }}
+                >
+                  {unlocked ? (
+                    // Clipped into the disc for the same reason as the main
+                    // portrait: the art is opaque, so left unmasked it covers
+                    // the ring it is supposed to be sitting inside.
+                    <img
+                      src={t.art}
+                      alt={t.label}
+                      width={40}
+                      height={40}
+                      loading="lazy"
+                      decoding="async"
+                      className="h-[86%] w-[86%] rounded-full object-cover"
+                      style={{ boxShadow: `0 0 0 1px ${t.sheen}` }}
+                    />
+                  ) : (
+                    <span className="text-[11px] font-bold tabular-nums text-faint">
+                      {t.at}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -301,7 +455,9 @@ export function PetSheet({
       aria-label="Your pet"
     >
       <div
-        className="w-full rounded-t-[26px] bg-white px-5 pb-8 pt-4"
+        // Scrolls since the ladder became five families deep — matching the
+        // trophy timeline sheet, which has been this tall all along.
+        className="no-scrollbar max-h-[88%] w-full overflow-y-auto rounded-t-[26px] bg-white px-5 pb-8 pt-4"
         style={{ boxShadow: "0 -8px 32px rgba(10,8,24,.28)" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -350,61 +506,7 @@ export function PetSheet({
               {pets.collected.length}/{TIERS.length}
             </div>
           </div>
-          <div className="flex justify-between gap-1">
-            {TIERS.map((t, i) => {
-              /*
-               * Collected, not "the level currently supports". Those are the
-               * same thing right up until a semester is cleared, at which point
-               * the level resets and `bestTier` doesn't — and a shelf that
-               * takes back a Galaxy you spent a year earning is the exact
-               * outcome bestTier exists to prevent. The brand ring below still
-               * marks the tier being *worn*, so the sheet says both things:
-               * what you own, and what you are wearing today.
-               */
-              const unlocked = i < pets.collected.length;
-              const isCurrent = t.id === status.tier.id;
-              return (
-                <div key={t.id} className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
-                  {/* Sized as a fraction of the row rather than at a fixed
-                      46px — six rungs at 46 overflow a 320px-wide phone where
-                      five did not. Mirrors the ladder in LevelSheet. */}
-                  <div
-                    className="relative flex aspect-square w-full max-w-[46px] items-center justify-center rounded-full transition"
-                    style={{
-                      background: unlocked ? t.ring : "var(--surface-3)",
-                      ...(isCurrent
-                        ? { boxShadow: "0 0 0 2.5px var(--bg-card), 0 0 0 5px var(--color-brand)" }
-                        : {}),
-                    }}
-                  >
-                    {unlocked ? (
-                      // Clipped into the disc for the same reason as the main
-                      // portrait: the art is opaque, so left unmasked it covers
-                      // the ring it is supposed to be sitting inside.
-                      <img
-                        src={t.art}
-                        alt={t.label}
-                        width={40}
-                        height={40}
-                        loading="lazy"
-                        decoding="async"
-                        className="h-[87%] w-[87%] rounded-full object-cover"
-                        style={{ boxShadow: `0 0 0 1px ${t.sheen}` }}
-                      />
-                    ) : (
-                      <span className="text-[12px] font-bold text-faint">{t.at}</span>
-                    )}
-                  </div>
-                  <span
-                    className="text-center text-[10.5px] font-medium"
-                    style={{ color: unlocked ? "var(--color-muted)" : "var(--color-faint)" }}
-                  >
-                    {unlocked ? t.label : `Lv ${t.at}`}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+          <TierLadder best={status.best.id} current={status.tier.id} />
         </div>
 
         <button

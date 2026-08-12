@@ -487,7 +487,21 @@ export function htmlToMd(root: HTMLElement): string {
 
   const pushBlock = (el: HTMLElement, prefix = "") => {
     // A block can contain <br>s; each becomes its own line, keeping the prefix.
-    for (const part of childrenToMd(el).split("\n")) lines.push(prefix + part);
+    const md = childrenToMd(el);
+    /*
+     * ...but a block that is *only* a <br> is one empty line, not two.
+     *
+     * `<p><br></p>` is what every engine writes for a blank line, and what
+     * mdToHtml emits for one. Serialising it as "\n" and splitting on "\n"
+     * yields two empty strings, so every blank line in a note gained a
+     * companion each time the note was rendered and saved again — "one\n\ntwo"
+     * became nine newlines after three round trips. Slow on the desktop
+     * editor, which mounts once; immediate on the phone's reader, which round
+     * trips the whole note to apply a highlight. Notes have a hard character
+     * budget (MAX_NOTES_CHARS), so left alone this eventually eats it.
+     */
+    const parts = md === "\n" ? [""] : md.split("\n");
+    for (const part of parts) lines.push(prefix + part);
   };
 
   const walk = (parent: Node) => {

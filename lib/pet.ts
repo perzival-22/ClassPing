@@ -26,8 +26,39 @@
 
 import { levelFromXp, xpForLevel, XP_AWARDS } from "./xp";
 
-/** Six tiers, bottom to top. */
-export type TierId =
+/**
+ * Five families of six grades — twenty-seven pets, spread over a hundred levels.
+ *
+ * ── Why the ladder is two-dimensional now ───────────────────────────────────
+ *
+ * It used to be one row of six. At twenty-seven that stops working: a flat list
+ * that long has no shape, and "rung nineteen of twenty-seven" is a number
+ * nobody can hold. So the ladder gained an axis. A *family* is a band of twenty
+ * levels with its own artwork and its own name — Base, Ghost, Ember, Crystal,
+ * Astral, in that order — and a *grade* is the rung inside it, the same six
+ * everywhere: Common, Bronze, Rare, Silver, Gold, Galaxy.
+ *
+ * That reads as "Ember Silver", which is a thing you can say out loud and hold
+ * in your head, and it means the shelf can be five short rows instead of one
+ * unreadable one. It also makes the whole ladder derivable: nothing below is
+ * hand-written per pet, because twenty-seven hand-written entries is
+ * twenty-seven chances for one of them to disagree with the others.
+ *
+ * ── Where the colour lives ──────────────────────────────────────────────────
+ *
+ * The ring, sheen and glow hang off the *grade*, not the tier. Every family's
+ * art escalates the same way — pale and quiet at Common, most intense at Galaxy
+ * — so one set of six metals fits all five families, and the ring answers "how
+ * far into this family am I?" while the portrait answers "which family?".
+ *
+ * The alternative was twenty-seven bespoke gradients. That is not five times
+ * richer, it is five times more to keep in tune, and it would have thrown away
+ * the one thing the repeat buys: at a glance, Gold looks like Gold whichever
+ * family it belongs to, which is what makes the grade ladder legible at all.
+ */
+
+export type FamilyId = "base" | "ghost" | "ember" | "crystal" | "astral";
+export type GradeId =
   | "common"
   | "bronze"
   | "rare"
@@ -35,41 +66,111 @@ export type TierId =
   | "gold"
   | "galaxy";
 
-/**
- * Ids that shipped before the six-tier art, mapped onto their replacements.
- *
- * `bestTier` is the one field in this file that is *stored*, so renaming a rung
- * is a data migration whether or not it is written like one. "base" and
- * "common" are the same rung — the bottom one — so the mapping is lossless, and
- * without it every account that had never climbed past the bottom would fail
- * validation on read. It happens to land on the same value as the fallback
- * today; that stops being true the moment a rung is ever added *below* common,
- * which is exactly the kind of change that would otherwise silently promote
- * every legacy account by one.
- */
-const LEGACY_TIER_IDS: Record<string, TierId> = { base: "common" };
+/** `${family}-${grade}` — every tier's id, and what `bestTier` stores. */
+export type TierId = `${FamilyId}-${GradeId}`;
 
-export interface Tier {
-  id: TierId;
+/**
+ * Badges written by earlier ladders, and the level each was earned at.
+ *
+ * `bestTier` is the one field in this file that is *stored*, so restructuring
+ * the ladder is a data migration whether or not it is written like one. Two
+ * generations have to be carried: "base", the bottom rung before the six-tier
+ * art, and the bare grade ids of the six-rung ghost ladder that replaced it.
+ *
+ * ── Why by level and not by name ────────────────────────────────────────────
+ *
+ * The obvious migration is by artwork: the old "galaxy" wore `ghost_galaxy`,
+ * so call it `ghost-galaxy`. That is wrong in both directions and the tests
+ * caught it. The old bottom rung was called "common" and was free at level 1 —
+ * translating it to `ghost-common`, which now costs level 21, hands a badge to
+ * every account that never earned one and marks all of them demoted the moment
+ * they open the app. Read the other way, the old "galaxy" cost level 16 on a
+ * far steeper curve, which is a great deal more work than `ghost-galaxy` asks
+ * for today.
+ *
+ * So the translation goes through the *work*: what level did this badge cost,
+ * what is that much XP worth on the curve in lib/xp.ts now, and which rung does
+ * that buy. That keeps the badge exactly level with what the same account's own
+ * XP re-earns — which is what stops it reading as a demotion — and it degrades
+ * correctly for the one case the badge exists for, an account that cleared its
+ * data and has a real earned rung to show above an empty planner.
+ */
+const LEGACY_TIER_LEVELS: Record<string, number> = {
+  /** The rung before the ghost ladder — free, at the bottom, wearing `pet_*`. */
+  base: 1,
+  /** The six-rung ghost ladder, at the levels it charged. */
+  common: 1,
+  bronze: 3,
+  rare: 5,
+  silver: 7,
+  gold: 11,
+  galaxy: 16,
+};
+
+/**
+ * The 30-level curve those badges were earned on: 25(L−1)(L+2).
+ *
+ * Kept here, deliberately, rather than left in lib/xp.ts. It is not the app's
+ * curve any more and nothing else may use it — it exists only to price a
+ * historical badge, and a dead constant sitting in the live economy is an
+ * invitation to accidentally reach for it.
+ */
+const legacyXpForLevel = (level: number): number =>
+  25 * (level - 1) * (level + 2);
+
+/** Translate a stored badge from an earlier ladder, or undefined if it isn't one. */
+function migrateTierId(stored: string): TierId | undefined {
+  const level = LEGACY_TIER_LEVELS[stored];
+  if (level === undefined) return undefined;
+  return tierFor(levelFromXp(legacyXpForLevel(level))).id;
+}
+
+export interface Family {
+  id: FamilyId;
   label: string;
-  /** XP level at which this tier is reached. */
-  at: number;
-  /** Served from public/pet — see the art cache bucket in public/sw.js. */
-  art: string;
+  /** Filename prefix in public/pet. */
+  prefix: string;
+  /** The level this family's Common lands on. Its band runs `from`..`from+19`. */
+  from: number;
+}
+
+/**
+ * The five bands, twenty levels each, in the order they are earned.
+ *
+ * Even bands rather than tuned ones, deliberately. The levels themselves are
+ * not evenly priced — lib/xp.ts charges more for each one — so an even band in
+ * levels is already an accelerating band in work, and tuning the bands on top
+ * of that would be compounding a curve that is already curved.
+ */
+export const FAMILY_BAND = 20;
+
+export const FAMILIES: Family[] = [
+  { id: "base", label: "Base", prefix: "pet", from: 1 },
+  { id: "ghost", label: "Ghost", prefix: "ghost", from: 21 },
+  { id: "ember", label: "Ember", prefix: "ember", from: 41 },
+  { id: "crystal", label: "Crystal", prefix: "crystal", from: 61 },
+  { id: "astral", label: "Astral", prefix: "astral", from: 81 },
+];
+
+export interface Grade {
+  id: GradeId;
+  label: string;
+  /** Levels above the family's first rung. */
+  offset: number;
   /**
    * The aura ring, as a CSS background.
-   *
-   * Slate up to galaxy purple, on the *same* rungs as the skin — one ladder,
-   * two expressions of it. A second progression with its own thresholds (the
-   * old cosmetic frames at levels 2/5/9/14/20) put two competing ladders on one
-   * screen, which reads as noise rather than as progress.
    *
    * Every rung is a conic gradient, and always has been on purpose: a conic
    * sweep is what makes a 3px band read as a *bezel* — something machined —
    * instead of a coloured hairline. It also means the whole ladder is one kind
-   * of object, so the top tier is the same instrument turned up rather than a
+   * of object, so the top grade is the same instrument turned up rather than a
    * different one. No files: this is the only ladder in the app that costs
    * nothing to load.
+   *
+   * All six sweep `from 210deg` so the bright quarter lands in the same place
+   * on every rung — that shared light source is what makes six different
+   * gradients read as one set. What climbs is the *amplitude*: Common swings
+   * across a narrow band of sage, and only Galaxy leaves a single hue at all.
    */
   ring: string;
   /**
@@ -77,8 +178,8 @@ export interface Tier {
    *
    * Load-bearing at the bottom of the ladder. A flat grey band on a grey UI
    * reads to a brand-new user as "the image failed to load"; a lit inner edge
-   * reads as a thing you have. So base gets the brightest sheen of the six, not
-   * the dimmest — the ladder has to be legible from its first rung or the
+   * reads as a thing you have. So Common gets the brightest sheen of the six,
+   * not the dimmest — the ladder has to be legible from its first rung or the
    * climb never registers as one.
    */
   sheen: string;
@@ -87,36 +188,22 @@ export interface Tier {
 }
 
 /**
- * Every ring sweeps `from 210deg` so the bright quarter lands in the same place
- * on every rung — that shared light source is what makes six different
- * gradients read as one set. What climbs is the *amplitude*: common swings
- * across a narrow band of sage, and only the top tier leaves a single hue at
- * all.
+ * Six grades, spaced 0/3/7/11/15/19 levels into their family's band.
  *
- * ── Why the thresholds sit where they do ────────────────────────────────────
- *
- * Rare was added between Bronze and Silver, and adding a rung to a ladder
- * people are already standing on is the part that needed care: Silver, Gold and
- * Galaxy keep the exact levels they have always had, and Bronze moved *down*
- * from 4 to 3 to open the gap Rare slots into. Every threshold therefore moved
- * earlier or not at all, so no existing account can wake up outranked by its
- * own `bestTier` badge — a promotion is a gift and a demotion is a bug, and a
- * renumbering that quietly did the second would have been indistinguishable
- * from one.
- *
- * The gaps widen as you climb (2, 2, 2, 4, 5). Early rungs land close together
- * because the first weeks are where the ladder has to prove it moves at all;
- * the last one is far enough away to still be worth arriving at.
+ * The gaps widen as you climb inside a family (3, 4, 4, 4, 4) and the family
+ * boundary adds a fifth — so arriving at a new family is always the longest
+ * wait and the biggest visible change, which is the shape a reward ladder
+ * wants. It also leaves the band's last level free at the top of every family
+ * except Astral, where Galaxy lands exactly on 100.
  */
-export const TIERS: Tier[] = [
+export const GRADES: Grade[] = [
   {
     id: "common",
     label: "Common",
-    at: 1,
-    art: "/pet/ghost_common.jpg",
-    // Quiet, but not flat. The stops stay inside one desaturated sage family,
-    // picked up off the art's own robe: bright enough to read as a bezel, dull
-    // enough not to compete with whichever accent the user is running.
+    offset: 0,
+    // Quiet, but not flat. The stops stay inside one desaturated sage family:
+    // bright enough to read as a bezel, dull enough not to compete with
+    // whichever accent the user is running.
     ring:
       "conic-gradient(from 210deg,#7D9C84,#BFD9C4,#6E8E77,#A8C6AF,#7D9C84)",
     sheen: "rgba(255,255,255,.55)",
@@ -125,9 +212,8 @@ export const TIERS: Tier[] = [
   {
     id: "bronze",
     label: "Bronze",
-    at: 3,
-    art: "/pet/ghost_bronze.jpg",
-    // Deliberately kept as copper rather than matched to the art's paler tan.
+    offset: 3,
+    // Copper rather than the paler tan several families use for this grade.
     // The cloak is the light fabric and the ring is the metal, and the distance
     // that buys is what keeps this rung from reading as Gold at 46px.
     ring:
@@ -138,8 +224,7 @@ export const TIERS: Tier[] = [
   {
     id: "rare",
     label: "Rare",
-    at: 5,
-    art: "/pet/ghost_rare.jpg",
+    offset: 7,
     // Saturated azure, and saturated on purpose: Silver's ring is a near-white
     // that carries a blue undertone, so a pale blue here would have given the
     // ladder two rungs that differ only in how washed out they are.
@@ -151,8 +236,7 @@ export const TIERS: Tier[] = [
   {
     id: "silver",
     label: "Silver",
-    at: 7,
-    art: "/pet/ghost_silver.jpg",
+    offset: 11,
     ring:
       "conic-gradient(from 210deg,#94A2B6,#EDF2F8,#A9B6C8,#DCE4EE,#94A2B6)",
     sheen: "rgba(255,255,255,.6)",
@@ -161,8 +245,7 @@ export const TIERS: Tier[] = [
   {
     id: "gold",
     label: "Gold",
-    at: 11,
-    art: "/pet/ghost_gold.jpg",
+    offset: 15,
     ring:
       "conic-gradient(from 210deg,#C9932B,#FFDE86,#D9A93E,#F7CF70,#C9932B)",
     sheen: "rgba(255,247,215,.5)",
@@ -171,17 +254,79 @@ export const TIERS: Tier[] = [
   {
     id: "galaxy",
     label: "Galaxy",
-    at: 16,
-    // The only rung that changes hue as it sweeps. The top tier should not look
-    // like the same object in a different colour — it should look like a
-    // different kind of object.
-    art: "/pet/ghost_galaxy.jpg",
+    offset: 19,
+    // The only grade that changes hue as it sweeps. The top of a family should
+    // not look like the same object in a different colour — it should look like
+    // a different kind of object.
     ring:
       "conic-gradient(from 210deg,#7B2FF7,#C026D3,#4F46E5,#22D3EE,#A855F7,#7B2FF7)",
     sheen: "rgba(233,213,255,.55)",
     glow: "rgba(147,51,234,.34)",
   },
 ];
+
+/**
+ * Slots whose artwork does not exist yet.
+ *
+ * Their levels stay *reserved* rather than being closed up. Squeezing the
+ * ladder to twenty-seven consecutive rungs and re-expanding it when the art
+ * lands would move every threshold above the gap, and a threshold that moves
+ * later takes a pet off somebody's shelf — the one thing this ladder is not
+ * allowed to do. So the level is held empty, the rung simply isn't offered, and
+ * dropping the file in is the whole change.
+ *
+ * A test asserts this set is exactly the set of slots with no file on disk, so
+ * adding `ember_gold.jpg` fails the suite until this entry comes out — which is
+ * the only reliable way to be told that the reservation is no longer needed.
+ */
+export const RESERVED_TIER_IDS: ReadonlySet<string> = new Set<TierId>([
+  "base-rare",
+  "ember-gold",
+  "ember-galaxy",
+]);
+
+export interface Tier {
+  id: TierId;
+  family: Family;
+  grade: Grade;
+  /** "Ember Silver" — what this pet is called. */
+  label: string;
+  /** XP level at which this tier is reached. */
+  at: number;
+  /** Served from public/pet — see the art cache bucket in public/sw.js. */
+  art: string;
+  /** The grade's ring. See Grade.ring. */
+  ring: string;
+  /** The grade's sheen. See Grade.sheen. */
+  sheen: string;
+  /** The grade's glow. See Grade.glow. */
+  glow: string;
+}
+
+const tierId = (f: Family, g: Grade): TierId => `${f.id}-${g.id}`;
+
+/**
+ * Every rung that exists, in ladder order.
+ *
+ * Built rather than listed. The families and grades above are the only things
+ * anyone edits; the twenty-seven entries here are what those two tables imply,
+ * which is why no rung can end up with a level that disagrees with its family's
+ * band or a ring that disagrees with its grade.
+ */
+export const TIERS: Tier[] = FAMILIES.flatMap((family) =>
+  GRADES.filter((grade) => !RESERVED_TIER_IDS.has(tierId(family, grade)))
+    .map((grade) => ({
+      id: tierId(family, grade),
+      family,
+      grade,
+      label: `${family.label} ${grade.label}`,
+      at: family.from + grade.offset,
+      art: `/pet/${family.prefix}_${grade.id}.jpg`,
+      ring: grade.ring,
+      sheen: grade.sheen,
+      glow: grade.glow,
+    })),
+);
 
 export const FIRST_TIER = TIERS[0];
 export const TOP_TIER = TIERS[TIERS.length - 1];
@@ -243,8 +388,9 @@ export const emptyPetState = (): PetState => ({
  * writing a field rather than dropping it, so an older client's document keeps
  * round-tripping without a migration.
  *
- * Documents written before the six-tier art carry `bestTier: "base"`, which is
- * translated here rather than rejected — see LEGACY_TIER_IDS.
+ * Documents written by either earlier ladder carry a badge id this one has
+ * never heard of. Those are translated rather than rejected — see
+ * LEGACY_TIER_LEVELS.
  */
 export function normalizePetState(raw: unknown): PetState {
   if (!raw || typeof raw !== "object") return emptyPetState();
@@ -256,7 +402,7 @@ export function normalizePetState(raw: unknown): PetState {
 
   const stored =
     typeof v.bestTier === "string"
-      ? (LEGACY_TIER_IDS[v.bestTier] ?? v.bestTier)
+      ? (migrateTierId(v.bestTier) ?? v.bestTier)
       : undefined;
   const bestTier =
     stored && TIERS.some((t) => t.id === stored)
@@ -306,6 +452,45 @@ export function collection(bestTier: TierId = FIRST_TIER.id): Collection {
     next: locked[0] ?? null,
     complete: locked.length === 0,
   };
+}
+
+export interface Shelf {
+  family: Family;
+  /** Every rung of this family that has art, in grade order. */
+  tiers: Tier[];
+  /** How many of them are collected. The first `held` of `tiers`. */
+  held: number;
+  /** True once the whole family is on the shelf. */
+  full: boolean;
+  /** True before any of it is — the families still entirely ahead of you. */
+  untouched: boolean;
+}
+
+/**
+ * The collection cut into the five family rows the shelf actually draws.
+ *
+ * A flat list of twenty-seven is the thing the family axis exists to avoid, and
+ * every surface that shows the collection wants the same grouping — so the
+ * grouping is computed once here rather than three times in JSX, where the
+ * three copies would eventually disagree about what "collected" means.
+ *
+ * Families with no art at all are still returned. An empty row with a name on
+ * it is how a user finds out Astral exists, and a ladder that only shows you
+ * what you already have is not a ladder.
+ */
+export function shelves(bestTier: TierId = FIRST_TIER.id): Shelf[] {
+  const rank = Math.max(0, tierRank(bestTier));
+  return FAMILIES.map((family) => {
+    const tiers = TIERS.filter((t) => t.family.id === family.id);
+    const held = tiers.filter((t) => tierRank(t.id) <= rank).length;
+    return {
+      family,
+      tiers,
+      held,
+      full: held === tiers.length,
+      untouched: held === 0,
+    };
+  });
 }
 
 /* ── progress ───────────────────────────────────────────── */
