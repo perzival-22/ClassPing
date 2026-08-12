@@ -201,7 +201,13 @@ export default function TasksScreen() {
             onFinishTask={
               // Only offered while it's still open — the finished state
               // shouldn't hand you a button that un-ticks the task.
-              timerFor.done ? undefined : () => toggleTask(timerFor.id)
+              //
+              // `focused` is what separates this tick from the same tick in the
+              // list: the block ran, so the work is priced as work rather than
+              // as paperwork.
+              timerFor.done
+                ? undefined
+                : () => toggleTask(timerFor.id, { focused: true })
             }
             // Paid per completed focus block, so abandoning a Pomodoro run
             // half way still banks the halves that actually happened.

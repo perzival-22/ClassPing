@@ -44,12 +44,37 @@ export const emptyXpState = (): XpState => ({ xp: 0, seenLevel: 1 });
  * write-off — the streak already punishes lateness, and having the slow-moving
  * counter punish it a second time would just make the number useless to the
  * people who most need a reason to keep going.
+ *
+ * ── Why the tick is no longer the best-paid thing ───────────────────────────
+ *
+ * A checkbox costs a tap. A focus block costs twenty-five minutes. Paying them
+ * the same said the two were worth the same, which is the one claim this app
+ * should never make — the point was never the admin of marking work done, it
+ * was the work.
+ *
+ * So the weight moved rather than grew: the plain tick came down, and finishing
+ * a task *from* a completed focus block pays a bonus on top of it. The ladder
+ * is now 20 for a tick, 25 for a block, 45 for a block that ended in the thing
+ * actually being finished. Nothing was taken away from someone who does the
+ * work and forgets the timer — 20 is still a real award, and late still pays.
+ *
+ * It is deliberately not verification. A timer proves elapsed minutes, not
+ * attention, and anyone determined to inflate a number only they can see is
+ * welcome to; there is no leaderboard here and nothing to win off anyone else.
+ * This is reward design, not an anti-cheat system.
  */
 export const XP_AWARDS = {
-  taskOnTime: 25,
+  taskOnTime: 20,
   taskLate: 10,
   /** Per minute of focus actually completed — a 25 minute block pays 25. */
   focusMinute: 1,
+  /**
+   * On top of the task award, when the tick came from a finished focus block
+   * rather than from the list. Granted under the same first-time-only guard as
+   * the task award itself (see toggleTask in lib/store.tsx), so re-ticking
+   * can't mint it twice.
+   */
+  focusedFinish: 25,
   trophy: { bronze: 50, gold: 100, platinum: 200 },
   bossWin: 150,
 } as const;
@@ -58,11 +83,17 @@ export const XP_AWARDS = {
  * The curve. Level n → n+1 costs 100 + 50(n−1), so the cumulative threshold for
  * level L closes to 25(L−1)(L+2): 100 for level 2, 450 for 4, 2700 for 10.
  *
- * Sized against a real term rather than picked for feel: roughly three
- * assignments and four focus blocks a week is ~175 XP, which lands a student
- * around level 10 by the end of a fifteen-week semester. Fast enough that the
- * first few levels arrive during onboarding, slow enough that the last one
- * still means something in April.
+ * Sized against a real term rather than picked for feel: three assignments and
+ * four focus blocks a week is 160 XP, and one of those assignments finished
+ * from the timer makes it 185 — which still lands a student around level 10 by
+ * the end of a fifteen-week semester, the pacing this curve was built for.
+ * Fast enough that the first few levels arrive during onboarding, slow enough
+ * that the last one still means something in April.
+ *
+ * The rebalance in XP_AWARDS deliberately kept that total where it was for a
+ * student who uses the timer, and moved it down a little for one who only ever
+ * ticks boxes. A test holds the arithmetic to it, because a doc comment about
+ * pacing is exactly the kind of claim that rots the first time a constant moves.
  */
 export const MAX_LEVEL = 30;
 

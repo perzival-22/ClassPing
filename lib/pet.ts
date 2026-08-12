@@ -211,13 +211,15 @@ export function normalizePetState(raw: unknown): PetState {
  *
  * "Two levels to Silver" is true and says nothing — nobody knows what a level
  * costs. Assignments are the unit the app is *about*, so the runway is also
- * quoted in them: 25 XP each (XP_AWARDS.taskOnTime), the largest and most
- * common award, which makes this the *fewest* finishes that could get there.
+ * quoted in them, priced at XP_AWARDS.taskOnTime: a plain tick from the list,
+ * which is both the commonest way work gets logged and the *cheapest* of the
+ * routes, so the figure errs long rather than short.
  *
- * It is therefore an equivalence, not a rule, and the UI has to say so — focus
- * minutes, trophies and a boss win all pay into the same pot, so the real
- * number is usually smaller. Approximate and honest beats exact and wrong: the
- * point is to turn an abstract ladder into "a week and a bit of work".
+ * It is therefore an equivalence, not a rule, and the UI has to say so —
+ * finishing from a study block pays more than double, and focus minutes,
+ * trophies and a boss win all pay into the same pot, so the real number is
+ * usually smaller. Approximate and honest beats exact and wrong: the point is
+ * to turn an abstract ladder into "a week and a bit of work".
  *
  * Which is also why the *tier* runway is rarely the one to show. Silver to Gold
  * is four levels, which quotes as seventy-odd assignments — true, and a number

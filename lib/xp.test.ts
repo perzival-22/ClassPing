@@ -88,8 +88,8 @@ describe("levelProgress", () => {
 describe("awardXp", () => {
   it("adds and reports the gain", () => {
     const r = awardXp(emptyXpState(), XP_AWARDS.taskOnTime);
-    expect(r.state.xp).toBe(25);
-    expect(r.gained).toBe(25);
+    expect(r.state.xp).toBe(XP_AWARDS.taskOnTime);
+    expect(r.gained).toBe(XP_AWARDS.taskOnTime);
     expect(r.leveledUp).toBeNull();
   });
 
@@ -127,8 +127,55 @@ describe("awardXp", () => {
   it("survives a semester of awards", () => {
     let s = emptyXpState();
     for (let i = 0; i < 500; i++) s = awardXp(s, XP_AWARDS.taskOnTime).state;
-    expect(s.xp).toBe(Math.min(500 * 25, xpForLevel(MAX_LEVEL)));
+    expect(s.xp).toBe(
+      Math.min(500 * XP_AWARDS.taskOnTime, xpForLevel(MAX_LEVEL)),
+    );
     expect(levelFromXp(s.xp)).toBeLessThanOrEqual(MAX_LEVEL);
+  });
+});
+
+/**
+ * The awards are a claim about what this app values, and the claim is made in
+ * their ratios rather than in any one number. These are the ratios.
+ */
+describe("what the awards say", () => {
+  /** A 25-minute Pomodoro, the timer's default block. */
+  const BLOCK = 25 * XP_AWARDS.focusMinute;
+
+  it("pays the work better than the paperwork", () => {
+    expect(BLOCK).toBeGreaterThan(XP_AWARDS.taskOnTime);
+    expect(XP_AWARDS.taskOnTime + XP_AWARDS.focusedFinish).toBeGreaterThan(
+      BLOCK,
+    );
+  });
+
+  /** Nothing punishes: the tick still pays properly on its own, and late work
+   *  still pays something. A student who did the work without the timer has
+   *  not been fined for it. */
+  it("still pays a plain tick, and still pays late work", () => {
+    expect(XP_AWARDS.taskOnTime).toBeGreaterThanOrEqual(BLOCK * 0.6);
+    expect(XP_AWARDS.taskLate).toBeGreaterThan(0);
+    expect(XP_AWARDS.taskOnTime).toBeGreaterThan(XP_AWARDS.taskLate);
+  });
+
+  /**
+   * The pacing claim in this file's header, held to the arithmetic. Three
+   * assignments and four focus blocks a week, one of them finished from the
+   * timer, should still put a student around level 10 across a 15-week term —
+   * the shape the curve was built for.
+   */
+  it("still lands a termly student around level 10", () => {
+    const weekly =
+      3 * XP_AWARDS.taskOnTime + 4 * BLOCK + XP_AWARDS.focusedFinish;
+    expect(weekly).toBe(185);
+    expect(levelFromXp(weekly * 15)).toBe(10);
+  });
+
+  /** And the student who never opens the timer still gets there, just later —
+   *  a slower climb, not a locked door. */
+  it("keeps the checkbox-only student on the same ladder", () => {
+    const weekly = 3 * XP_AWARDS.taskOnTime + 4 * BLOCK;
+    expect(levelFromXp(weekly * 15)).toBeGreaterThanOrEqual(9);
   });
 });
 

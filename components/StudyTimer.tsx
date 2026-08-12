@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CheckIcon } from "./icons";
 import { showReminder } from "@/lib/notifications";
+import { XP_AWARDS } from "@/lib/xp";
 import { AMBIENCES, ambienceUrl, type AmbienceId } from "@/lib/ambient";
 import {
   DEFAULT_POMODORO,
@@ -672,16 +673,28 @@ export function StudyTimer({
             {phase === "done" ? (
               <div className="mt-5 flex flex-col gap-2.5">
                 {onFinishTask && (
-                  <button
-                    onClick={() => {
-                      onFinishTask();
-                      onClose();
-                    }}
-                    className="btn-brand flex w-full items-center justify-center gap-2 rounded-[15px] py-[15px] text-[16px] font-semibold text-white transition active:scale-[0.98]"
-                  >
-                    <CheckIcon className="h-[15px] w-[15px]" />
-                    Mark it done
-                  </button>
+                  <>
+                    <button
+                      onClick={() => {
+                        onFinishTask();
+                        onClose();
+                      }}
+                      className="btn-brand flex w-full items-center justify-center gap-2 rounded-[15px] py-[15px] text-[16px] font-semibold text-white transition active:scale-[0.98]"
+                    >
+                      <CheckIcon className="h-[15px] w-[15px]" />
+                      Mark it done
+                    </button>
+                    {/* Ticking off here is worth more than ticking off in the
+                        list, and a reward nobody is told about changes nobody's
+                        behaviour — so the button says what it pays. */}
+                    <p className="-mt-1 text-center text-[12px] text-muted">
+                      Worth{" "}
+                      <span className="font-semibold text-brand">
+                        +{XP_AWARDS.taskOnTime + XP_AWARDS.focusedFinish} XP
+                      </span>{" "}
+                      finished from a focus block.
+                    </p>
+                  </>
                 )}
                 <button
                   onClick={reset}

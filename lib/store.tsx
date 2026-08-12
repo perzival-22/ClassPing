@@ -252,7 +252,12 @@ interface Store {
   addTask: (t: Omit<TaskItem, "id">) => void;
   updateTask: (id: string, updates: Partial<Omit<TaskItem, "id">>) => void;
   deleteTask: (id: string) => void;
-  toggleTask: (id: string) => void;
+  /**
+   * Tick a task off, or back on. `focused` marks a completion that came from a
+   * finished study block rather than from the list — worth more, because the
+   * twenty-five minutes happened.
+   */
+  toggleTask: (id: string, opts?: { focused?: boolean }) => void;
   addGrade: (g: Omit<GradeItem, "id">) => void;
   updateGrade: (id: string, updates: Partial<Omit<GradeItem, "id">>) => void;
   deleteGrade: (id: string) => void;
@@ -686,7 +691,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
    * doubt rather than punished for bad data.
    */
   const toggleTask = useCallback(
-    (id: string) => {
+    (id: string, opts?: { focused?: boolean }) => {
       const task = tasks.find((t) => t.id === id);
       if (!task) return;
       const now = new Date();
@@ -716,8 +721,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             (sum, t) => sum + XP_AWARDS.trophy[t.tier],
             0,
           );
+          // The focus bonus rides inside `firstTime` with everything else: the
+          // timer's finish button is reachable again after an un-tick, and
+          // paying it per tick rather than per task would make the one award in
+          // here that's meant to price twenty-five minutes of work the easiest
+          // one to mint by tapping.
+          const focusBonus = opts?.focused ? XP_AWARDS.focusedFinish : 0;
           const amount =
-            (onTime ? XP_AWARDS.taskOnTime : XP_AWARDS.taskLate) + trophyBonus;
+            (onTime ? XP_AWARDS.taskOnTime : XP_AWARDS.taskLate) +
+            trophyBonus +
+            focusBonus;
           setXp((prev) => awardXp(prev, amount).state);
         }
       } else {
