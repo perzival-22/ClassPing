@@ -201,22 +201,43 @@ export function SettingsSkeleton() {
   );
 }
 
+/**
+ * Shown while Clerk loads, so it has to hold the sign-in screen's shape in
+ * both rooms — the phone column and the desktop split — or the page jumps
+ * when the real thing arrives. Same `contents` trick as app/page.tsx: the
+ * pitch bones flow around the form below `lg` and become a column above it.
+ *
+ * `chrome={false}`, like the screen it stands in for: nobody who may not be
+ * signed in should be shown the app's navigation.
+ */
 export function SignInSkeleton() {
   return (
-    <PhoneFrame>
-      <div className="h-full" style={{ background: "var(--bg-signin)" }}>
-        <div className="flex h-full flex-col px-7 pb-10">
-          <div className="flex flex-1 flex-col items-center justify-center pt-8">
-            <Bone className="h-[84px] w-[84px] rounded-[25px]" />
-            <Bone className="mt-[22px] h-[34px] w-44 rounded-lg" />
-            <Bone className="mt-3 h-[14px] w-52 rounded-md" />
-            <Bone className="mt-9 h-[46px] w-full rounded-[14px]" />
+    <PhoneFrame chrome={false} wide>
+      <div
+        className="no-scrollbar h-full overflow-y-auto"
+        style={{ background: "var(--bg-signin)" }}
+      >
+        <div className="mx-auto flex min-h-full w-full max-w-[460px] flex-col justify-center px-7 pb-10 pt-8 lg:max-w-[1060px] lg:flex-row lg:items-center lg:gap-20 lg:px-12 lg:py-12 xl:gap-24">
+          <div className="contents lg:flex lg:min-w-0 lg:max-w-[540px] lg:flex-1 lg:flex-col lg:items-start">
+            <div className="order-1 flex flex-col items-center lg:flex-row lg:items-center lg:gap-3.5">
+              <Bone className="h-[84px] w-[84px] rounded-[25px] lg:h-[54px] lg:w-[54px] lg:rounded-[17px]" />
+              <Bone className="mt-[22px] h-[34px] w-44 rounded-lg lg:mt-0 lg:h-[29px] lg:w-40" />
+            </div>
+            <Bone className="order-1 mx-auto mt-3 h-[14px] w-52 rounded-md lg:mx-0 lg:mt-8 lg:h-[88px] lg:w-[420px] lg:rounded-2xl" />
+            <div className="order-3 mt-8 flex w-full flex-col gap-3 lg:mt-9">
+              <Bone className="h-[64px] rounded-[15px] lg:h-[74px]" />
+              <Bone className="h-[64px] rounded-[15px] lg:h-[74px]" />
+              <Bone className="h-[64px] rounded-[15px] lg:h-[74px]" />
+            </div>
+          </div>
+
+          <div className="order-2 mt-9 w-full lg:mt-0 lg:w-[400px] lg:shrink-0">
+            <Bone className="h-[46px] w-full rounded-[14px]" />
             <Bone className="mt-4 h-[62px] w-full rounded-[15px]" />
             <Bone className="mt-3 h-[62px] w-full rounded-[15px]" />
-            <Bone className="mt-7 h-[50px] w-full rounded-[15px]" />
-            <Bone className="mt-3 h-[50px] w-full rounded-[15px]" />
+            <Bone className="mt-5 h-[58px] w-full rounded-[17px]" />
+            <Bone className="mt-5 h-[50px] w-full rounded-[15px]" />
           </div>
-          <Bone className="h-[58px] w-full rounded-[17px]" />
         </div>
       </div>
     </PhoneFrame>
