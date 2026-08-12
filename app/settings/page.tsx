@@ -742,30 +742,12 @@ function SettingsForm() {
             </p>
           </div>
 
-          {/* ── Import from an LMS ── */}
-          {isPro ? (
-            <ImportCalendar />
-          ) : (
-            <button
-              onClick={() => router.push("/upgrade")}
-              className="mt-4 w-full rounded-[24px] bg-white px-5 py-5 text-left"
-              style={{ boxShadow: "0 2px 12px rgba(30,20,80,.07)" }}
-            >
-              <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-widest text-faint">
-                Import from your school
-                <span
-                  className="rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white"
-                  style={{ background: "var(--color-brand)" }}
-                >
-                  PRO
-                </span>
-              </div>
-              <p className="text-[13px] leading-snug text-muted">
-                Pull your whole timetable and every deadline straight from
-                Canvas, Blackboard, Moodle or Google Classroom — no typing.
-              </p>
-            </button>
-          )}
+          {/* ── Import from an LMS ──
+              No plan gate out here any more. The card serves both plans and
+              draws its own line down the middle: the .ics file is free because
+              it never leaves the browser, the live feed is Pro because it's a
+              server fetch that keeps working all term. */}
+          <ImportCalendar />
 
           {/* ── Grading card ──
               The A/A-/B+ bands are a US convention, not a universal one. */}

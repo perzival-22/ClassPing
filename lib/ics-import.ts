@@ -1,5 +1,6 @@
 import type { ClassItem, DayIndex, TaskItem } from "./store";
 import type { SubjectColor } from "./palette";
+import { FREE_CLASS_LIMIT } from "./plan";
 
 /**
  * iCalendar import — the inverse of lib/calendar.ts.
@@ -244,4 +245,55 @@ export function parseIcs(
   }
 
   return { classes, tasks, skipped };
+}
+
+/* ── what will actually be written ──────────────────────── */
+
+export interface ImportPlan {
+  /** The classes that will be added. */
+  classes: Array<Omit<ClassItem, "id">>;
+  /** The tasks that will be added. */
+  tasks: Array<Omit<TaskItem, "id">>;
+  /** Classes found but left out because the free plan has no room. */
+  heldBack: number;
+  /** Class slots left on the free plan. Infinity on Pro. */
+  room: number;
+  /** Everything that will be added, for the button's count. */
+  total: number;
+}
+
+/**
+ * Apply the plan's class limit to a parse result.
+ *
+ * The limit exists in exactly one other place — app/class/new/page.tsx blocks
+ * the sixth manual class — and until now the importer walked straight past it.
+ * That was harmless while import was Pro-only and Pro has no limit; it stops
+ * being harmless the moment a free user can import, because a seven-class feed
+ * would quietly hand out what the Add screen refuses to.
+ *
+ * Deadlines are not capped and never have been, so they all come through even
+ * when their class doesn't. A task whose class was held back arrives unassigned
+ * rather than dropped: the due date is the part that matters and the part the
+ * reminder fires on, and attaching it to some *other* class to avoid a blank
+ * would be inventing a fact about the student's timetable.
+ *
+ * Pure, and deliberately not a store concern: the preview has to state this
+ * before anything is written, so the same arithmetic has to run before the
+ * confirm button is drawn.
+ */
+export function planImport(
+  found: ImportResult,
+  { existingClasses, isPro }: { existingClasses: number; isPro: boolean },
+): ImportPlan {
+  const held = Math.max(0, Math.floor(existingClasses) || 0);
+  const room = isPro ? Infinity : Math.max(0, FREE_CLASS_LIMIT - held);
+  const classes = isPro ? found.classes : found.classes.slice(0, room);
+
+  return {
+    classes,
+    tasks: found.tasks,
+    heldBack: found.classes.length - classes.length,
+    room,
+    total: classes.length + found.tasks.length,
+  };
 }

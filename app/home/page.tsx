@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { TabBar } from "@/components/TabBar";
 import { InstallPrompt } from "@/components/InstallPrompt";
+import { ImportSheet } from "@/components/ImportCalendar";
 import { HomeSkeleton } from "@/components/Skeleton";
 import {
   ArrowRightIcon,
@@ -87,6 +88,7 @@ export default function HomeScreen() {
   const [promptDismissed, setPromptDismissed] = useState<string | null>(null);
   const [showPet, setShowPet] = useState(false);
   const [showTrophies, setShowTrophies] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const now = useNow();
 
   if (!now || !hydrated) {
@@ -272,28 +274,39 @@ export default function HomeScreen() {
                 }}
               >
                 <div className="font-[family-name:var(--font-fredoka)] text-[22px] font-semibold leading-tight">
-                  Let&apos;s set up your week
+                  Skip the typing
                 </div>
                 <p className="mt-1.5 text-[14px] leading-snug text-white/85">
-                  Add your classes once and ClassPing takes it from there —
-                  your timetable, your deadlines, and a nudge before each one.
+                  Your school already has your timetable. Bring it over and
+                  ClassPing takes it from there — your week, your deadlines,
+                  and a nudge before each one.
                 </p>
                 <button
-                  onClick={() => router.push("/class/new")}
+                  onClick={() => setShowImport(true)}
                   className="mt-4 w-full rounded-[15px] py-[14px] text-center text-[16px] font-semibold transition active:scale-[0.98]"
                   // Sits on the brand gradient, so it stays white in both
                   // themes — `bg-white` would be rethemed to a dark card here.
                   style={{ background: "#fff", color: "var(--color-brand)" }}
                 >
-                  Add your first class
+                  Import my schedule
+                </button>
+
+                {/* The manual route stays one tap away and never behind a
+                    menu. Plenty of schools publish no feed at all, and for
+                    three classes typing them in is genuinely faster. */}
+                <button
+                  onClick={() => router.push("/class/new")}
+                  className="mt-2.5 w-full rounded-[15px] py-3 text-center text-[14.5px] font-semibold text-white/90 transition hover:text-white active:scale-[0.98]"
+                >
+                  Add a class manually
                 </button>
               </div>
 
               <div className="mt-4 flex flex-col gap-2.5">
                 <OnboardStep
                   n={1}
-                  title="Add a class"
-                  body="Name it, pick the days and times. Takes about 20 seconds."
+                  title="Import or add your classes"
+                  body="Drop in your school's calendar file, or type a class in — about 20 seconds each."
                 />
                 <OnboardStep
                   n={2}
@@ -691,6 +704,8 @@ export default function HomeScreen() {
           onClose={() => setShowTrophies(false)}
         />
       )}
+
+      {showImport && <ImportSheet onClose={() => setShowImport(false)} />}
 
       <InstallPrompt />
       <TabBar />

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseIcs } from "./ics-import";
+import { parseIcs, planImport, type ImportResult } from "./ics-import";
+import { FREE_CLASS_LIMIT } from "./plan";
 
 const NOW = new Date("2026-08-10T08:00:00");
 
@@ -177,5 +178,82 @@ describe("parseIcs — robustness", () => {
     );
     const res = parseIcs(cal(...many), NOW, 10);
     expect(res.classes.length + res.tasks.length).toBe(10);
+  });
+});
+
+/**
+ * The free plan's class ceiling. app/class/new/page.tsx has always enforced it
+ * on the manual path; these are the tests that stop the importer being the
+ * hole in it now that free accounts can import.
+ */
+describe("planImport — the free class ceiling", () => {
+  const found = (classes: number, tasks: number): ImportResult => ({
+    classes: Array.from({ length: classes }, (_, i) => ({
+      name: `Class ${i}`,
+      short: `C${i}`,
+      color: "indigo" as const,
+      days: [0] as never,
+      start: 540,
+      end: 600,
+      remindBefore: 15,
+      alarm: true,
+    })),
+    tasks: Array.from({ length: tasks }, (_, i) => ({
+      title: `Task ${i}`,
+      classId: "",
+      due: "2026-09-01T09:00:00.000Z",
+      reminder: true,
+      done: false,
+    })),
+    skipped: 0,
+  });
+
+  it("lets Pro import everything", () => {
+    const plan = planImport(found(9, 20), { existingClasses: 7, isPro: true });
+    expect(plan.classes).toHaveLength(9);
+    expect(plan.heldBack).toBe(0);
+    expect(plan.total).toBe(29);
+  });
+
+  it("fills a free account only up to the limit", () => {
+    const plan = planImport(found(8, 3), { existingClasses: 0, isPro: false });
+    expect(plan.classes).toHaveLength(FREE_CLASS_LIMIT);
+    expect(plan.heldBack).toBe(8 - FREE_CLASS_LIMIT);
+  });
+
+  it("counts the classes a free user already has", () => {
+    const plan = planImport(found(4, 0), { existingClasses: 3, isPro: false });
+    expect(plan.classes).toHaveLength(FREE_CLASS_LIMIT - 3);
+    expect(plan.heldBack).toBe(2);
+  });
+
+  it("holds back every class once a free account is full", () => {
+    const plan = planImport(found(3, 6), {
+      existingClasses: FREE_CLASS_LIMIT,
+      isPro: false,
+    });
+    expect(plan.classes).toHaveLength(0);
+    expect(plan.heldBack).toBe(3);
+    // The deadlines still land: they're uncapped, and a due date with no class
+    // is worth more than no due date at all.
+    expect(plan.tasks).toHaveLength(6);
+    expect(plan.total).toBe(6);
+  });
+
+  it("never caps deadlines on either plan", () => {
+    for (const isPro of [true, false]) {
+      expect(
+        planImport(found(0, 40), { existingClasses: 99, isPro }).tasks,
+      ).toHaveLength(40);
+    }
+  });
+
+  /** A grandfathered account can hold more than the limit — we never lock or
+   *  delete — so the room left must floor at zero rather than go negative. */
+  it("survives an account already over the limit", () => {
+    const plan = planImport(found(2, 1), { existingClasses: 12, isPro: false });
+    expect(plan.classes).toHaveLength(0);
+    expect(plan.room).toBe(0);
+    expect(plan.heldBack).toBe(2);
   });
 });
