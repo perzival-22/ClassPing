@@ -6,6 +6,7 @@ import {
   MAX_PET_NAME,
   TIERS,
   TOP_TIER,
+  collection,
   emptyPetState,
   higherTier,
   nextTier,
@@ -21,17 +22,40 @@ import { MAX_LEVEL, XP_AWARDS, levelFromXp, xpForLevel } from "./xp";
 
 describe("the tier ladder", () => {
   it("promotes at the documented levels", () => {
-    expect(tierFor(1).id).toBe("base");
-    expect(tierFor(4).id).toBe("bronze");
+    expect(tierFor(1).id).toBe("common");
+    expect(tierFor(3).id).toBe("bronze");
+    expect(tierFor(5).id).toBe("rare");
     expect(tierFor(7).id).toBe("silver");
     expect(tierFor(11).id).toBe("gold");
     expect(tierFor(16).id).toBe("galaxy");
   });
 
   it("holds the tier between thresholds", () => {
-    expect(tierFor(3).id).toBe("base");
-    expect(tierFor(6).id).toBe("bronze");
+    expect(tierFor(2).id).toBe("common");
+    expect(tierFor(4).id).toBe("bronze");
+    expect(tierFor(6).id).toBe("rare");
     expect(tierFor(15).id).toBe("gold");
+  });
+
+  /**
+   * Rare was inserted into a ladder people were already standing on. Silver,
+   * Gold and Galaxy had to keep their exact levels and Bronze was only allowed
+   * to move earlier, so that no account could be outranked by its own stored
+   * `bestTier` after the change — a demotion nobody earned would be
+   * indistinguishable from a bug. Pinning the shipped numbers here is what
+   * stops a future re-tune from doing it by accident.
+   */
+  it("never promotes later than the five-tier ladder it replaced", () => {
+    const before: Record<string, number> = {
+      common: 1, // was "base"
+      bronze: 4,
+      silver: 7,
+      gold: 11,
+      galaxy: 16,
+    };
+    for (const t of TIERS) {
+      if (t.id in before) expect(t.at, t.id).toBeLessThanOrEqual(before[t.id]);
+    }
   });
 
   it("holds the top tier for every level above it", () => {
@@ -47,7 +71,7 @@ describe("the tier ladder", () => {
 
   it("starts at level 1 so a new user always has a tier", () => {
     expect(TIERS[0].at).toBe(1);
-    expect(tierFor(0).id).toBe("base");
+    expect(tierFor(0).id).toBe("common");
   });
 
   /**
@@ -67,6 +91,7 @@ describe("the tier ladder", () => {
 
   it("points at the next rung, and at nothing from the top", () => {
     expect(nextTier(1)?.id).toBe("bronze");
+    expect(nextTier(3)?.id).toBe("rare");
     expect(nextTier(10)?.id).toBe("gold");
     expect(nextTier(16)).toBeNull();
     expect(nextTier(MAX_LEVEL)).toBeNull();
@@ -79,13 +104,15 @@ describe("the tier ladder", () => {
   });
 
   it("ranks tiers in ladder order", () => {
-    expect(tierRank("base")).toBe(0);
+    expect(tierRank("common")).toBe(0);
+    expect(tierRank("rare")).toBe(2);
     expect(tierRank("galaxy")).toBe(TIERS.length - 1);
   });
 
   it("picks the higher of two tiers either way round", () => {
-    expect(higherTier("base", "gold")).toBe("gold");
-    expect(higherTier("gold", "base")).toBe("gold");
+    expect(higherTier("common", "gold")).toBe("gold");
+    expect(higherTier("gold", "common")).toBe("gold");
+    expect(higherTier("rare", "silver")).toBe("silver");
     expect(higherTier("silver", "silver")).toBe("silver");
   });
 });
@@ -189,8 +216,8 @@ describe("petStatus", () => {
   });
 
   it("counts down in the singular on the last level before a promotion", () => {
-    expect(petStatus(3).line).toMatch(/1 level to Bronze/);
-    expect(petStatus(2).line).toMatch(/2 levels to Bronze/);
+    expect(petStatus(2).line).toMatch(/1 level to Bronze/);
+    expect(petStatus(1).line).toMatch(/2 levels to Bronze/);
   });
 
   /**
@@ -199,7 +226,7 @@ describe("petStatus", () => {
    */
   it("keeps the best tier as a badge after a reset", () => {
     const s = petStatus(1, "galaxy");
-    expect(s.tier.id).toBe("base");
+    expect(s.tier.id).toBe("common");
     expect(s.best.id).toBe("galaxy");
     expect(s.demoted).toBe(true);
   });
@@ -216,8 +243,60 @@ describe("petStatus", () => {
     expect(s.demoted).toBe(false);
   });
 
-  it("defaults the badge to base when none is stored", () => {
-    expect(petStatus(1).best.id).toBe("base");
+  it("defaults the badge to the bottom rung when none is stored", () => {
+    expect(petStatus(1).best.id).toBe("common");
+  });
+});
+
+describe("the collection", () => {
+  it("banks every rung beneath the best one, in ladder order", () => {
+    const c = collection("rare");
+    expect(c.collected.map((t) => t.id)).toEqual(["common", "bronze", "rare"]);
+    expect(c.locked.map((t) => t.id)).toEqual(["silver", "gold", "galaxy"]);
+    expect(c.next?.id).toBe("silver");
+    expect(c.complete).toBe(false);
+  });
+
+  it("gives a brand-new account exactly one pet", () => {
+    const c = collection();
+    expect(c.collected.map((t) => t.id)).toEqual(["common"]);
+    expect(c.next?.id).toBe("bronze");
+  });
+
+  it("is complete, with nothing next, at the top", () => {
+    const c = collection("galaxy");
+    expect(c.collected).toHaveLength(TIERS.length);
+    expect(c.locked).toEqual([]);
+    expect(c.next).toBeNull();
+    expect(c.complete).toBe(true);
+  });
+
+  it("never loses or duplicates a rung, at any point on the ladder", () => {
+    for (const t of TIERS) {
+      const c = collection(t.id);
+      expect(c.collected.length + c.locked.length).toBe(TIERS.length);
+      expect([...c.collected, ...c.locked].map((x) => x.id)).toEqual(
+        TIERS.map((x) => x.id),
+      );
+      // The best tier is the last thing on the shelf, never still locked.
+      expect(c.collected[c.collected.length - 1].id).toBe(t.id);
+    }
+  });
+
+  /**
+   * The whole reason the shelf reads `bestTier` and not the live level:
+   * clearing a semester resets XP, and a year-old Galaxy must survive it.
+   */
+  it("keeps the shelf full after a reset that empties the planner", () => {
+    const s = petStatus(1, "galaxy");
+    expect(s.tier.id).toBe("common");
+    expect(collection(s.best.id).complete).toBe(true);
+  });
+
+  /** It is fed from storage, so an id that isn't in the ladder can reach it. */
+  it("falls back to the bottom rung rather than an empty shelf", () => {
+    const c = collection("diamond" as never);
+    expect(c.collected.map((t) => t.id)).toEqual(["common"]);
   });
 });
 
@@ -245,10 +324,21 @@ describe("normalizePetState", () => {
 
   /** It crosses the sync endpoint, so a hostile document must not stick. */
   it("rejects a badge that isn't a real tier", () => {
-    expect(normalizePetState({ bestTier: "diamond" }).bestTier).toBe("base");
-    expect(normalizePetState({ bestTier: 9 }).bestTier).toBe("base");
-    expect(normalizePetState({ bestTier: {} }).bestTier).toBe("base");
+    expect(normalizePetState({ bestTier: "diamond" }).bestTier).toBe("common");
+    expect(normalizePetState({ bestTier: 9 }).bestTier).toBe("common");
+    expect(normalizePetState({ bestTier: {} }).bestTier).toBe("common");
     expect(normalizePetState({ name: 42 }).name).toBe(DEFAULT_PET_NAME);
+  });
+
+  /**
+   * "base" was the bottom rung before the six-tier art renamed it "common".
+   * It has to be translated rather than rejected, and translated *explicitly*:
+   * falling through to the default gives the right answer only for as long as
+   * common stays the bottom of the ladder.
+   */
+  it("carries a pre-rename badge across to its new id", () => {
+    expect(normalizePetState({ bestTier: "base" }).bestTier).toBe("common");
+    expect(tierById("base")).toBeUndefined();
   });
 
   /**
@@ -259,7 +349,7 @@ describe("normalizePetState", () => {
   it("reads a pre-tier document without complaint", () => {
     expect(normalizePetState({ name: "Bo", hat: "hat-crown" })).toEqual({
       name: "Bo",
-      bestTier: "base",
+      bestTier: "common",
     });
   });
 });
@@ -284,18 +374,21 @@ describe("tiers against the XP curve", () => {
 
 describe("the runway to the next tier", () => {
   it("quotes a brand-new account the climb to bronze", () => {
+    const bronze = TIERS[1];
     const r = tierRunway(0);
     expect(r.next?.id).toBe("bronze");
-    expect(r.xpToGo).toBe(xpForLevel(4));
-    expect(r.assignments).toBe(Math.ceil(xpForLevel(4) / XP_AWARDS.taskOnTime));
+    expect(r.xpToGo).toBe(xpForLevel(bronze.at));
+    expect(r.assignments).toBe(
+      Math.ceil(xpForLevel(bronze.at) / XP_AWARDS.taskOnTime),
+    );
   });
 
   it("counts down as XP lands, and never past the rung", () => {
-    const target = xpForLevel(4);
+    const target = xpForLevel(TIERS[1].at);
     expect(tierRunway(target - 1).xpToGo).toBe(1);
     expect(tierRunway(target - 1).assignments).toBe(1);
     // Landing on the threshold promotes, so the runway is to the *next* one.
-    expect(tierRunway(target).next?.id).toBe("silver");
+    expect(tierRunway(target).next?.id).toBe("rare");
   });
 
   it("stops at the top instead of promising a rung that isn't there", () => {
@@ -311,11 +404,24 @@ describe("the runway to the next tier", () => {
    * the level below a threshold and nowhere else.
    */
   it("flags the rung only from the level directly below it", () => {
-    expect(tierRunway(xpForLevel(3)).imminent).toBe(true); // 3 → bronze at 4
-    expect(tierRunway(xpForLevel(2)).imminent).toBe(false);
+    expect(tierRunway(xpForLevel(2)).imminent).toBe(true); // 2 → bronze at 3
+    expect(tierRunway(xpForLevel(3)).imminent).toBe(false); // 3 → rare at 5
+    expect(tierRunway(xpForLevel(4)).imminent).toBe(true); // 4 → rare at 5
     expect(tierRunway(xpForLevel(6)).imminent).toBe(true); // 6 → silver at 7
     expect(tierRunway(xpForLevel(7)).imminent).toBe(false); // 7 → gold at 11
     expect(tierRunway(xpForLevel(MAX_LEVEL)).imminent).toBe(false);
+  });
+
+  /**
+   * The same rule, stated once against the ladder rather than at hand-picked
+   * levels — the enumeration above is the readable version, this is the one
+   * that keeps holding when the thresholds move again.
+   */
+  it("flags every rung from exactly one level, across the whole ladder", () => {
+    for (let level = 1; level < MAX_LEVEL; level++) {
+      const r = tierRunway(xpForLevel(level));
+      expect(r.imminent, `level ${level}`).toBe(r.next?.at === level + 1);
+    }
   });
 
   /** The number is shown to a user, so it can never be zero-or-negative while

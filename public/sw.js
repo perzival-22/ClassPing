@@ -27,7 +27,16 @@
 const CACHE_VERSION = new URL(self.location.href).searchParams.get("v") || "v1";
 const STATIC_CACHE = `classping-static-${CACHE_VERSION}`;
 const PAGES_CACHE = `classping-pages-${CACHE_VERSION}`;
-const ART_CACHE = "classping-art-v1";
+/**
+ * Pet art, deliberately *not* keyed on the build: the files are immutable and
+ * far too big to re-download every deploy just because a chunk hash moved.
+ *
+ * The suffix is therefore the one thing that can ever evict them, and it is
+ * bumped by hand when the set changes — `activate` deletes every cache it does
+ * not recognise, so v1 (the five `pet_*.jpg` portraits this replaced) goes with
+ * it rather than sitting on disk forever with nothing left that can request it.
+ */
+const ART_CACHE = "classping-art-v2";
 
 /** Cap the page cache so a long semester of browsing can't grow it unbounded. */
 const MAX_PAGES = 30;
@@ -41,11 +50,12 @@ const MAX_STATIC = 160;
 /** Available offline even on the very first launch. */
 const PRECACHE = ["/icons/icon-192.png", "/icons/icon-512.png"];
 const PRECACHE_ART = [
-  "/pet/pet_base.jpg",
-  "/pet/pet_bronze.jpg",
-  "/pet/pet_silver.jpg",
-  "/pet/pet_gold.jpg",
-  "/pet/pet_galaxy.jpg",
+  "/pet/ghost_common.jpg",
+  "/pet/ghost_bronze.jpg",
+  "/pet/ghost_rare.jpg",
+  "/pet/ghost_silver.jpg",
+  "/pet/ghost_gold.jpg",
+  "/pet/ghost_galaxy.jpg",
 ];
 
 /**

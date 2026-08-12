@@ -2,12 +2,16 @@
 
 import { useEffect, useState } from "react";
 import {
+  collection,
   DEFAULT_PET_NAME,
   MAX_PET_NAME,
   petStatus,
   TIERS,
+  tierRank,
   type PetState,
   type PetStatus,
+  type Tier,
+  type TierId,
 } from "@/lib/pet";
 
 /**
@@ -91,6 +95,129 @@ export function PetAvatar({
   );
 }
 
+/* ── one pet, standing on the shelf ─────────────────────── */
+
+/**
+ * A collected pet at shelf size, or the empty socket where one will go.
+ *
+ * The socket keeps the full width of the pet it is waiting for rather than
+ * collapsing the row down to what has been earned. A shelf with six places and
+ * three things on it says "half way"; a shelf with three things on it says
+ * "finished", and the gap is the entire reason to look at this twice.
+ */
+function ShelfPet({ tier, collected }: { tier: Tier; collected: boolean }) {
+  const SIZE = 34;
+  const RING = 3;
+
+  if (!collected) {
+    return (
+      <span
+        className="flex shrink-0 items-center justify-center rounded-full text-[10.5px] font-bold tabular-nums"
+        style={{
+          width: SIZE,
+          height: SIZE,
+          background: "var(--surface-3)",
+          color: "var(--color-hint)",
+        }}
+        title={`${tier.label} — level ${tier.at}`}
+      >
+        {tier.at}
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className="relative block shrink-0 rounded-full"
+      style={{ width: SIZE, height: SIZE, background: tier.ring }}
+      title={tier.label}
+    >
+      <img
+        // Decorative: the row lives inside a button that already names the
+        // whole collection, so six alt texts here would only be noise.
+        alt=""
+        src={tier.art}
+        width={SIZE - RING * 2}
+        height={SIZE - RING * 2}
+        loading="lazy"
+        decoding="async"
+        className="absolute rounded-full object-cover"
+        style={{
+          top: RING,
+          left: RING,
+          width: SIZE - RING * 2,
+          height: SIZE - RING * 2,
+          boxShadow: `0 0 0 1px ${tier.sheen}`,
+        }}
+      />
+    </span>
+  );
+}
+
+/**
+ * The pet shelf — every tier ever collected, standing in a row.
+ *
+ * Deliberately the same cabinet as the trophy case it sits above: recessed
+ * surface, a lit ledge under the objects, a caption reading what the next one
+ * costs. Two kinds of reward in two visually unrelated containers would read as
+ * two apps, and the whole point of the rail is that it is one place where the
+ * things you own live.
+ *
+ * What it is *not* is a second scoreboard. Nothing here is state — see
+ * `collection` in lib/pet.ts, which derives the whole row from the one stored
+ * field, so the shelf can never disagree with the portrait above it.
+ */
+export function PetShelf({
+  best,
+  onOpen,
+}: {
+  /** The highest tier ever reached — `petStatus(...).best.id`. */
+  best: TierId;
+  onOpen: () => void;
+}) {
+  const { collected, next, complete } = collection(best);
+  const bestRank = tierRank(best);
+
+  return (
+    <button
+      onClick={onOpen}
+      aria-label={`Pet shelf: ${collected.length} of ${TIERS.length} tiers collected.${
+        next ? ` ${next.label} unlocks at level ${next.at}.` : ""
+      } Open pet.`}
+      className="mt-2 w-full cursor-pointer rounded-[20px] px-3.5 pb-2.5 pt-3.5 text-left transition hover:brightness-[.99] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand active:scale-[0.99]"
+      style={{
+        background: "var(--surface-2)",
+        boxShadow: "inset 0 2px 5px rgba(30,20,80,.07)",
+      }}
+    >
+      <div className="flex min-h-[38px] items-end justify-between gap-[3px] px-0.5">
+        {TIERS.map((t, i) => (
+          <ShelfPet key={t.id} tier={t} collected={i <= bestRank} />
+        ))}
+      </div>
+
+      {/* The ledge, lifted verbatim from the trophy shelf: a lit top edge over
+          a darker body is what reads as a shelf with depth instead of a rule. */}
+      <div
+        className="mt-1.5 h-[3px] rounded-full"
+        style={{
+          background: "var(--line-strong)",
+          boxShadow: "inset 0 1px 0 var(--pill-active)",
+        }}
+      />
+
+      <div className="flex items-baseline justify-between gap-2 pt-[3px]">
+        <span className="text-[11px] font-medium text-muted-2">
+          {complete ? "Complete" : "Next up"}
+        </span>
+        <span className="truncate text-[11.5px] font-semibold text-ink">
+          {next ? `${next.label} at level ${next.at}` : "Every tier collected"}
+        </span>
+      </div>
+    </button>
+  );
+}
+
 /* ── the home-screen card ───────────────────────────────── */
 
 export function ClassPetCard({
@@ -149,6 +276,7 @@ export function PetSheet({
 }) {
   const [name, setName] = useState(pet.name || DEFAULT_PET_NAME);
   const status = petStatus(level, pet.bestTier);
+  const pets = collection(status.best.id);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -214,20 +342,35 @@ export function PetSheet({
         </label>
 
         <div className="mt-6">
-          <div className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-faint">
-            Tiers
+          <div className="mb-3 flex items-baseline justify-between">
+            <div className="text-[11px] font-semibold uppercase tracking-widest text-faint">
+              Pet shelf
+            </div>
+            <div className="text-[11px] font-semibold tabular-nums text-muted-2">
+              {pets.collected.length}/{TIERS.length}
+            </div>
           </div>
           <div className="flex justify-between gap-1">
-            {TIERS.map((t) => {
-              const unlocked = level >= t.at;
+            {TIERS.map((t, i) => {
+              /*
+               * Collected, not "the level currently supports". Those are the
+               * same thing right up until a semester is cleared, at which point
+               * the level resets and `bestTier` doesn't — and a shelf that
+               * takes back a Galaxy you spent a year earning is the exact
+               * outcome bestTier exists to prevent. The brand ring below still
+               * marks the tier being *worn*, so the sheet says both things:
+               * what you own, and what you are wearing today.
+               */
+              const unlocked = i < pets.collected.length;
               const isCurrent = t.id === status.tier.id;
               return (
-                <div key={t.id} className="flex flex-col items-center gap-1.5 flex-1">
+                <div key={t.id} className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
+                  {/* Sized as a fraction of the row rather than at a fixed
+                      46px — six rungs at 46 overflow a 320px-wide phone where
+                      five did not. Mirrors the ladder in LevelSheet. */}
                   <div
-                    className="relative flex shrink-0 items-center justify-center rounded-full transition"
+                    className="relative flex aspect-square w-full max-w-[46px] items-center justify-center rounded-full transition"
                     style={{
-                      width: 46,
-                      height: 46,
                       background: unlocked ? t.ring : "var(--surface-3)",
                       ...(isCurrent
                         ? { boxShadow: "0 0 0 2.5px var(--bg-card), 0 0 0 5px var(--color-brand)" }
@@ -245,7 +388,7 @@ export function PetSheet({
                         height={40}
                         loading="lazy"
                         decoding="async"
-                        className="h-10 w-10 rounded-full object-cover"
+                        className="h-[87%] w-[87%] rounded-full object-cover"
                         style={{ boxShadow: `0 0 0 1px ${t.sheen}` }}
                       />
                     ) : (

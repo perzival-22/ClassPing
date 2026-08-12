@@ -1,12 +1,14 @@
 "use client";
 
-import { PetAvatar } from "./ClassPet";
+import { PetAvatar, PetShelf } from "./ClassPet";
 import { TrophyIcon } from "./icons";
 import {
+  collection,
   DEFAULT_PET_NAME,
   petStatus,
   runwayToLevel,
   tierRunway,
+  TIERS,
   type PetState,
 } from "@/lib/pet";
 import {
@@ -55,6 +57,7 @@ export function DisplayCase({
   const progress = levelProgress(xp.xp);
   const status = petStatus(progress.level, pet.bestTier);
   const runway = tierRunway(xp.xp);
+  const pets = collection(status.best.id);
   const nextLevel = runwayToLevel(xp.xp, progress.level + 1);
   const counts = trophyCounts(trophies.trophies);
   const total = trophies.trophies.length;
@@ -173,6 +176,26 @@ export function DisplayCase({
             </p>
           )}
         </div>
+
+        {/* ── the pets ──
+            The tiers already collected, on the same side and in the same
+            cabinet as the trophies. Trophies are what a *streak* earned and
+            pets are what the *term* earned — two different clocks, but both are
+            objects you own, and the rail is where the things you own live.
+
+            It sits above the trophy case rather than below it because it
+            belongs to the portrait it hangs under: portrait, the climb, then
+            what the climb has put on the shelf. */}
+        <div className="mt-7 flex items-center justify-between px-1">
+          <h2 className="text-[11px] font-semibold uppercase tracking-widest text-faint">
+            Pet shelf
+          </h2>
+          <span className="text-[11px] font-semibold tabular-nums text-muted-2">
+            {pets.collected.length}/{TIERS.length}
+          </span>
+        </div>
+
+        <PetShelf best={status.best.id} onOpen={onOpenPet} />
 
         {/* ── the case ── */}
         <div className="mt-7 flex items-center justify-between px-1">

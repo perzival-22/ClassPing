@@ -175,24 +175,31 @@ export function LevelSheet({
           {TIERS.map((t) => {
             const unlocked = p.level >= t.at;
             return (
-              <div key={t.id} className="flex flex-col items-center gap-1.5 flex-1">
+              <div key={t.id} className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
+                {/* Sized as a fraction of the row rather than at a fixed 46px.
+                    Six rungs at 46 overflow a 320px-wide phone where five did
+                    not, and a ladder that scrolls sideways stops reading as a
+                    ladder. The cap keeps it from growing on a wide sheet. */}
                 <div
-                  className="relative flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-full transition"
+                  className="relative flex aspect-square w-full max-w-[46px] items-center justify-center rounded-full transition"
                   style={{ background: unlocked ? t.ring : "var(--surface-3)" }}
                 >
                   {unlocked ? (
+                    // Masked into the disc, the same way the portrait and the
+                    // chips in PetSheet are. The art is an opaque JPEG, so the
+                    // `object-contain` framing this used to have — sized past
+                    // the box and anchored to its bottom edge, back when the
+                    // tiers were full-body figures on a pale ground — now just
+                    // hangs a square outside the ring it belongs inside.
                     <img
                       src={t.art}
                       alt={t.label}
-                      width={46}
-                      height={46}
-                      className="absolute left-0 bottom-0"
-                      style={{
-                        width: "100%",
-                        height: "115%",
-                        objectFit: "contain",
-                        objectPosition: "bottom",
-                      }}
+                      width={40}
+                      height={40}
+                      loading="lazy"
+                      decoding="async"
+                      className="h-[87%] w-[87%] rounded-full object-cover"
+                      style={{ boxShadow: `0 0 0 1px ${t.sheen}` }}
                     />
                   ) : (
                     <span className="text-[12px] font-bold text-faint">{t.at}</span>
