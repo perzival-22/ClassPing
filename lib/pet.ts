@@ -24,6 +24,8 @@
  * with the number that produced it.
  */
 
+import { levelFromXp, xpForLevel, XP_AWARDS } from "./xp";
+
 /** Five tiers. Level thresholds match the art's own captions. */
 export type TierId = "base" | "bronze" | "silver" | "gold" | "galaxy";
 
@@ -203,6 +205,62 @@ export function normalizePetState(raw: unknown): PetState {
 }
 
 /* ── progress ───────────────────────────────────────────── */
+
+/**
+ * How far the next tier is, in the currency a student actually spends.
+ *
+ * "Two levels to Silver" is true and says nothing — nobody knows what a level
+ * costs. Assignments are the unit the app is *about*, so the runway is also
+ * quoted in them: 25 XP each (XP_AWARDS.taskOnTime), the largest and most
+ * common award, which makes this the *fewest* finishes that could get there.
+ *
+ * It is therefore an equivalence, not a rule, and the UI has to say so — focus
+ * minutes, trophies and a boss win all pay into the same pot, so the real
+ * number is usually smaller. Approximate and honest beats exact and wrong: the
+ * point is to turn an abstract ladder into "a week and a bit of work".
+ *
+ * Which is also why the *tier* runway is rarely the one to show. Silver to Gold
+ * is four levels, which quotes as seventy-odd assignments — true, and a number
+ * that reads as a wall rather than a goal. So the caller asks for the next
+ * level's runway normally and this one only when the two coincide (`imminent`),
+ * where the number is small and the prize is the thing the user actually wants.
+ */
+export interface Runway {
+  /** XP still owed to reach the target level. */
+  xpToGo: number;
+  /** On-time assignments that would cover it, rounded up. */
+  assignments: number;
+}
+
+/** The distance from a lifetime total to any level above it. */
+export function runwayToLevel(xp: number, level: number): Runway {
+  const total = Number.isFinite(xp) ? Math.max(0, Math.floor(xp)) : 0;
+  const xpToGo = Math.max(0, xpForLevel(level) - total);
+  return { xpToGo, assignments: Math.ceil(xpToGo / XP_AWARDS.taskOnTime) };
+}
+
+export interface TierRunway extends Runway {
+  /** The rung being climbed to, or null at the top. */
+  next: Tier | null;
+  /**
+   * True when the next tier is also the next level — the one case where the
+   * two distances collapse into a single sentence.
+   */
+  imminent: boolean;
+}
+
+export function tierRunway(xp: number): TierRunway {
+  const total = Number.isFinite(xp) ? Math.max(0, Math.floor(xp)) : 0;
+  const level = levelFromXp(total);
+  const next = nextTier(level);
+  if (!next) return { next: null, xpToGo: 0, assignments: 0, imminent: false };
+
+  return {
+    next,
+    imminent: next.at === level + 1,
+    ...runwayToLevel(total, next.at),
+  };
+}
 
 export interface PetStatus {
   /** What the current level has earned. */

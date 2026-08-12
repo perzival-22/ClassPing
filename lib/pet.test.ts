@@ -13,9 +13,11 @@ import {
   petStatus,
   tierById,
   tierFor,
+  runwayToLevel,
   tierRank,
+  tierRunway,
 } from "./pet";
-import { MAX_LEVEL, levelFromXp, xpForLevel } from "./xp";
+import { MAX_LEVEL, XP_AWARDS, levelFromXp, xpForLevel } from "./xp";
 
 describe("the tier ladder", () => {
   it("promotes at the documented levels", () => {
@@ -276,6 +278,95 @@ describe("tiers against the XP curve", () => {
       if (t.at > 1) {
         expect(tierFor(levelFromXp(xpForLevel(t.at) - 1)).id).not.toBe(t.id);
       }
+    }
+  });
+});
+
+describe("the runway to the next tier", () => {
+  it("quotes a brand-new account the climb to bronze", () => {
+    const r = tierRunway(0);
+    expect(r.next?.id).toBe("bronze");
+    expect(r.xpToGo).toBe(xpForLevel(4));
+    expect(r.assignments).toBe(Math.ceil(xpForLevel(4) / XP_AWARDS.taskOnTime));
+  });
+
+  it("counts down as XP lands, and never past the rung", () => {
+    const target = xpForLevel(4);
+    expect(tierRunway(target - 1).xpToGo).toBe(1);
+    expect(tierRunway(target - 1).assignments).toBe(1);
+    // Landing on the threshold promotes, so the runway is to the *next* one.
+    expect(tierRunway(target).next?.id).toBe("silver");
+  });
+
+  it("stops at the top instead of promising a rung that isn't there", () => {
+    const r = tierRunway(xpForLevel(MAX_LEVEL));
+    expect(r.next).toBeNull();
+    expect(r.xpToGo).toBe(0);
+    expect(r.assignments).toBe(0);
+  });
+
+  /**
+   * `imminent` is what lets the case say "3 assignments to Bronze" instead of
+   * burying the prize behind a level number, so it has to be true on exactly
+   * the level below a threshold and nowhere else.
+   */
+  it("flags the rung only from the level directly below it", () => {
+    expect(tierRunway(xpForLevel(3)).imminent).toBe(true); // 3 → bronze at 4
+    expect(tierRunway(xpForLevel(2)).imminent).toBe(false);
+    expect(tierRunway(xpForLevel(6)).imminent).toBe(true); // 6 → silver at 7
+    expect(tierRunway(xpForLevel(7)).imminent).toBe(false); // 7 → gold at 11
+    expect(tierRunway(xpForLevel(MAX_LEVEL)).imminent).toBe(false);
+  });
+
+  /** The number is shown to a user, so it can never be zero-or-negative while
+   *  a rung is still being promised, and never NaN from junk in storage. */
+  it("always promises at least one more assignment while a rung remains", () => {
+    for (let xp = 0; xp <= xpForLevel(MAX_LEVEL); xp += 37) {
+      const r = tierRunway(xp);
+      if (r.next) {
+        expect(r.assignments).toBeGreaterThanOrEqual(1);
+        expect(r.xpToGo).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("survives nonsense from a hand-edited document", () => {
+    for (const junk of [NaN, Infinity, -500, undefined as unknown as number]) {
+      const r = tierRunway(junk);
+      expect(Number.isFinite(r.assignments)).toBe(true);
+      expect(r.assignments).toBeGreaterThanOrEqual(0);
+    }
+  });
+});
+
+describe("the runway to the next level", () => {
+  it("is the distance the case actually quotes", () => {
+    // Level 7 with 100 XP banked into a 400 XP level: 300 to go, 12 finishes.
+    const xp = xpForLevel(7) + 100;
+    const r = runwayToLevel(xp, 8);
+    expect(r.xpToGo).toBe(xpForLevel(8) - xp);
+    expect(r.assignments).toBe(Math.ceil(r.xpToGo / XP_AWARDS.taskOnTime));
+  });
+
+  it("never quotes a distance to a level already held", () => {
+    expect(runwayToLevel(xpForLevel(9), 5)).toEqual({
+      xpToGo: 0,
+      assignments: 0,
+    });
+  });
+
+  /**
+   * The whole reason the case quotes levels rather than tiers: the near number
+   * must never be the larger of the two. It can equal it — that is precisely
+   * the `imminent` case, where one sentence carries both.
+   */
+  it("never quotes further than the tier runway it stands in for", () => {
+    for (let xp = 0; xp <= xpForLevel(MAX_LEVEL); xp += 53) {
+      const tier = tierRunway(xp);
+      if (!tier.next) continue;
+      const level = runwayToLevel(xp, levelFromXp(xp) + 1);
+      expect(level.assignments).toBeLessThanOrEqual(tier.assignments);
+      expect(level.assignments === tier.assignments).toBe(tier.imminent);
     }
   });
 });

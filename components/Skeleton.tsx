@@ -46,34 +46,53 @@ function ClassCardBone() {
   );
 }
 
+/** Mirrors Home's two-column shell so the display case doesn't pop in. */
 export function HomeSkeleton() {
   return (
-    <PhoneFrame>
-      <div className="flex h-full flex-col bg-aurora">
-        <div className="px-5 pb-2 pt-16">
-          <Bone className="h-[13px] w-40 rounded-md" />
-          <Bone className="mt-2.5 h-[30px] w-60 rounded-lg" />
-        </div>
-        <div className="px-5 pb-3 pt-1">
-          <Bone className="h-[30px] w-48 rounded-full" />
-        </div>
-        <div className="flex-1 overflow-hidden px-5 pt-1">
-          <div className="flex flex-col gap-3">
-            <ClassCardBone />
-            <ClassCardBone />
-            <ClassCardBone />
+    <PhoneFrame wide>
+      <div className="flex h-full">
+        <div className="flex h-full min-w-0 flex-1 flex-col bg-aurora">
+          <div className="mx-auto flex h-full w-full max-w-[760px] flex-col">
+            <div className="px-5 pb-2 pt-16">
+              <Bone className="h-[13px] w-40 rounded-md" />
+              <Bone className="mt-2.5 h-[30px] w-60 rounded-lg" />
+            </div>
+            <div className="px-5 pb-3 pt-1">
+              <Bone className="h-[30px] w-48 rounded-full" />
+            </div>
+            <div className="flex-1 overflow-hidden px-5 pt-1">
+              <div className="flex flex-col gap-3">
+                <ClassCardBone />
+                <ClassCardBone />
+                <ClassCardBone />
+              </div>
+              <div className="mb-3 mt-8 flex items-center justify-between">
+                <Bone className="h-[17px] w-28 rounded-md" />
+                <Bone className="h-[28px] w-16 rounded-full" />
+              </div>
+              <div className="flex flex-col gap-2.5">
+                <ClassCardBone />
+                <ClassCardBone />
+              </div>
+            </div>
           </div>
-          <div className="mb-3 mt-8 flex items-center justify-between">
-            <Bone className="h-[17px] w-28 rounded-md" />
-            <Bone className="h-[28px] w-16 rounded-full" />
-          </div>
-          <div className="flex flex-col gap-2.5">
-            <ClassCardBone />
-            <ClassCardBone />
-          </div>
         </div>
-        <TabBar />
+
+        <aside
+          className="hidden shrink-0 flex-col px-4 pt-7 xl:flex xl:w-[300px]"
+          style={{
+            background: "var(--bg-card)",
+            borderLeft: "1px solid var(--line)",
+          }}
+        >
+          <Bone className="mx-auto h-[132px] w-[132px] rounded-full" />
+          <Bone className="mx-auto mt-4 h-[19px] w-32 rounded-md" />
+          <Bone className="mt-6 h-[6px] w-full rounded-full" />
+          <Bone className="mt-3 h-[13px] w-full rounded-md" />
+          <Bone className="mt-8 h-[170px] w-full rounded-[20px]" />
+        </aside>
       </div>
+      <TabBar />
     </PhoneFrame>
   );
 }

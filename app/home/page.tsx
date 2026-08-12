@@ -30,6 +30,8 @@ import {
 import { isWithinTerm, termRangeLabel } from "@/lib/time";
 import { termStats } from "@/lib/streak";
 import { ClassPetCard, PetSheet } from "@/components/ClassPet";
+import { DisplayCase } from "@/components/DisplayCase";
+import { TrophyGraphSheet } from "@/components/Trophies";
 import { levelFromXp } from "@/lib/xp";
 
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
@@ -76,6 +78,7 @@ export default function HomeScreen() {
     xp,
     pet,
     setPet,
+    trophies,
     hydrated,
   } = useStore();
   const router = useRouter();
@@ -83,6 +86,7 @@ export default function HomeScreen() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [promptDismissed, setPromptDismissed] = useState<string | null>(null);
   const [showPet, setShowPet] = useState(false);
+  const [showTrophies, setShowTrophies] = useState(false);
   const now = useNow();
 
   if (!now || !hydrated) {
@@ -141,8 +145,23 @@ export default function HomeScreen() {
 
 
   return (
-    <PhoneFrame>
-      <div className="flex h-full flex-col bg-aurora">
+    /*
+      Two columns from `xl`: the day's work in the middle, the display case on
+      the right. The case is furniture, not content — it sits outside the
+      scrolling column so it stays put while the schedule moves under it, and
+      it mirrors Sidebar's surface so the room has a wall on each side.
+
+      The sheets and TabBar are siblings of the row rather than children of the
+      middle column: they position with `absolute inset-0` against PhoneFrame's
+      own box, so hanging them here keeps a modal covering the whole app —
+      including the case — exactly as it did before the split.
+    */
+    <PhoneFrame wide>
+      <div className="flex h-full">
+        <div className="flex h-full min-w-0 flex-1 flex-col bg-aurora">
+          {/* The column these screens were written for, preserved: the middle
+              is centred and capped rather than stretched across a monitor. */}
+          <div className="mx-auto flex h-full w-full max-w-[760px] flex-col">
         {/* header */}
         <div className="px-5 pb-2 pt-12">
           <p className="text-[13px] font-semibold text-muted-2">
@@ -174,12 +193,18 @@ export default function HomeScreen() {
           </span>
         </div>
 
-        <div className="no-scrollbar flex-1 overflow-y-auto px-5 pb-32 pt-1">
+        {/* pb-32 clears the floating tab bar, which only exists below `md` —
+            above it that reserve is just dead space at the foot of the page. */}
+        <div className="no-scrollbar flex-1 overflow-y-auto px-5 pb-32 pt-1 md:pb-10">
           {/* ── the companion ──
               Below the schedule prompt, above the timetable: it's the reason to
               open the app on a quiet day, but it is never the reason someone
-              opened it on a busy one. */}
-          <div className="mb-3">
+              opened it on a busy one.
+
+              Gone from `xl` up, where the case shows the same pet at 132px:
+              two portraits of one animal on one screen is not twice the
+              reward, it's a bug that happens to render. */}
+          <div className="mb-3 xl:hidden">
             <ClassPetCard
               pet={pet}
               level={levelFromXp(xp.xp)}
@@ -633,20 +658,42 @@ export default function HomeScreen() {
 
             </>
           )}
+          </div>
+          </div>
         </div>
 
-        {showPet && (
-          <PetSheet
+        {/* Nothing to display before there is anything to earn: on first run
+            Home is one job, and a case of empty shelves beside "add your first
+            class" is decoration arguing with instruction. */}
+        {!isFirstRun && (
+          <DisplayCase
             pet={pet}
-            level={levelFromXp(xp.xp)}
-            onSave={setPet}
-            onClose={() => setShowPet(false)}
+            xp={xp}
+            trophies={trophies}
+            onOpenPet={() => setShowPet(true)}
+            onOpenTrophies={() => setShowTrophies(true)}
           />
         )}
-
-        <InstallPrompt />
-        <TabBar />
       </div>
+
+      {showPet && (
+        <PetSheet
+          pet={pet}
+          level={levelFromXp(xp.xp)}
+          onSave={setPet}
+          onClose={() => setShowPet(false)}
+        />
+      )}
+
+      {showTrophies && (
+        <TrophyGraphSheet
+          trophies={trophies}
+          onClose={() => setShowTrophies(false)}
+        />
+      )}
+
+      <InstallPrompt />
+      <TabBar />
     </PhoneFrame>
   );
 }
