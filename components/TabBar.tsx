@@ -6,6 +6,7 @@ import { tierFor } from "@/lib/pet";
 import { useStore } from "@/lib/store";
 import { levelFromXp } from "@/lib/xp";
 import {
+  BookIcon,
   CalendarIcon,
   HomeIcon,
   PlusIcon,
@@ -44,20 +45,51 @@ export function TabBar() {
       className="absolute left-3 right-3 z-40 md:hidden"
       style={{ bottom: "max(env(safe-area-inset-bottom), 14px)" }}
     >
-      <div className="glass flex items-start justify-between rounded-[30px] px-6 pb-2.5 pt-3">
-        <TabItem
-          href="/home"
-          label="Home"
-          active={pathname.startsWith("/home")}
-          icon={HomeIcon}
-        />
+      {/*
+       * Two equal halves with the add button between them, rather than one row
+       * of six spread by `justify-between`.
+       *
+       * Five destinations don't divide either side of a centre button, and the
+       * naive row put two labels left of it and three right — which reads as an
+       * add button that has slipped off centre, because it has. Giving each
+       * half `flex-1` pins the button to the middle of the bar and lets the
+       * uneven sides distribute inside their own halves, where nobody is
+       * counting.
+       *
+       * px-2 because the halves now own the spacing; the bar is the one piece
+       * of chrome that may never wrap, and it still has to survive 320px.
+       */}
+      <div className="glass flex items-start rounded-[30px] px-2 pb-2.5 pt-3">
+        <div className="flex flex-1 justify-around">
+          <TabItem
+            href="/home"
+            label="Home"
+            active={pathname.startsWith("/home")}
+            icon={HomeIcon}
+          />
 
-        <TabItem
-          href="/week"
-          label="Week"
-          active={pathname.startsWith("/week")}
-          icon={CalendarIcon}
-        />
+          {/*
+           * Notes live here and nowhere else on a phone.
+           *
+           * `/classes` is the only route to a lecture — the class list opens
+           * the note list opens the note — and until this tab existed the
+           * sidebar was the only thing that linked to it. The sidebar is `md:`
+           * and up. So on every phone the whole notes feature, reader included,
+           * was reachable only by typing the URL.
+           *
+           * Grades is still absent from this bar and is *not* the same bug: the
+           * GPA card on Home routes to it. Nothing on any phone-visible screen
+           * routed here.
+           */}
+          <TabItem
+            href="/classes"
+            label="Classes"
+            active={
+              pathname.startsWith("/classes") || pathname.startsWith("/class/")
+            }
+            icon={BookIcon}
+          />
+        </div>
 
         <span className="relative -mt-6 flex shrink-0 items-center justify-center">
           <span
@@ -86,14 +118,23 @@ export function TabBar() {
           </button>
         </span>
 
-        <TabItem href="/tasks" label="Tasks" active={onTasks} icon={TasksIcon} />
+        <div className="flex flex-1 justify-around">
+          <TabItem
+            href="/week"
+            label="Week"
+            active={pathname.startsWith("/week")}
+            icon={CalendarIcon}
+          />
 
-        <TabItem
-          href="/settings"
-          label="Settings"
-          active={pathname.startsWith("/settings")}
-          icon={SettingsIcon}
-        />
+          <TabItem href="/tasks" label="Tasks" active={onTasks} icon={TasksIcon} />
+
+          <TabItem
+            href="/settings"
+            label="Settings"
+            active={pathname.startsWith("/settings")}
+            icon={SettingsIcon}
+          />
+        </div>
       </div>
     </div>
   );
