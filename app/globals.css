@@ -370,9 +370,32 @@ body {
   padding: 0;
 }
 
+/*
+ * The canvas — everything the app itself doesn't paint.
+ *
+ * PhoneFrame fills the viewport and paints `--bg-frame`, so it is tempting to
+ * think nothing else needs a background. Two strips disagree: the safe-area
+ * inset under the status bar, which PhoneFrame reserves with padding rather
+ * than covering, and whatever a rubber-band overscroll drags into view. Both
+ * are painted by the *canvas*, which the browser takes from the root element —
+ * and unset, that is white. On the true-dark theme that is a bright band across
+ * the top of every screen on the one device that shows a safe area at all.
+ *
+ * It goes on `html` rather than `body` because the propagation rule reads the
+ * root first; putting it on `body` alone works only for as long as nobody gives
+ * `html` a background, which is a footgun rather than a rule.
+ */
+html {
+  background: var(--bg-outer);
+}
+
 body {
   -webkit-font-smoothing: antialiased;
   font-family: -apple-system, system-ui, "Segoe UI", sans-serif;
+  /* Nothing in this app scrolls the document — every screen scrolls its own
+     pane inside a fixed frame — so a document-level bounce has nothing to
+     reveal except the canvas above. */
+  overscroll-behavior-y: none;
 }
 
 /* Hide scrollbars inside the phone frame for an app-like feel */

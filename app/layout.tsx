@@ -65,7 +65,23 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#5b54e8",
+  /*
+   * The colour the OS paints its own chrome with: the status bar in an
+   * installed PWA, and the address bar surround in a browser.
+   *
+   * It used to be the brand purple, which matched neither theme — a violet
+   * band above a black app. These are the two frame colours instead, so the
+   * chrome disappears into the screen rather than sitting on top of it.
+   *
+   * The media queries are the *system* preference and are only the starting
+   * value. This app's theme is a stored profile setting that can disagree with
+   * the system, so the store overwrites this tag at runtime once it knows which
+   * theme is actually on — see the effect in lib/store.tsx.
+   */
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f2f2f7" },
+    { media: "(prefers-color-scheme: dark)", color: "#000000" },
+  ],
   width: "device-width",
   initialScale: 1,
   // No maximumScale: pinning zoom to 1 blocks pinch-zoom, a WCAG 1.4.4

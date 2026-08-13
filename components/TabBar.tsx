@@ -8,6 +8,7 @@ import { levelFromXp } from "@/lib/xp";
 import {
   BookIcon,
   CalendarIcon,
+  GradeIcon,
   HomeIcon,
   PlusIcon,
   SettingsIcon,
@@ -46,20 +47,20 @@ export function TabBar() {
       style={{ bottom: "max(env(safe-area-inset-bottom), 14px)" }}
     >
       {/*
-       * Two equal halves with the add button between them, rather than one row
-       * of six spread by `justify-between`.
+       * Two equal halves with the add button between them.
        *
-       * Five destinations don't divide either side of a centre button, and the
-       * naive row put two labels left of it and three right — which reads as an
-       * add button that has slipped off centre, because it has. Giving each
-       * half `flex-1` pins the button to the middle of the bar and lets the
-       * uneven sides distribute inside their own halves, where nobody is
-       * counting.
+       * Six destinations, three a side, so the button sits on the true centre
+       * and both halves carry the same weight. Each half is `flex-1` rather
+       * than the whole row being `justify-between`: that keeps the button
+       * centred by construction instead of by however wide the labels happen
+       * to be, which is what went wrong when the count was five.
        *
-       * px-2 because the halves now own the spacing; the bar is the one piece
-       * of chrome that may never wrap, and it still has to survive 320px.
+       * px-1.5 and a 9.5px label because six labels plus a 54px button is the
+       * most this bar will ever hold on a 320px phone. It is the one piece of
+       * chrome that may never wrap, so the sizes here are measured rather than
+       * chosen — checked at 320, 360, 390 and 430.
        */}
-      <div className="glass flex items-start rounded-[30px] px-2 pb-2.5 pt-3">
+      <div className="glass flex items-start rounded-[30px] px-1.5 pb-2.5 pt-3">
         <div className="flex flex-1 justify-around">
           <TabItem
             href="/home"
@@ -69,25 +70,30 @@ export function TabBar() {
           />
 
           {/*
-           * Notes live here and nowhere else on a phone.
+           * Labelled "Notes", though the route is `/classes` and the sidebar
+           * calls it Classes.
            *
-           * `/classes` is the only route to a lecture — the class list opens
-           * the note list opens the note — and until this tab existed the
-           * sidebar was the only thing that linked to it. The sidebar is `md:`
-           * and up. So on every phone the whole notes feature, reader included,
-           * was reachable only by typing the URL.
-           *
-           * Grades is still absent from this bar and is *not* the same bug: the
-           * GPA card on Home routes to it. Nothing on any phone-visible screen
-           * routed here.
+           * The names disagree deliberately. On a laptop this is where you
+           * manage a timetable; on a phone the class list is a doorway you pass
+           * through on the way to a lecture, and the screen's own subtitle has
+           * always said "pick one to open its notes". A tab is four characters
+           * of explanation, so it should name the destination rather than the
+           * hallway.
            */}
           <TabItem
             href="/classes"
-            label="Classes"
+            label="Notes"
             active={
               pathname.startsWith("/classes") || pathname.startsWith("/class/")
             }
             icon={BookIcon}
+          />
+
+          <TabItem
+            href="/grades"
+            label="Grades"
+            active={pathname.startsWith("/grades")}
+            icon={GradeIcon}
           />
         </div>
 
@@ -154,11 +160,11 @@ function TabItem({
   return (
     <Link
       href={href}
-      className="flex flex-col items-center gap-1"
+      className="flex min-w-0 flex-col items-center gap-1"
       style={{ color: active ? "var(--color-brand)" : "var(--color-faint)" }}
     >
       <Icon className="h-6 w-6" />
-      <span className="text-[10px] font-semibold">{label}</span>
+      <span className="text-[9.5px] font-semibold">{label}</span>
     </Link>
   );
 }

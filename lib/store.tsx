@@ -1167,12 +1167,37 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   // Sync dark/light class and accent theme to <html> whenever they change.
   useEffect(() => {
-    if (profile.theme === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
+    const dark = profile.theme === "dark";
+    document.documentElement.classList.toggle("dark", dark);
     document.documentElement.dataset.accent = profile.accent ?? "classic";
+
+    /*
+     * Point the OS at the same colour the frame is painted.
+     *
+     * `theme-color` is what an installed PWA tints its status bar with, and
+     * app/layout.tsx can only ship a static pair keyed on the *system*
+     * preference. The theme here is a stored profile setting, so a user running
+     * the app dark on a light phone would otherwise get a light bar over a
+     * black screen — which is the white band this exists to remove.
+     *
+     * The media-query variants have to go: a browser picks the first tag whose
+     * media matches, so leaving them would let the system preference win over
+     * the choice the user actually made in Settings.
+     */
+    for (const tag of document.querySelectorAll(
+      'meta[name="theme-color"][media]',
+    )) {
+      tag.remove();
+    }
+    let meta = document.querySelector<HTMLMetaElement>(
+      'meta[name="theme-color"]:not([media])',
+    );
+    if (!meta) {
+      meta = document.createElement("meta");
+      meta.name = "theme-color";
+      document.head.appendChild(meta);
+    }
+    meta.content = dark ? "#000000" : "#f2f2f7";
   }, [profile.theme, profile.accent]);
 
   const value = useMemo<Store>(
