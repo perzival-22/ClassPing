@@ -415,8 +415,27 @@ body {
 /* Liquid-glass surface for chrome: tab bar, pills, floating controls */
 .glass {
   background: var(--glass-bg);
-  backdrop-filter: blur(24px) saturate(1.7);
-  -webkit-backdrop-filter: blur(24px) saturate(1.7);
+  /*
+   * 12px, down from 24px.
+   *
+   * `backdrop-filter` is the most expensive property in this stylesheet, and
+   * it is worn by the one element that is on screen at all times and always
+   * has content moving underneath it: the tab bar. A backdrop blur cannot be
+   * cached — it re-samples whatever is behind it — so every scroll frame pays
+   * for it, and up to four of these layers are live at once on Week.
+   *
+   * The radius came down rather than the effect coming out because at
+   * `--glass-bg`'s opacity (58% light, 72% dark) the backdrop is already
+   * mostly hidden: at 24px the extra blur was being computed and then almost
+   * entirely covered up. Blur cost scales with the radius, so this is close to
+   * half the work for a difference you have to A/B to see.
+   *
+   * `will-change` is deliberately absent. It would promote every glass surface
+   * to its own permanent compositor layer, which trades a repaint for memory
+   * on exactly the devices that have least of it.
+   */
+  backdrop-filter: blur(12px) saturate(1.6);
+  -webkit-backdrop-filter: blur(12px) saturate(1.6);
   border: 1px solid var(--glass-border);
   box-shadow:
     inset 0 1px 0 var(--glass-highlight),

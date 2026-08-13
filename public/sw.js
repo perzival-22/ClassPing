@@ -115,12 +115,22 @@ const PRECACHE_PAGES = [
   "/settings",
 ];
 
-/** Fetch and store one URL, tolerating failure. Returns nothing either way. */
+/**
+ * Fetch and store one URL, tolerating failure. Returns nothing either way.
+ *
+ * Skips anything already in the cache, which is the difference between the art
+ * costing 1.8MB once and costing 1.8MB on every single deploy. ART_CACHE is
+ * deliberately not keyed on the build (see above), so without this check every
+ * release re-downloaded twenty-seven portraits that were already on disk and
+ * byte-identical. The build-keyed caches start empty each release, so the check
+ * costs them nothing and never serves them anything stale.
+ */
 async function warm(cacheName, url) {
   try {
+    const cache = await caches.open(cacheName);
+    if (await cache.match(url)) return;
     const res = await fetch(url, { credentials: "same-origin" });
     if (isCacheable(res)) {
-      const cache = await caches.open(cacheName);
       await cache.put(url, res);
     }
   } catch {
@@ -128,16 +138,26 @@ async function warm(cacheName, url) {
   }
 }
 
+/**
+ * Warm a list one at a time, not all at once.
+ *
+ * Sequential on purpose. `Promise.all` over this list opens thirty-odd
+ * connections in a burst, and a phone has a handful — so the burst queues, and
+ * everything the *page* still needs queues behind it. On the sign-in screen the
+ * thing stuck at the back of that queue is Clerk's script, and until it lands
+ * the page renders nothing but a skeleton. One at a time is slower to finish
+ * and costs the user nothing, because none of it is needed on this paint.
+ */
+async function warmAll(cacheName, urls) {
+  for (const url of urls) await warm(cacheName, url);
+}
+
 self.addEventListener("install", (event) => {
+  // Only the icons block activation, and they are two small files. Everything
+  // else is a bonus that the app works perfectly well without on this load.
   event.waitUntil(
     (async () => {
-      // Icons must be there; pages are a bonus. Neither may block activation,
-      // so every one of these is individually best-effort.
-      await Promise.all([
-        ...PRECACHE.map((u) => warm(STATIC_CACHE, u)),
-        ...PRECACHE_ART.map((u) => warm(ART_CACHE, u)),
-        ...PRECACHE_PAGES.map((u) => warm(PAGES_CACHE, u)),
-      ]);
+      await warmAll(STATIC_CACHE, PRECACHE);
       await self.skipWaiting();
     })(),
   );
@@ -145,16 +165,31 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter((k) => k !== STATIC_CACHE && k !== PAGES_CACHE && k !== ART_CACHE)
-            .map((k) => caches.delete(k)),
-        ),
-      )
-      .then(() => self.clients.claim()),
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(
+        keys
+          .filter(
+            (k) => k !== STATIC_CACHE && k !== PAGES_CACHE && k !== ART_CACHE,
+          )
+          .map((k) => caches.delete(k)),
+      );
+      await self.clients.claim();
+
+      /*
+       * The bulk of the cache is warmed here, after the worker is already in
+       * charge, rather than during install where it held up activation.
+       *
+       * Art first because it is the part that actually needs warming — the
+       * shelf draws all twenty-seven at once, so meeting them one at a time on
+       * demand is the bad version. Pages second, and they are close to free:
+       * every one is auth-gated, so for the signed-out visitor who is the whole
+       * reason this ordering matters they redirect, fail `isCacheable`, and
+       * store nothing.
+       */
+      await warmAll(ART_CACHE, PRECACHE_ART);
+      await warmAll(PAGES_CACHE, PRECACHE_PAGES);
+    })(),
   );
 });
 

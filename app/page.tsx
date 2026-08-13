@@ -97,12 +97,36 @@ function SignInForm() {
   const emailRef = useRef<HTMLInputElement>(null);
   const codeRef = useRef<HTMLInputElement>(null);
 
+  /**
+   * How long the skeleton is allowed to stand in for Clerk.
+   *
+   * Long enough that a normal load never reaches it, so a returning user is
+   * redirected without ever seeing the form; short enough that somebody on a
+   * bad connection gets something they can read and type into rather than
+   * concluding the app is broken.
+   */
+  const [authTimedOut, setAuthTimedOut] = useState(false);
+  useEffect(() => {
+    if (authLoaded) return;
+    const t = setTimeout(() => setAuthTimedOut(true), 2500);
+    return () => clearTimeout(t);
+  }, [authLoaded]);
+
   const canSubmit = email.trim().length > 0 && password.trim().length > 0;
+  /*
+   * Whichever half of Clerk this view is about to call.
+   *
+   * Load can now be reached before Clerk is ready — that is the whole point of
+   * the grace period below — so the button has to say "not yet" rather than
+   * look live and do nothing. `handleLogin` already returns early without
+   * `signIn`, which as a *disabled* state is correct and as a *tap* is a button
+   * that silently ignores you.
+   */
+  const clerkReady = mode === "login" ? signInLoaded : signUpLoaded;
   const submitDisabled =
     loading ||
-    (view === "form"
-      ? !canSubmit
-      : code.trim().length === 0 || !signUpLoaded);
+    !clerkReady ||
+    (view === "form" ? !canSubmit : code.trim().length === 0);
 
   // A returning user often still has a live Clerk session even though the PWA
   // reopens on this screen — send them straight in instead of showing the form
@@ -122,7 +146,28 @@ function SignInForm() {
     (view === "form" ? emailRef : codeRef).current?.focus();
   }, [authLoaded, isSignedIn, view]);
 
-  if (!authLoaded || isSignedIn) {
+  /*
+   * The skeleton waits for Clerk, but not forever.
+   *
+   * It used to wait on `!authLoaded` with nothing behind it. Until Clerk's
+   * script had downloaded, parsed and initialised — on a phone, over cellular,
+   * behind whatever else the tab was fetching — this screen rendered nothing at
+   * all. There was no timeout and no error path, so a slow Clerk load was
+   * indistinguishable from a broken app: just a skeleton, indefinitely.
+   *
+   * Dropping the wait outright is the wrong fix. `authLoaded` is also what
+   * tells us whether the person already has a session, and a returning user is
+   * common enough here that showing them a login form for a moment before
+   * redirecting them away from it is its own bug.
+   *
+   * So the wait is *bounded*. Inside the grace period the skeleton behaves as
+   * it always did and a returning user never sees a form. Past it, Clerk is
+   * taking long enough that a blank screen is the worse answer, and the form
+   * appears with its submit button still gated on `signInLoaded` — typing an
+   * email and a password takes longer than the rest of Clerk's load, so in
+   * practice the button is live by the time anyone reaches it.
+   */
+  if ((!authLoaded && !authTimedOut) || isSignedIn) {
     return <SignInSkeleton />;
   }
 
