@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { tierFor } from "@/lib/pet";
+import { shownTier } from "@/lib/pet";
 import { useStore } from "@/lib/store";
 import { levelFromXp } from "@/lib/xp";
 import {
@@ -17,7 +17,7 @@ import {
 export function TabBar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { xp } = useStore();
+  const { xp, pet } = useStore();
   const onTasks = pathname.startsWith("/tasks");
 
   /**
@@ -30,7 +30,7 @@ export function TabBar() {
    * settles up; a ring quietly improving is a fine thing to see, a ring
    * flashing between tiers is not, which is why nothing here transitions.
    */
-  const tier = tierFor(levelFromXp(xp.xp));
+  const tier = shownTier(levelFromXp(xp.xp), pet);
 
   const addHref = onTasks
     ? "/tasks/new"

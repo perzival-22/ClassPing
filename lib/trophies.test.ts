@@ -7,7 +7,6 @@ import {
   normalizeTrophyState,
   pruneTrophyState,
   trophyCounts,
-  trophyTimeline,
   uncompleteTask,
   type TrophyState,
 } from "./trophies";
@@ -184,20 +183,5 @@ describe("housekeeping", () => {
     expect(s.streak).toBe(2);
     expect(s.trophies).toHaveLength(1);
     expect(s.counted).toEqual(["t0"]);
-  });
-});
-
-describe("semester timeline", () => {
-  it("plots trophies oldest first with a running total", () => {
-    const pts = trophyTimeline([
-      { tier: "gold", at: "2026-03-01T10:00:00Z" },
-      { tier: "bronze", at: "2026-02-01T10:00:00Z" },
-    ]);
-    expect(pts.map((p) => p.tier)).toEqual(["bronze", "gold"]);
-    expect(pts.map((p) => p.total)).toEqual([1, 2]);
-  });
-
-  it("drops trophies with an unreadable timestamp", () => {
-    expect(trophyTimeline([{ tier: "bronze", at: "whenever" }])).toEqual([]);
   });
 });

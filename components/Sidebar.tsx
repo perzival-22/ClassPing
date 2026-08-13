@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { tierFor } from "@/lib/pet";
+import { shownTier } from "@/lib/pet";
 import { useStore } from "@/lib/store";
 import { levelFromXp } from "@/lib/xp";
 import {
@@ -39,14 +39,14 @@ const NAV = [
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { xp, profile, hydrated } = useStore();
+  const { xp, pet, profile, hydrated } = useStore();
 
   /**
    * Same aura, same ladder as the pet and the tab bar's add button. It rides
    * the one control that is on every screen here too — and like the tab bar,
    * it never animates: navigation furniture doesn't celebrate.
    */
-  const tier = tierFor(levelFromXp(xp.xp));
+  const tier = shownTier(levelFromXp(xp.xp), pet);
 
   // What "Add" means follows the screen you're on, exactly as it does on the
   // phone — so the keyboard shortcut and the button never disagree.

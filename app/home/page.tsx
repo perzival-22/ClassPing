@@ -32,7 +32,7 @@ import { isWithinTerm, termRangeLabel } from "@/lib/time";
 import { termStats } from "@/lib/streak";
 import { ClassPetCard, PetSheet } from "@/components/ClassPet";
 import { DisplayCase } from "@/components/DisplayCase";
-import { TrophyGraphSheet } from "@/components/Trophies";
+import { TrophyCaseSheet } from "@/components/Trophies";
 import { levelFromXp } from "@/lib/xp";
 
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
@@ -699,7 +699,7 @@ export default function HomeScreen() {
       )}
 
       {showTrophies && (
-        <TrophyGraphSheet
+        <TrophyCaseSheet
           trophies={trophies}
           onClose={() => setShowTrophies(false)}
         />

@@ -41,7 +41,7 @@ import {
 import { useIsPro } from "@/lib/useIsPro";
 import { AvatarFrame } from "@/components/Level";
 import { levelFromXp } from "@/lib/xp";
-import { tierFor } from "@/lib/pet";
+import { shownTier } from "@/lib/pet";
 
 export default function SettingsScreen() {
   const { hydrated } = useStore();
@@ -71,6 +71,7 @@ function SettingsForm() {
     tasks,
     trophies,
     xp,
+    pet,
     clearData,
   } = useStore();
   const { isPro } = useIsPro();
@@ -429,11 +430,13 @@ function SettingsForm() {
                 className="relative"
                 aria-label="Change profile picture"
               >
-                {/* The frame is an XP unlock, so it's gated on the level here
-                    rather than on the stored id alone — a document edited to
-                    name a ring the user hasn't earned simply doesn't get one. */}
+                {/* The ring is the pet you have on display, which is what
+                    makes picking one a profile picture decision rather than a
+                    decoration buried in a sheet. Still gated on what has been
+                    collected — `shownTier` refuses an id the account hasn't
+                    earned, so a hand-edited document gets the level's tier. */}
                 <AvatarFrame
-                  tier={tierFor(levelFromXp(xp.xp))}
+                  tier={shownTier(levelFromXp(xp.xp), pet)}
                   size={90}
                 >
                   {avatarUrl ? (

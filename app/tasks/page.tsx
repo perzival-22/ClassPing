@@ -9,7 +9,7 @@ import { StudyTimer } from "@/components/StudyTimer";
 import {
   TrophyBar,
   TrophyCelebration,
-  TrophyGraphSheet,
+  TrophyCaseSheet,
 } from "@/components/Trophies";
 import { LevelBar, LevelSheet, LevelUpCelebration } from "@/components/Level";
 import {
@@ -162,7 +162,7 @@ export default function TasksScreen() {
         </div>
 
         {showTrophies && (
-          <TrophyGraphSheet
+          <TrophyCaseSheet
             trophies={trophies}
             onClose={() => setShowTrophies(false)}
           />

@@ -61,7 +61,7 @@ export function PetAvatar({
       style={{
         width: size,
         height: size,
-        boxShadow: `0 0 ${Math.round(size * 0.3)}px ${status.tier.glow}`,
+        boxShadow: `0 0 ${Math.round(size * 0.3)}px ${status.shown.glow}`,
       }}
     >
       <span
@@ -70,13 +70,13 @@ export function PetAvatar({
         // sweep exactly once. Without the key it would animate on every mount —
         // which is every navigation back to Home, i.e. ambient motion by
         // accident.
-        key={arriving ? status.tier.id : undefined}
+        key={arriving ? status.shown.id : undefined}
         className={`absolute inset-0 rounded-full${arriving ? " tier-arrive" : ""}`}
-        style={{ background: status.tier.ring }}
+        style={{ background: status.shown.ring }}
       />
       <img
-        src={status.tier.art}
-        alt={`${status.tier.label} tier`}
+        src={status.shown.art}
+        alt={`${status.shown.label} tier`}
         width={inner}
         height={inner}
         decoding="async"
@@ -89,7 +89,7 @@ export function PetAvatar({
           // The hairline where ring meets portrait. Drawn outward from the
           // image so it sits *inside* the band, which is what turns a flat
           // arc into a lit inner edge — see `sheen` in lib/pet.ts.
-          boxShadow: `0 0 0 1px ${status.tier.sheen}`,
+          boxShadow: `0 0 0 1px ${status.shown.sheen}`,
         }}
       />
     </div>
@@ -283,11 +283,19 @@ export function PetShelf({
 export function TierLadder({
   best,
   current,
+  onPick,
 }: {
   /** Highest tier ever reached, which is what counts as collected. */
   best: TierId;
   /** The tier being *worn* right now, ringed in the brand colour. */
   current?: TierId;
+  /**
+   * Makes the collected pets choosable. Omitted on read-only surfaces — the
+   * level sheet shows the same ladder purely as a record of the climb, and a
+   * chip that looks tappable there would promise something that screen can't
+   * deliver.
+   */
+  onPick?: (id: TierId) => void;
 }) {
   return (
     <div className="flex flex-col gap-3.5">
@@ -328,11 +336,31 @@ export function TierLadder({
                * what you have on today.
                */
               const unlocked = i < shelf.held;
+              /*
+               * Only a collected pet is choosable, and the check is `unlocked`
+               * rather than anything the caller passed: a locked chip is a
+               * level number on a grey disc, and making that tappable would
+               * offer a pet the account does not have. `petStatus` refuses it
+               * again on the way through, so a bug here is cosmetic rather
+               * than a way to wear Astral Galaxy at level 3.
+               */
+              const choosable = unlocked && !!onPick;
+              const Chip = choosable ? "button" : "div";
               return (
-                <div
+                <Chip
                   key={t.id}
+                  {...(choosable
+                    ? {
+                        type: "button" as const,
+                        onClick: () => onPick(t.id),
+                        "aria-pressed": t.id === current,
+                        "aria-label": `Show ${t.label}`,
+                      }
+                    : {})}
                   title={`${t.label} — level ${t.at}`}
-                  className="relative flex aspect-square w-full items-center justify-center rounded-full transition"
+                  className={`relative flex aspect-square w-full items-center justify-center rounded-full transition${
+                    choosable ? " cursor-pointer active:scale-95" : ""
+                  }`}
                   style={{
                     background: unlocked ? t.ring : "var(--surface-3)",
                     ...(t.id === current
@@ -362,7 +390,7 @@ export function TierLadder({
                       {t.at}
                     </span>
                   )}
-                </div>
+                </Chip>
               );
             })}
           </div>
@@ -383,7 +411,7 @@ export function ClassPetCard({
   level: number;
   onOpen: () => void;
 }) {
-  const status = petStatus(level, pet.bestTier);
+  const status = petStatus(level, pet.bestTier, pet.equipped);
 
   return (
     <button
@@ -398,7 +426,7 @@ export function ClassPetCard({
             {pet.name || DEFAULT_PET_NAME}
           </span>
           <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-faint">
-            {status.tier.label}
+            {status.shown.label}
           </span>
           {status.demoted && (
             <span
@@ -429,7 +457,16 @@ export function PetSheet({
   onClose: () => void;
 }) {
   const [name, setName] = useState(pet.name || DEFAULT_PET_NAME);
-  const status = petStatus(level, pet.bestTier);
+  /*
+   * The pick is local until Done, exactly like the name field beside it.
+   *
+   * That is what lets the portrait at the top of this sheet be a live preview:
+   * tapping a pet shows you it immediately, and backing out with Escape or a
+   * tap on the scrim leaves the saved document untouched. Committing on every
+   * tap would write and sync a document per chip while somebody browses.
+   */
+  const [equipped, setEquipped] = useState<TierId | undefined>(pet.equipped);
+  const status = petStatus(level, pet.bestTier, equipped);
   const pets = collection(status.best.id);
 
   useEffect(() => {
@@ -441,7 +478,10 @@ export function PetSheet({
   }, [onClose]);
 
   const commit = () => {
-    onSave({ name: name.trim().slice(0, MAX_PET_NAME) || DEFAULT_PET_NAME });
+    onSave({
+      name: name.trim().slice(0, MAX_PET_NAME) || DEFAULT_PET_NAME,
+      equipped,
+    });
     onClose();
   };
 
@@ -468,7 +508,12 @@ export function PetSheet({
 
         <div className="flex flex-col items-center">
           <PetAvatar status={status} size={104} />
-          <p className="mt-1 text-center text-[13.5px] leading-snug text-muted">
+          {/* Names the pet on screen, which is the one thing the portrait
+              can't say for itself once it stopped always being the newest. */}
+          <p className="mt-2 text-center font-[family-name:var(--font-fredoka)] text-[16px] font-semibold leading-none text-ink">
+            {status.shown.label}
+          </p>
+          <p className="mt-1.5 text-center text-[13.5px] leading-snug text-muted">
             {status.line}
           </p>
           <p className="mt-1 text-center text-[11.5px] text-faint">
@@ -498,7 +543,7 @@ export function PetSheet({
         </label>
 
         <div className="mt-6">
-          <div className="mb-3 flex items-baseline justify-between">
+          <div className="mb-1 flex items-baseline justify-between">
             <div className="text-[11px] font-semibold uppercase tracking-widest text-faint">
               Pet shelf
             </div>
@@ -506,7 +551,39 @@ export function PetSheet({
               {pets.collected.length}/{TIERS.length}
             </div>
           </div>
-          <TierLadder best={status.best.id} current={status.tier.id} />
+
+          {/* The instruction, and the way back out of a choice.
+              A pinned pet needs an undo that is visible from the same place
+              the choice was made — otherwise "follow my level again" is a
+              state you can enter and not leave. */}
+          <div className="mb-3 flex min-h-[22px] items-center justify-between gap-2">
+            <span className="text-[11.5px] leading-snug text-muted-2">
+              {status.pinned
+                ? `Showing ${status.shown.label}.`
+                : "Tap any pet you've collected to show it."}
+            </span>
+            {status.pinned && (
+              <button
+                type="button"
+                onClick={() => setEquipped(undefined)}
+                className="shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold text-brand transition active:scale-95"
+                style={{ background: "var(--brand-soft)" }}
+              >
+                Follow my level
+              </button>
+            )}
+          </div>
+
+          <TierLadder
+            best={status.best.id}
+            current={status.shown.id}
+            onPick={(id) =>
+              // Tapping the pet you are already showing puts you back on the
+              // level — so the chip is a toggle and the ladder never needs a
+              // second control to mean "stop pinning this one".
+              setEquipped((prev) => (prev === id ? undefined : id))
+            }
+          />
         </div>
 
         <button

@@ -1,7 +1,7 @@
 "use client";
 
 import { PetAvatar, PetShelf } from "./ClassPet";
-import { TrophyIcon } from "./icons";
+import { TrophyShelf } from "./Trophies";
 import {
   collection,
   DEFAULT_PET_NAME,
@@ -15,7 +15,6 @@ import {
   MILESTONES,
   nextMilestone,
   trophyCounts,
-  type Milestone,
   type TrophyState,
 } from "@/lib/trophies";
 import { levelProgress, type XpState } from "@/lib/xp";
@@ -55,7 +54,7 @@ export function DisplayCase({
   onOpenTrophies: () => void;
 }) {
   const progress = levelProgress(xp.xp);
-  const status = petStatus(progress.level, pet.bestTier);
+  const status = petStatus(progress.level, pet.bestTier, pet.equipped);
   const runway = tierRunway(xp.xp);
   const pets = collection(status.best.id);
   const nextLevel = runwayToLevel(xp.xp, progress.level + 1);
@@ -86,7 +85,7 @@ export function DisplayCase({
             aria-hidden
             className="pointer-events-none absolute inset-x-2 top-2 h-[150px] rounded-[20px]"
             style={{
-              background: `radial-gradient(120px 96px at 50% 44%, ${status.tier.glow}, transparent 72%)`,
+              background: `radial-gradient(120px 96px at 50% 44%, ${status.shown.glow}, transparent 72%)`,
             }}
           />
           <PetAvatar status={status} size={132} />
@@ -96,7 +95,7 @@ export function DisplayCase({
               {pet.name || DEFAULT_PET_NAME}
             </span>
             <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-faint">
-              {status.tier.label}
+              {status.shown.label}
             </span>
           </div>
 
@@ -218,8 +217,12 @@ export function DisplayCase({
             boxShadow: "inset 0 2px 5px rgba(30,20,80,.07)",
           }}
         >
+          {/* The same shelf the trophy sheet draws, at the rail's size. It
+              was a private copy here until the sheet grew a case of its own —
+              two copies of one shelf is one shelf that eventually learns
+              something the other doesn't. */}
           {MILESTONES.map((m, i) => (
-            <Shelf
+            <TrophyShelf
               key={m.tier}
               milestone={m}
               count={counts[m.tier]}
@@ -242,82 +245,5 @@ export function DisplayCase({
         </button>
       </div>
     </aside>
-  );
-}
-
-/**
- * One shelf: the medals standing on a ledge, captioned underneath.
- *
- * Drawn as objects rather than as a number with an icon next to it, because
- * three bronzes in a row is a thing you can see at a glance and "3" is a thing
- * you have to read. Past eight they stop being countable by eye, so the rest
- * collapse into a tally — a shelf that wraps to three rows stops looking like
- * a shelf.
- *
- * An empty shelf keeps its ledge and its caption. That emptiness is the whole
- * explanation of what the streak is for, and it is the state most users are in
- * on the day they first see this.
- */
-function Shelf({
-  milestone,
-  count,
-  last,
-}: {
-  milestone: Milestone;
-  count: number;
-  last: boolean;
-}) {
-  const shown = Math.min(count, 8);
-  const extra = count - shown;
-
-  return (
-    <div className={last ? "" : "mb-2"}>
-      <div className="flex min-h-[30px] items-end gap-[3px] px-0.5">
-        {Array.from({ length: shown }).map((_, i) => (
-          <TrophyIcon
-            key={i}
-            className="h-[22px] w-[22px] shrink-0"
-            face={milestone.face}
-            ring={milestone.ring}
-          />
-        ))}
-        {extra > 0 && (
-          <span
-            className="ml-0.5 text-[11px] font-bold tabular-nums"
-            style={{ color: milestone.ring }}
-          >
-            +{extra}
-          </span>
-        )}
-      </div>
-
-      {/* The ledge. Two tones rather than one line: a lit top edge over a
-          darker body is what reads as a shelf with depth instead of a rule. */}
-      <div
-        className="h-[3px] rounded-full"
-        style={{
-          background: "var(--line-strong)",
-          boxShadow: "inset 0 1px 0 var(--pill-active)",
-          opacity: count > 0 ? 1 : 0.55,
-        }}
-      />
-
-      <div className="flex items-baseline justify-between pt-[3px]">
-        <span
-          className="text-[10.5px] font-semibold uppercase tracking-wide"
-          style={{
-            color: count > 0 ? "var(--color-muted-2)" : "var(--color-hint)",
-          }}
-        >
-          {milestone.label}
-        </span>
-        <span
-          className="text-[12px] font-bold tabular-nums"
-          style={{ color: count > 0 ? milestone.ring : "var(--color-hint)" }}
-        >
-          {count}
-        </span>
-      </div>
-    </div>
   );
 }

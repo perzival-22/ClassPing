@@ -15,6 +15,7 @@ import {
   normalizePetState,
   petStatus,
   shelves,
+  shownTier,
   tierById,
   tierFor,
   runwayToLevel,
@@ -22,6 +23,7 @@ import {
   tierRunway,
   DEFAULT_PET_NAME,
   MAX_PET_NAME,
+  type TierId,
 } from "./pet";
 import { MAX_LEVEL, XP_AWARDS, levelFromXp, xpForLevel } from "./xp";
 
@@ -374,6 +376,82 @@ describe("petStatus", () => {
   });
 });
 
+describe("picking a pet to display", () => {
+  it("shows the level's own tier when nothing is picked", () => {
+    const s = petStatus(41, "ember-common");
+    expect(s.shown.id).toBe("ember-common");
+    expect(s.shown.id).toBe(s.tier.id);
+    expect(s.pinned).toBe(false);
+  });
+
+  it("shows the picked pet instead, and says it is pinned", () => {
+    const s = petStatus(41, "ember-common", "base-galaxy");
+    expect(s.shown.id).toBe("base-galaxy");
+    expect(s.pinned).toBe(true);
+    // The ladder is untouched: still standing on Ember Common, still climbing.
+    expect(s.tier.id).toBe("ember-common");
+    expect(s.next?.id).toBe("ember-bronze");
+  });
+
+  /**
+   * The one rule that matters. `equipped` is the only field in this file that
+   * grants an appearance rather than recording one, so a document naming a rung
+   * the account has never reached must not be able to wear it.
+   */
+  it("refuses a pet that hasn't been collected", () => {
+    const s = petStatus(4, "base-bronze", "astral-galaxy");
+    expect(s.shown.id).toBe("base-bronze");
+    expect(s.pinned).toBe(false);
+  });
+
+  it("refuses an id that isn't a tier at all", () => {
+    for (const junk of ["diamond", "", "ember-galaxy"]) {
+      const s = petStatus(61, "crystal-common", junk as TierId);
+      expect(s.shown.id, junk).toBe("crystal-common");
+    }
+  });
+
+  /** Every collected pet must be wearable, at every point on the ladder. */
+  it("honours any rung at or below the best one", () => {
+    for (const best of TIERS) {
+      for (const want of TIERS) {
+        const s = petStatus(best.at, best.id, want.id);
+        const allowed = tierRank(want.id) <= tierRank(best.id);
+        expect(s.shown.id, `${want.id} on ${best.id}`).toBe(
+          allowed ? want.id : best.id,
+        );
+      }
+    }
+  });
+
+  /**
+   * A cleared semester keeps the shelf, so it must keep the choice too —
+   * `best` is what was earned, and that is what a pick is measured against.
+   */
+  it("keeps a pinned pet after a reset that empties the planner", () => {
+    const s = petStatus(1, "crystal-gold", "ghost-galaxy");
+    expect(s.shown.id).toBe("ghost-galaxy");
+    expect(s.tier.id).toBe("base-common");
+    expect(s.demoted).toBe(true);
+  });
+
+  it("never lets the display change what the ladder reports", () => {
+    const plain = petStatus(52, "ember-silver");
+    const pinned = petStatus(52, "ember-silver", "base-common");
+    expect(pinned.tier.id).toBe(plain.tier.id);
+    expect(pinned.next?.id).toBe(plain.next?.id);
+    expect(pinned.levelsToNext).toBe(plain.levelsToNext);
+    expect(pinned.best.id).toBe(plain.best.id);
+    expect(pinned.line).toBe(plain.line);
+  });
+
+  it("resolves the same tier through the shownTier shorthand", () => {
+    const pet = { bestTier: "ghost-gold" as TierId, equipped: "base-bronze" as TierId };
+    expect(shownTier(36, pet).id).toBe("base-bronze");
+    expect(shownTier(36, { bestTier: "ghost-gold" }).id).toBe("ghost-gold");
+  });
+});
+
 describe("normalizePetState", () => {
   it("falls back to the default for anything unrecognisable", () => {
     for (const junk of [null, undefined, 5, "x", []]) {
@@ -463,6 +541,53 @@ describe("normalizePetState", () => {
       name: "Bo",
       bestTier: "base-common",
     });
+  });
+
+  it("keeps an equipped pet the account has collected", () => {
+    expect(
+      normalizePetState({ bestTier: "crystal-gold", equipped: "ghost-rare" }),
+    ).toEqual({
+      name: DEFAULT_PET_NAME,
+      bestTier: "crystal-gold",
+      equipped: "ghost-rare",
+    });
+  });
+
+  /**
+   * The field crosses the sync endpoint and is the only one that grants an
+   * appearance, so a document claiming to wear something it never earned has
+   * to be disarmed here rather than in the picker that renders it.
+   */
+  it("drops an equipped pet that outranks what was earned", () => {
+    const s = normalizePetState({
+      bestTier: "base-bronze",
+      equipped: "astral-galaxy",
+    });
+    expect(s.equipped).toBeUndefined();
+    expect(s.bestTier).toBe("base-bronze");
+  });
+
+  it("drops an equipped pet that isn't a real tier", () => {
+    for (const junk of ["diamond", 9, {}, null, "ember-galaxy"]) {
+      expect(
+        normalizePetState({ bestTier: "astral-galaxy", equipped: junk }).equipped,
+        String(junk),
+      ).toBeUndefined();
+    }
+  });
+
+  /** Unset means "follow my level", so the key is absent rather than null. */
+  it("omits the key entirely when no pet is pinned", () => {
+    expect("equipped" in normalizePetState({ bestTier: "ghost-gold" })).toBe(
+      false,
+    );
+  });
+
+  /** A pick written under an older ladder has to survive the same migration. */
+  it("migrates a legacy equipped id the same way as the badge", () => {
+    const s = normalizePetState({ bestTier: "galaxy", equipped: "bronze" });
+    expect(s.bestTier).toBe("crystal-bronze");
+    expect(s.equipped).toBe("base-bronze");
   });
 });
 

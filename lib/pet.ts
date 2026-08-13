@@ -370,6 +370,23 @@ export interface PetState {
    * that doesn't.
    */
   bestTier: TierId;
+  /**
+   * The pet the student chose to display, if they have chosen one.
+   *
+   * Undefined means "whatever the level currently grants", which is what every
+   * account did before this existed and what most will keep doing. Setting it
+   * pins one portrait: the collection is twenty-seven characters across five
+   * families, and once you own a shelf of them, being shown only the newest is
+   * the app picking your favourite for you.
+   *
+   * It is a *display* choice and nothing else. It never changes what has been
+   * earned, what is next, or what the ladder says — see `shown` versus `tier`
+   * in PetStatus. And it can only ever name a rung already collected, which
+   * `normalizePetState` enforces on the way in rather than trusting the UI:
+   * this crosses storage and the sync endpoint, so "the picker only offers
+   * unlocked pets" is not a guarantee about what arrives here.
+   */
+  equipped?: TierId;
 }
 
 export const DEFAULT_PET_NAME = "Pip";
@@ -409,7 +426,34 @@ export function normalizePetState(raw: unknown): PetState {
       ? (stored as TierId)
       : FIRST_TIER.id;
 
-  return { name, bestTier };
+  /*
+   * The equipped pet is dropped unless it is a real rung *and* one this
+   * account has actually collected. Both halves matter and for different
+   * reasons: the first rejects junk, and the second rejects a document that
+   * claims to be wearing Astral Galaxy on a level-3 account — which is the
+   * shape a hand-edited or hostile document takes, since it is the only field
+   * here that grants an appearance rather than recording one.
+   *
+   * Dropped rather than clamped. Falling back to `undefined` means "show what
+   * the level grants", which is exactly right and is also what every account
+   * that never picked one does; clamping to the best tier would silently
+   * invent a choice the user never made.
+   */
+  const wanted =
+    typeof v.equipped === "string"
+      ? (migrateTierId(v.equipped) ?? v.equipped)
+      : undefined;
+  const equipped =
+    wanted &&
+    TIERS.some((t) => t.id === wanted) &&
+    tierRank(wanted as TierId) <= tierRank(bestTier)
+      ? (wanted as TierId)
+      : undefined;
+
+  // Omitted entirely when unset rather than written as `undefined`: this object
+  // is JSON.stringify'd into the synced document, and an explicit key costs
+  // bytes on every save to say nothing.
+  return equipped ? { name, bestTier, equipped } : { name, bestTier };
 }
 
 /* ── the collection ─────────────────────────────────────── */
@@ -554,8 +598,27 @@ export function tierRunway(xp: number): TierRunway {
 }
 
 export interface PetStatus {
-  /** What the current level has earned. */
+  /**
+   * What the current level has earned.
+   *
+   * The ladder's answer, not the screen's — this is what drives "next tier at
+   * level N" and whether the badge counts as a demotion. For the portrait to
+   * draw, use `shown`.
+   */
   tier: Tier;
+  /**
+   * The pet actually on screen: the one that was picked, or `tier` if none was.
+   *
+   * Every portrait, ring and aura in the app reads this. Keeping it apart from
+   * `tier` is the whole reason picking a pet is safe — choosing to display
+   * Ghost Bronze at level 90 changes one thing, which is what you are looking
+   * at. It cannot move a threshold, take back a rung, or make the app think
+   * you are further down the ladder than you are, because nothing that decides
+   * those reads this field.
+   */
+  shown: Tier;
+  /** True when `shown` is a deliberate choice rather than the current rung. */
+  pinned: boolean;
   /** The next rung, or null at the top. */
   next: Tier | null;
   /** Levels still to climb before `next`. Zero at the top. */
@@ -568,14 +631,43 @@ export interface PetStatus {
   line: string;
 }
 
+/**
+ * The pet on screen, for the surfaces that want the artwork and nothing else.
+ *
+ * The avatar ring in the sidebar, the tab bar's add button and the profile
+ * picture in Settings are all the same aura at three sizes, and none of them
+ * has any use for the runway or the badge. They route through here rather than
+ * calling `tierFor(level)` themselves — which is what they used to do, and is
+ * why the pinned pet has to be threaded rather than assumed: three places
+ * quietly deciding what the current pet is, is three places to forget.
+ */
+export function shownTier(
+  level: number,
+  pet: Pick<PetState, "bestTier" | "equipped">,
+): Tier {
+  return petStatus(level, pet.bestTier, pet.equipped).shown;
+}
+
 export function petStatus(
   level: number,
   bestTier: TierId = FIRST_TIER.id,
+  equipped?: TierId,
 ): PetStatus {
   const tier = tierFor(level);
   const next = nextTier(level);
   const best = tierById(higherTier(bestTier, tier.id)) ?? FIRST_TIER;
   const demoted = tierRank(best.id) > tierRank(tier.id);
+
+  /*
+   * A pick is honoured only up to what has been collected. normalizePetState
+   * already drops anything further, so this is the second of two gates — but
+   * it is the one that holds when a caller passes an id straight through
+   * without going near storage, which the pet sheet does on every tap.
+   */
+  const wanted = equipped ? tierById(equipped) : undefined;
+  const shown =
+    wanted && tierRank(wanted.id) <= tierRank(best.id) ? wanted : tier;
+  const pinned = shown.id !== tier.id;
 
   const line = next
     ? `Level ${level} · ${next.at - level} ${
@@ -585,6 +677,8 @@ export function petStatus(
 
   return {
     tier,
+    shown,
+    pinned,
     next,
     levelsToNext: next ? next.at - level : 0,
     demoted,

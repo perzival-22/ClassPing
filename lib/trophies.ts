@@ -265,26 +265,3 @@ export function trophyCounts(trophies: Trophy[]): Record<TrophyTier, number> {
 export function nextMilestone(streak: number): Milestone | null {
   return MILESTONES.find((m) => m.at > streak) ?? null;
 }
-
-/** One plotted trophy: when it landed and the running total at that point. */
-export interface TimelinePoint {
-  tier: TrophyTier;
-  at: string;
-  /** ms timestamp, for positioning. */
-  time: number;
-  /** Cumulative trophies including this one. */
-  total: number;
-}
-
-/**
- * Trophies in the order they were earned, with a running total — the series
- * the semester graph plots. Unparseable timestamps are dropped rather than
- * collapsing the axis to 1970.
- */
-export function trophyTimeline(trophies: Trophy[]): TimelinePoint[] {
-  return trophies
-    .map((t) => ({ ...t, time: new Date(t.at).getTime() }))
-    .filter((t) => Number.isFinite(t.time))
-    .sort((a, b) => a.time - b.time)
-    .map((t, i) => ({ ...t, total: i + 1 }));
-}
